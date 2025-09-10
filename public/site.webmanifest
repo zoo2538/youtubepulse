@@ -1,0 +1,13 @@
+{
+  "name": "YouTube Pulse Dashboard",
+  "short_name": "YouTube Pulse",
+  "description": "실시간 유튜브 조회수 급등 채널과 영상 분석 대시보드",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1f2937",
+  "theme_color": "#1f2937",
+  "orientation": "portrait-primary",
+  "icons": []
+}
+
+

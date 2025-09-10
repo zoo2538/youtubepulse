@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* YouTube Analytics Dashboard Design System - All colors MUST be HSL */
+
+@layer base {
+  :root {
+    /* Background & Surface */
+    --background: 240 10% 3.9%;
+    --surface: 240 10% 6%;
+    --surface-hover: 240 8% 8%;
+    --foreground: 0 0% 98%;
+
+    /* Cards & Panels */
+    --card: 240 10% 6%;
+    --card-hover: 240 8% 8%;
+    --card-foreground: 0 0% 98%;
+
+    /* YouTube Brand Colors */
+    --youtube-red: 0 100% 50%;
+    --youtube-red-hover: 0 100% 45%;
+    
+    /* Data Visualization */
+    --success: 142 76% 36%;
+    --success-light: 142 69% 58%;
+    --danger: 0 84% 60%;
+    --danger-light: 0 84% 75%;
+    --warning: 38 92% 50%;
+    --info: 217 91% 60%;
+
+    /* UI Elements */
+    --primary: 0 100% 50%;
+    --primary-foreground: 0 0% 98%;
+    --primary-hover: 0 100% 45%;
+
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
+    --secondary-hover: 240 5% 20%;
+
+    --muted: 240 5% 16%;
+    --muted-foreground: 240 5% 64.9%;
+
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Borders & Inputs */
+    --border: 240 6% 20%;
+    --border-hover: 240 6% 25%;
+    --input: 240 6% 16%;
+    --ring: 0 100% 50%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Safari 호환성을 위한 user-select 스타일 */
+@layer utilities {
+  .select-none {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Chrome 호환성을 위한 text-size-adjust 스타일 */
+  .text-size-adjust-none {
+    -webkit-text-size-adjust: none;
+    -moz-text-size-adjust: none;
+    -ms-text-size-adjust: none;
+    text-size-adjust: none;
+  }
+}
+
+
+

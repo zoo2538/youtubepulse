@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Pulse 데이터 초기화</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #e74c3c;
+            text-align: center;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        .button {
+            background: #e74c3c;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background: #c0392b;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: none;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: none;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 YouTube Pulse 데이터 초기화</h1>
+        
+        <div class="warning">
+            <strong>⚠️ 주의사항:</strong><br>
+            이 작업은 모든 데이터를 완전히 삭제합니다.<br>
+            • localStorage의 모든 설정과 데이터<br>
+            • IndexedDB의 모든 수집 데이터<br>
+            • 분류 작업 결과<br>
+            <strong>복구할 수 없으니 신중하게 결정하세요!</strong>
+        </div>
+
+        <button class="button" onclick="clearAllData()">
+            🗑️ 모든 데이터 완전 삭제
+        </button>
+
+        <div id="success" class="success"></div>
+        <div id="error" class="error"></div>
+        
+        <div id="log" class="log" style="display: none;"></div>
+    </div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.style.display = 'block';
+            logDiv.textContent += message + '\n';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.getElementById('success');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function clearAllData() {
+            if (!confirm('정말로 모든 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다!')) {
+                return;
+            }
+
+            log('🧹 YouTube Pulse 데이터 초기화 시작...');
+
+            // 1. localStorage 완전 삭제
+            try {
+                localStorage.clear();
+                log('✅ localStorage 완전 삭제 완료');
+            } catch (error) {
+                log('❌ localStorage 삭제 실패: ' + error.message);
+            }
+
+            // 2. IndexedDB 완전 삭제
+            try {
+                const deleteRequest = indexedDB.deleteDatabase('YouTubePulseDB');
+                
+                deleteRequest.onsuccess = function() {
+                    log('✅ IndexedDB 완전 삭제 완료');
+                    log('🎉 모든 데이터 초기화 완료!');
+                    log('📝 다음 단계:');
+                    log('1. YouTube Pulse 사이트로 이동');
+                    log('2. 시스템 설정 페이지에서 키워드 120개 확인');
+                    log('3. 새로운 데이터 수집 실행');
+                    
+                    showSuccess('✅ 모든 데이터가 성공적으로 삭제되었습니다!\n이제 YouTube Pulse 사이트로 이동하여 새로운 데이터를 수집하세요.');
+                };
+                
+                deleteRequest.onerror = function() {
+                    log('❌ IndexedDB 삭제 실패: ' + deleteRequest.error);
+                    showError('❌ IndexedDB 삭제에 실패했습니다. 다른 탭에서 사용 중일 수 있습니다.');
+                };
+                
+                deleteRequest.onblocked = function() {
+                    log('⚠️ IndexedDB 삭제가 차단됨. 다른 탭에서 사용 중일 수 있습니다.');
+                    log('💡 해결방법: 다른 탭을 모두 닫고 다시 시도하세요.');
+                    showError('⚠️ IndexedDB 삭제가 차단되었습니다. 다른 탭을 모두 닫고 다시 시도하세요.');
+                };
+                
+            } catch (error) {
+                log('❌ IndexedDB 삭제 중 오류: ' + error.message);
+                showError('❌ IndexedDB 삭제 중 오류가 발생했습니다.');
+            }
+
+            // 3. 추가 정리
+            try {
+                sessionStorage.clear();
+                log('✅ sessionStorage 정리 완료');
+                
+                // 쿠키 정리
+                document.cookie.split(";").forEach(function(c) { 
+                    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+                });
+                log('✅ 쿠키 정리 완료');
+                
+            } catch (error) {
+                log('⚠️ 추가 정리 중 일부 오류: ' + error.message);
+            }
+
+            log('🚀 초기화 스크립트 실행 완료!');
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+

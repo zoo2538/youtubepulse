@@ -1,0 +1,1169 @@
+// IndexedDB 데이터 저장 서비스
+class IndexedDBService {
+  private dbName = 'YouTubePulseDB';
+  private version = 2;
+  private db: IDBDatabase | null = null;
+
+  // 데이터베이스 초기화
+  async init(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.version);
+
+      request.onerror = () => {
+        console.error('IndexedDB 초기화 실패:', request.error);
+        reject(request.error);
+      };
+      
+      request.onsuccess = () => {
+        this.db = request.result;
+        console.log('✅ IndexedDB 초기화 성공:', this.dbName);
+        resolve();
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = (event.target as IDBOpenDBRequest).result;
+
+        // unclassifiedData 저장소
+        if (!db.objectStoreNames.contains('unclassifiedData')) {
+          const unclassifiedStore = db.createObjectStore('unclassifiedData', { keyPath: 'id' });
+          unclassifiedStore.createIndex('channelName', 'channelName', { unique: false });
+          unclassifiedStore.createIndex('status', 'status', { unique: false });
+          unclassifiedStore.createIndex('category', 'category', { unique: false });
+        }
+
+        // classifiedData 저장소
+        if (!db.objectStoreNames.contains('classifiedData')) {
+          const classifiedStore = db.createObjectStore('classifiedData', { keyPath: 'id' });
+          classifiedStore.createIndex('channelName', 'channelName', { unique: false });
+          classifiedStore.createIndex('category', 'category', { unique: false });
+        }
+
+        // channels 저장소
+        if (!db.objectStoreNames.contains('channels')) {
+          const channelsStore = db.createObjectStore('channels', { keyPath: 'id' });
+          channelsStore.createIndex('name', 'name', { unique: false });
+        }
+
+        // videos 저장소
+        if (!db.objectStoreNames.contains('videos')) {
+          const videosStore = db.createObjectStore('videos', { keyPath: 'id' });
+          videosStore.createIndex('channelId', 'channelId', { unique: false });
+          videosStore.createIndex('uploadDate', 'uploadDate', { unique: false });
+        }
+
+        // categories 저장소 (새로운 구조)
+        if (!db.objectStoreNames.contains('categories')) {
+          const categoriesStore = db.createObjectStore('categories', { autoIncrement: true });
+        } else {
+          // 기존 categories 저장소가 있으면 삭제하고 새로 생성
+          db.deleteObjectStore('categories');
+          const categoriesStore = db.createObjectStore('categories', { autoIncrement: true });
+        }
+
+        // subCategories 저장소
+        if (!db.objectStoreNames.contains('subCategories')) {
+          const subCategoriesStore = db.createObjectStore('subCategories', { keyPath: 'id', autoIncrement: true });
+          subCategoriesStore.createIndex('category', 'category', { unique: false });
+        }
+
+        // systemConfig 저장소
+        if (!db.objectStoreNames.contains('systemConfig')) {
+          db.createObjectStore('systemConfig', { keyPath: 'key' });
+        }
+
+        // dailySummary 저장소: keyPath = date (YYYY-MM-DD)
+        if (!db.objectStoreNames.contains('dailySummary')) {
+          const dailySummary = db.createObjectStore('dailySummary', { keyPath: 'date' });
+          dailySummary.createIndex('date', 'date', { unique: true });
+        }
+
+        // dailyProgress 저장소
+        if (!db.objectStoreNames.contains('dailyProgress')) {
+          const dailyProgress = db.createObjectStore('dailyProgress', { autoIncrement: true });
+        }
+
+        // classifiedByDate 저장소: 날짜별 분류 스냅샷 (keyPath = date)
+        if (!db.objectStoreNames.contains('classifiedByDate')) {
+          const byDate = db.createObjectStore('classifiedByDate', { keyPath: 'date' });
+          byDate.createIndex('date', 'date', { unique: true });
+        }
+      };
+    });
+  }
+
+  // unclassifiedData 저장
+  async saveUnclassifiedData(data: any[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      
+      // 기존 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 추가
+        let completed = 0;
+        const total = data.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        data.forEach((item, index) => {
+          // id가 없는 경우 자동 생성
+          if (!item.id) {
+            item.id = Date.now() + index;
+          }
+          const addRequest = store.add(item);
+          addRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          };
+          addRequest.onerror = () => reject(addRequest.error);
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // unclassifiedData 로드
+  async loadUnclassifiedData(): Promise<any[]> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readonly');
+      const store = transaction.objectStore('unclassifiedData');
+      const request = store.getAll();
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // 특정 날짜의 unclassifiedData 로드
+  async loadUnclassifiedDataByDate(collectionDate: string): Promise<any[]> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readonly');
+      const store = transaction.objectStore('unclassifiedData');
+      const request = store.getAll();
+      
+      request.onsuccess = () => {
+        // collectionDate 또는 uploadDate가 일치하는 데이터만 필터링
+        const filteredData = request.result.filter((item: any) => {
+          const itemDate = item.collectionDate || item.uploadDate;
+          return itemDate === collectionDate;
+        });
+        resolve(filteredData);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // 사용 가능한 날짜 목록 조회 (7일 범위 자동 생성 포함)
+  async getAvailableDates(): Promise<string[]> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const dates = new Set<string>();
+      let completedRequests = 0;
+      const totalRequests = 3; // unclassifiedData, classifiedData, dailyProgress
+      
+      const checkCompletion = () => {
+        completedRequests++;
+        if (completedRequests === totalRequests) {
+          // 7일 범위의 날짜 자동 생성 (한국 시간 기준)
+          // 한국 시간으로 오늘 날짜 계산
+          const now = new Date();
+          const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+          const today = koreaTime.toISOString().split('T')[0];
+          
+          // 7일 범위의 모든 날짜 생성 (오늘 포함)
+          for (let i = 0; i < 7; i++) {
+            const date = new Date(koreaTime.getTime() - i * 24 * 60 * 60 * 1000);
+            const dateStr = date.toISOString().split('T')[0];
+            dates.add(dateStr);
+          }
+          
+          // 백업된 날짜들도 포함 (7일 범위를 벗어나더라도)
+          // 이미 dates Set에 추가된 날짜들은 중복되지 않음
+          
+          // 날짜 정렬 (최신순)
+          const sortedDates = Array.from(dates).sort((a, b) => b.localeCompare(a));
+          console.log(`📅 사용 가능한 날짜들 (7일 범위 자동 생성): ${sortedDates.length}개`, sortedDates);
+          resolve(sortedDates);
+        }
+      };
+      
+      // 1. unclassifiedData에서 날짜 조회
+      const unclassifiedTransaction = this.db!.transaction(['unclassifiedData'], 'readonly');
+      const unclassifiedStore = unclassifiedTransaction.objectStore('unclassifiedData');
+      const unclassifiedRequest = unclassifiedStore.getAll();
+      
+      unclassifiedRequest.onsuccess = () => {
+        unclassifiedRequest.result.forEach((item: any) => {
+          const date = item.collectionDate || item.uploadDate;
+          if (date) {
+            dates.add(date);
+          }
+        });
+        console.log(`📊 unclassifiedData에서 ${unclassifiedRequest.result.length}개 항목 조회`);
+        checkCompletion();
+      };
+      unclassifiedRequest.onerror = () => {
+        console.error('unclassifiedData 조회 실패:', unclassifiedRequest.error);
+        checkCompletion();
+      };
+      
+      // 2. classifiedData에서 날짜 조회
+      const classifiedTransaction = this.db!.transaction(['classifiedData'], 'readonly');
+      const classifiedStore = classifiedTransaction.objectStore('classifiedData');
+      const classifiedRequest = classifiedStore.getAll();
+      
+      classifiedRequest.onsuccess = () => {
+        classifiedRequest.result.forEach((item: any) => {
+          const date = item.collectionDate || item.uploadDate;
+          if (date) {
+            dates.add(date);
+          }
+        });
+        console.log(`📊 classifiedData에서 ${classifiedRequest.result.length}개 항목 조회`);
+        checkCompletion();
+      };
+      classifiedRequest.onerror = () => {
+        console.error('classifiedData 조회 실패:', classifiedRequest.error);
+        checkCompletion();
+      };
+      
+      // 3. dailyProgress에서 날짜 조회
+      const progressTransaction = this.db!.transaction(['dailyProgress'], 'readonly');
+      const progressStore = progressTransaction.objectStore('dailyProgress');
+      const progressRequest = progressStore.getAll();
+      
+      progressRequest.onsuccess = () => {
+        progressRequest.result.forEach((item: any) => {
+          if (item.date) {
+            dates.add(item.date);
+          }
+        });
+        console.log(`📊 dailyProgress에서 ${progressRequest.result.length}개 항목 조회`);
+        checkCompletion();
+      };
+      progressRequest.onerror = () => {
+        console.error('dailyProgress 조회 실패:', progressRequest.error);
+        checkCompletion();
+      };
+    });
+  }
+
+  // classifiedData 저장
+  async saveClassifiedData(data: any[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
+      const store = transaction.objectStore('classifiedData');
+      
+      // 기존 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 추가
+        let completed = 0;
+        const total = data.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        data.forEach((item) => {
+          const putRequest = store.put(item);
+          putRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          };
+          putRequest.onerror = () => reject(putRequest.error);
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // classifiedData 로드
+  async loadClassifiedData(): Promise<any[]> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classifiedData'], 'readonly');
+      const store = transaction.objectStore('classifiedData');
+      const request = store.getAll();
+      
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // 특정 날짜의 classifiedData만 업데이트
+  async updateClassifiedDataByDate(dateData: any[], targetDate: string): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
+      const store = transaction.objectStore('classifiedData');
+      
+      // 기존 데이터 로드
+      const getAllRequest = store.getAll();
+      getAllRequest.onsuccess = () => {
+        const existingData = getAllRequest.result;
+        
+        // 대상 날짜의 데이터 제거
+        const filteredData = existingData.filter(item => {
+          const itemDate = item.collectionDate || item.uploadDate;
+          return itemDate !== targetDate;
+        });
+        
+        // 새 데이터와 기존 데이터 결합
+        const combinedData = [...filteredData, ...dateData];
+        
+        // 모든 데이터 삭제 후 새로 저장
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => {
+          let completed = 0;
+          const total = combinedData.length;
+          
+          if (total === 0) {
+            resolve();
+            return;
+          }
+
+          combinedData.forEach((item, index) => {
+            // id가 없는 경우 자동 생성
+            if (!item.id) {
+              item.id = Date.now() + index;
+            }
+            const putRequest = store.put(item);
+            putRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정`);
+                resolve();
+              }
+            };
+            putRequest.onerror = () => reject(putRequest.error);
+          });
+        };
+        clearRequest.onerror = () => reject(clearRequest.error);
+      };
+      getAllRequest.onerror = () => reject(getAllRequest.error);
+    });
+  }
+
+  // unclassifiedData 업데이트
+  async updateUnclassifiedData(data: any[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    console.log('💾 IndexedDB 업데이트 - unclassifiedData:', data.length, '개');
+    console.log('💾 데이터 샘플 (카테고리/세부카테고리):', data.slice(0, 3).map(item => ({
+      category: item.category,
+      subCategory: item.subCategory,
+      channelName: item.channelName
+    })));
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      
+      let completed = 0;
+      const total = data.length;
+      
+      if (total === 0) {
+        resolve();
+        return;
+      }
+
+      data.forEach((item, index) => {
+        // id가 없는 경우 자동 생성
+        if (!item.id) {
+          item.id = Date.now() + index;
+        }
+        const putRequest = store.put(item);
+        putRequest.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            resolve();
+          }
+        };
+        putRequest.onerror = () => reject(putRequest.error);
+      });
+    });
+  }
+
+  // 특정 날짜의 unclassifiedData만 업데이트
+  async updateUnclassifiedDataByDate(dateData: any[], targetDate: string): Promise<void> {
+    if (!this.db) await this.init();
+    
+    console.log(`💾 IndexedDB 날짜별 업데이트 - ${targetDate}:`, dateData.length, '개');
+    console.log('💾 데이터 샘플 (카테고리/세부카테고리):', dateData.slice(0, 3).map(item => ({
+      category: item.category,
+      subCategory: item.subCategory,
+      channelName: item.channelName
+    })));
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      
+      // 먼저 전체 데이터를 로드
+      const loadRequest = store.getAll();
+      loadRequest.onsuccess = () => {
+        const allData = loadRequest.result;
+        
+        // 해당 날짜가 아닌 데이터만 필터링
+        const otherDatesData = allData.filter(item => {
+          const itemDate = item.collectionDate || item.uploadDate;
+          return itemDate !== targetDate;
+        });
+        
+        // 새로운 데이터와 기존 데이터를 합침
+        const finalData = [...otherDatesData, ...dateData];
+        
+        // 기존 데이터를 모두 삭제하고 새로운 데이터로 교체
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => {
+          let completed = 0;
+          const total = finalData.length;
+          
+          if (total === 0) {
+            console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정`);
+            resolve();
+            return;
+          }
+
+          finalData.forEach((item, index) => {
+            // id가 없는 경우 자동 생성
+            if (!item.id) {
+              item.id = Date.now() + index;
+            }
+            const putRequest = store.put(item);
+            putRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정`);
+                resolve();
+              }
+            };
+            putRequest.onerror = () => reject(putRequest.error);
+          });
+        };
+        clearRequest.onerror = () => reject(clearRequest.error);
+      };
+      loadRequest.onerror = () => reject(loadRequest.error);
+    });
+  }
+
+  // classifiedData 업데이트
+  async updateClassifiedData(data: any[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
+      const store = transaction.objectStore('classifiedData');
+      
+      let completed = 0;
+      const total = data.length;
+      
+      if (total === 0) {
+        resolve();
+        return;
+      }
+
+      data.forEach((item, index) => {
+        // id가 없는 경우 자동 생성
+        if (!item.id) {
+          item.id = Date.now() + index;
+        }
+        const putRequest = store.put(item);
+        putRequest.onsuccess = () => {
+          completed++;
+          if (completed === total) {
+            resolve();
+          }
+        };
+        putRequest.onerror = () => reject(putRequest.error);
+      });
+    });
+  }
+
+  // channels 저장
+  async saveChannels(channels: any): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['channels'], 'readwrite');
+      const store = transaction.objectStore('channels');
+      
+      // 기존 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 추가
+        const channelEntries = Object.entries(channels);
+        let completed = 0;
+        const total = channelEntries.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        channelEntries.forEach(([id, channel]: [string, any]) => {
+          const addRequest = store.add({ id, ...channel });
+          addRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          };
+          addRequest.onerror = () => reject(addRequest.error);
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // videos 저장
+  async saveVideos(videos: any): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['videos'], 'readwrite');
+      const store = transaction.objectStore('videos');
+      
+      // 기존 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 추가
+        const videoEntries = Object.entries(videos);
+        let completed = 0;
+        const total = videoEntries.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        videoEntries.forEach(([channelId, channelVideos]: [string, any]) => {
+          if (Array.isArray(channelVideos)) {
+            channelVideos.forEach((video: any) => {
+              const addRequest = store.add({ ...video, channelId });
+              addRequest.onsuccess = () => {
+                completed++;
+                if (completed === total) {
+                  resolve();
+                }
+              };
+              addRequest.onerror = () => reject(addRequest.error);
+            });
+          }
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // categories 저장 (subCategories 테이블 사용)
+  async saveCategories(categories: Record<string, string[]>): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['subCategories'], 'readwrite');
+      const store = transaction.objectStore('subCategories');
+      
+      // 기존 데이터 완전 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 저장 (keyPath: 'id' 사용)
+        const addRequest = store.add({ 
+          id: 1, // 고정 ID 사용
+          type: 'categories',
+          data: categories,
+          timestamp: new Date().toISOString()
+        });
+        addRequest.onsuccess = () => {
+          console.log('✅ 카테고리 저장 완료:', categories);
+          resolve();
+        };
+        addRequest.onerror = (error) => {
+          console.error('❌ 카테고리 저장 실패:', error);
+          reject(addRequest.error);
+        };
+      };
+      clearRequest.onerror = (error) => {
+        console.error('❌ 카테고리 삭제 실패:', error);
+        reject(clearRequest.error);
+      };
+    });
+  }
+
+  // categories 로드 (subCategories 테이블 사용)
+  async loadCategories(): Promise<Record<string, string[]> | null> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['subCategories'], 'readonly');
+      const store = transaction.objectStore('subCategories');
+      const request = store.getAll();
+      
+      request.onsuccess = () => {
+        const results = request.result;
+        // type이 'categories'인 가장 최근 데이터 찾기
+        const categoriesData = results
+          .filter(item => item.type === 'categories')
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        
+        resolve(categoriesData?.data || null);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // dailyProgress 저장 (단일 객체 또는 배열)
+  async saveDailyProgress(progressData: any | any[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    console.log('🔍 saveDailyProgress 호출됨 - 매개변수:', typeof progressData, progressData);
+    
+    // 데이터 유효성 검사 및 정규화
+    let dataArray: any[] = [];
+    
+    if (Array.isArray(progressData)) {
+      dataArray = progressData.filter(item => item && typeof item === 'object');
+      console.log('🔍 배열로 처리됨:', dataArray.length, '개 항목');
+    } else if (progressData && typeof progressData === 'object') {
+      dataArray = [progressData];
+      console.log('🔍 객체로 처리됨:', dataArray[0]);
+    } else {
+      console.error('❌ saveDailyProgress: 유효하지 않은 데이터 타입:', typeof progressData, progressData);
+      return Promise.resolve();
+    }
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['dailyProgress'], 'readwrite');
+      const store = transaction.objectStore('dailyProgress');
+      
+      // 기존 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 추가
+        let completed = 0;
+        const total = dataArray.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        dataArray.forEach((item, index) => {
+          // 객체 복사하여 원본 수정 방지
+          const itemCopy = { ...item };
+          
+          // id가 없는 경우 자동 생성
+          if (!itemCopy.id) {
+            itemCopy.id = Date.now() + index;
+          }
+          
+          const addRequest = store.add(itemCopy);
+          addRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          };
+          addRequest.onerror = () => reject(addRequest.error);
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // subCategories 저장
+  async saveSubCategories(subCategories: any): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['subCategories'], 'readwrite');
+      const store = transaction.objectStore('subCategories');
+      
+      // 기존 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 새 데이터 추가
+        const subCategoryEntries = Object.entries(subCategories);
+        let completed = 0;
+        const total = subCategoryEntries.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        subCategoryEntries.forEach(([category, subCats]: [string, any]) => {
+          if (Array.isArray(subCats)) {
+            subCats.forEach((subCat: string) => {
+              const addRequest = store.add({ category, subCategory: subCat });
+              addRequest.onsuccess = () => {
+                completed++;
+                if (completed === total) {
+                  resolve();
+                }
+              };
+              addRequest.onerror = () => reject(addRequest.error);
+            });
+          }
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // subCategories 로드: { [category: string]: string[] }
+  async loadSubCategories(): Promise<Record<string, string[]>> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      const result: Record<string, string[]> = {};
+      const transaction = this.db!.transaction(['subCategories'], 'readonly');
+      const store = transaction.objectStore('subCategories');
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const rows = request.result || [];
+        rows.forEach((row: any) => {
+          const cat = row.category;
+          const sub = row.subCategory;
+          if (!cat || !sub) return;
+          if (!result[cat]) result[cat] = [];
+          if (!result[cat].includes(sub)) result[cat].push(sub);
+        });
+        resolve(result);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // 시스템 설정 저장
+  async saveSystemConfig(key: string, value: any): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['systemConfig'], 'readwrite');
+      const store = transaction.objectStore('systemConfig');
+      const request = store.put({ key, value });
+      
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // 시스템 설정 로드
+  async loadSystemConfig(key: string): Promise<any> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['systemConfig'], 'readonly');
+      const store = transaction.objectStore('systemConfig');
+      const request = store.get(key);
+      
+      request.onsuccess = () => resolve(request.result?.value);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // 데이터베이스 삭제 (초기화)
+  async clearDatabase(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(this.dbName);
+      
+      request.onsuccess = () => {
+        this.db = null;
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // dailySummary 저장/업데이트 (하루 치 전체 교체)
+  async saveDailySummary(date: string, summary: any): Promise<void> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(['dailySummary'], 'readwrite');
+      const store = tx.objectStore('dailySummary');
+      
+      // 안전한 데이터 객체 생성
+      const dataToSave: any = { date };
+      
+      // summary가 객체인 경우에만 속성 추가
+      if (summary && typeof summary === 'object' && !Array.isArray(summary)) {
+        Object.keys(summary).forEach(key => {
+          // date 속성은 제외하고 다른 속성들만 추가
+          if (key !== 'date') {
+            dataToSave[key] = summary[key];
+          }
+        });
+      }
+      
+      console.log('💾 saveDailySummary 호출:', { 
+        date, 
+        summaryKeys: summary ? Object.keys(summary) : [],
+        dataToSaveKeys: Object.keys(dataToSave)
+      });
+      
+      const req = store.put(dataToSave);
+      req.onsuccess = () => {
+        console.log('✅ dailySummary 저장 성공:', date);
+        resolve();
+      };
+      req.onerror = () => {
+        console.error('❌ dailySummary 저장 실패:', req.error, { date, dataToSave });
+        reject(req.error);
+      };
+    });
+  }
+
+  // dailySummary 로드
+  async loadDailySummary(date: string): Promise<any | null> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(['dailySummary'], 'readonly');
+      const store = tx.objectStore('dailySummary');
+      const req = store.get(date);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // 날짜별 분류 스냅샷 저장/업데이트 (해당 일자 전체 교체)
+  async saveClassifiedByDate(date: string, items: any[]): Promise<void> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(['classifiedByDate'], 'readwrite');
+      const store = tx.objectStore('classifiedByDate');
+      const req = store.put({ date, items });
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // 날짜별 분류 스냅샷 로드
+  async loadClassifiedByDate(date: string): Promise<any[] | null> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(['classifiedByDate'], 'readonly');
+      const store = tx.objectStore('classifiedByDate');
+      const req = store.get(date);
+      req.onsuccess = () => {
+        const result = req.result;
+        resolve(result?.items || null);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  // 모든 데이터의 collectionDate를 특정 날짜로 업데이트
+  async updateAllCollectionDates(targetDate: string): Promise<number> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = tx.objectStore('unclassifiedData');
+      const getAllRequest = store.getAll();
+      
+      getAllRequest.onsuccess = () => {
+        const allData = getAllRequest.result;
+        console.log(`📊 전체 데이터: ${allData.length}개`);
+        
+        // 모든 데이터의 collectionDate를 목표 날짜로 수정
+        const updatedData = allData.map(item => ({
+          ...item,
+          collectionDate: targetDate
+        }));
+        
+        let updatedCount = 0;
+        let errorCount = 0;
+        
+        updatedData.forEach((item, index) => {
+          const updateRequest = store.put(item);
+          
+          updateRequest.onsuccess = () => {
+            updatedCount++;
+            if (updatedCount % 100 === 0) {
+              console.log(`✅ ${updatedCount}/${allData.length} 업데이트 완료`);
+            }
+            
+            if (updatedCount + errorCount === allData.length) {
+              console.log(`🎉 업데이트 완료! 총 ${updatedCount}개 데이터를 ${targetDate}로 변경`);
+              resolve(updatedCount);
+            }
+          };
+          
+          updateRequest.onerror = () => {
+            errorCount++;
+            console.error(`❌ ${index + 1}번째 데이터 업데이트 실패:`, updateRequest.error);
+            
+            if (updatedCount + errorCount === allData.length) {
+              console.log(`⚠️ 업데이트 완료: ${updatedCount}개 성공, ${errorCount}개 실패`);
+              resolve(updatedCount);
+            }
+          };
+        });
+      };
+      
+      getAllRequest.onerror = () => {
+        reject(getAllRequest.error);
+      };
+    });
+  }
+
+  // 저장된 날짜 목록 로드
+  async listClassifiedDates(): Promise<string[]> {
+    if (!this.db) await this.init();
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction(['classifiedByDate'], 'readonly');
+      const store = tx.objectStore('classifiedByDate');
+      const keysReq = store.getAllKeys();
+      keysReq.onsuccess = () => {
+        const keys = (keysReq.result || []) as string[];
+        resolve(keys);
+      };
+      keysReq.onerror = () => reject(keysReq.error);
+    });
+  }
+
+  // 7일 데이터 정리
+  async cleanupOldData(retentionDays: number = 7): Promise<number> {
+    if (!this.db) await this.init();
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    const cutoffDateString = cutoffDate.toISOString().split('T')[0];
+    
+    let totalDeleted = 0;
+    
+    // unclassifiedData에서 오래된 데이터 삭제
+    const unclassifiedTransaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+    const unclassifiedStore = unclassifiedTransaction.objectStore('unclassifiedData');
+    const unclassifiedRequest = unclassifiedStore.getAll();
+    
+    await new Promise<void>((resolve) => {
+      unclassifiedRequest.onsuccess = () => {
+        const oldData = unclassifiedRequest.result.filter((item: any) => {
+          const itemDate = new Date(item.uploadDate);
+          return itemDate < cutoffDate;
+        });
+        
+        oldData.forEach((item: any) => {
+          unclassifiedStore.delete(item.id);
+          totalDeleted++;
+        });
+        resolve();
+      };
+    });
+    
+    // classifiedData에서 오래된 데이터 삭제
+    const classifiedTransaction = this.db!.transaction(['classifiedData'], 'readwrite');
+    const classifiedStore = classifiedTransaction.objectStore('classifiedData');
+    const classifiedRequest = classifiedStore.getAll();
+    
+    await new Promise<void>((resolve) => {
+      classifiedRequest.onsuccess = () => {
+        const oldData = classifiedRequest.result.filter((item: any) => {
+          const itemDate = new Date(item.uploadDate);
+          return itemDate < cutoffDate;
+        });
+        
+        oldData.forEach((item: any) => {
+          classifiedStore.delete(item.id);
+          totalDeleted++;
+        });
+        resolve();
+      };
+    });
+    
+    // videos에서 오래된 데이터 삭제
+    const videosTransaction = this.db!.transaction(['videos'], 'readwrite');
+    const videosStore = videosTransaction.objectStore('videos');
+    const videosRequest = videosStore.getAll();
+    
+    await new Promise<void>((resolve) => {
+      videosRequest.onsuccess = () => {
+        const oldData = videosRequest.result.filter((item: any) => {
+          const itemDate = new Date(item.uploadDate);
+          return itemDate < cutoffDate;
+        });
+        
+        oldData.forEach((item: any) => {
+          videosStore.delete(item.id);
+          totalDeleted++;
+        });
+        resolve();
+      };
+    });
+    
+    // dailySummary에서 오래된 데이터 삭제 (date 키 비교)
+    const dailySummaryTransaction = this.db!.transaction(['dailySummary'], 'readwrite');
+    const dailySummaryStore = dailySummaryTransaction.objectStore('dailySummary');
+    const dailySummaryRequest = dailySummaryStore.getAll();
+    
+    await new Promise<void>((resolve) => {
+      dailySummaryRequest.onsuccess = () => {
+        const rows = dailySummaryRequest.result || [];
+        rows.forEach((row: any) => {
+          const d = (row?.date || '').toString();
+          if (d && d < cutoffDateString) {
+            dailySummaryStore.delete(row.date);
+            totalDeleted++;
+          }
+        });
+        resolve();
+      };
+    });
+    
+    console.log(`🧹 7일 데이터 정리 완료: ${totalDeleted}개 데이터 삭제`);
+    return totalDeleted;
+  }
+
+  // 데이터베이스 정보 조회
+  async getDatabaseInfo(): Promise<any> {
+    if (!this.db) await this.init();
+    
+    const info = {
+      name: this.dbName,
+      version: this.version,
+      objectStores: Array.from(this.db!.objectStoreNames),
+      size: 0,
+      retentionDays: 7,
+      lastCleanup: null
+    };
+
+    // 각 저장소의 데이터 개수 조회
+    for (const storeName of info.objectStores) {
+      const transaction = this.db!.transaction([storeName], 'readonly');
+      const store = transaction.objectStore(storeName);
+      const countRequest = store.count();
+      
+      await new Promise<void>((resolve) => {
+        countRequest.onsuccess = () => {
+          info.size += countRequest.result;
+          resolve();
+        };
+      });
+    }
+
+    // 시스템 설정의 보관기간 값 반영
+    try {
+      const savedRetention = await this.loadSystemConfig('retentionDays');
+      if (typeof savedRetention === 'number' && savedRetention > 0) {
+        info.retentionDays = savedRetention;
+      }
+    } catch {}
+
+    return info;
+  }
+
+  // 특정 날짜의 데이터 삭제 (수집일 기준)
+  async deleteDataByDate(collectionDate: string): Promise<void> {
+    if (!this.db) await this.init();
+    
+    console.log(`🗑️ ${collectionDate} 날짜 데이터 삭제 시작...`);
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData', 'classifiedData'], 'readwrite');
+      const unclassifiedStore = transaction.objectStore('unclassifiedData');
+      const classifiedStore = transaction.objectStore('classifiedData');
+      
+      let unclassifiedCompleted = false;
+      let classifiedCompleted = false;
+      let totalDeleted = 0;
+      
+      const checkCompletion = () => {
+        if (unclassifiedCompleted && classifiedCompleted) {
+          console.log(`✅ ${collectionDate} 날짜 데이터 삭제 완료: ${totalDeleted}개 삭제`);
+          resolve();
+        }
+      };
+      
+      // unclassifiedData에서 해당 날짜 데이터 삭제
+      const unclassifiedRequest = unclassifiedStore.getAll();
+      unclassifiedRequest.onsuccess = () => {
+        const unclassifiedData = unclassifiedRequest.result;
+        const targetUnclassifiedData = unclassifiedData.filter((item: any) => {
+          const itemDate = item.collectionDate || item.uploadDate;
+          return itemDate && itemDate.split('T')[0] === collectionDate;
+        });
+        
+        console.log(`📊 unclassifiedData에서 삭제할 데이터: ${targetUnclassifiedData.length}개`);
+        
+        if (targetUnclassifiedData.length === 0) {
+          unclassifiedCompleted = true;
+          checkCompletion();
+        } else {
+          let deletedCount = 0;
+          targetUnclassifiedData.forEach((item: any) => {
+            const deleteRequest = unclassifiedStore.delete(item.id);
+            deleteRequest.onsuccess = () => {
+              deletedCount++;
+              totalDeleted++;
+              if (deletedCount === targetUnclassifiedData.length) {
+                unclassifiedCompleted = true;
+                checkCompletion();
+              }
+            };
+            deleteRequest.onerror = () => reject(deleteRequest.error);
+          });
+        }
+      };
+      
+      // classifiedData에서 해당 날짜 데이터 삭제
+      const classifiedRequest = classifiedStore.getAll();
+      classifiedRequest.onsuccess = () => {
+        const classifiedData = classifiedRequest.result;
+        const targetClassifiedData = classifiedData.filter((item: any) => {
+          const itemDate = item.collectionDate || item.uploadDate;
+          return itemDate && itemDate.split('T')[0] === collectionDate;
+        });
+        
+        console.log(`📊 classifiedData에서 삭제할 데이터: ${targetClassifiedData.length}개`);
+        
+        if (targetClassifiedData.length === 0) {
+          classifiedCompleted = true;
+          checkCompletion();
+        } else {
+          let deletedCount = 0;
+          targetClassifiedData.forEach((item: any) => {
+            const deleteRequest = classifiedStore.delete(item.id);
+            deleteRequest.onsuccess = () => {
+              deletedCount++;
+              totalDeleted++;
+              if (deletedCount === targetClassifiedData.length) {
+                classifiedCompleted = true;
+                checkCompletion();
+              }
+            };
+            deleteRequest.onerror = () => reject(deleteRequest.error);
+          });
+        }
+      };
+      
+      unclassifiedRequest.onerror = () => reject(unclassifiedRequest.error);
+      classifiedRequest.onerror = () => reject(classifiedRequest.error);
+    });
+  }
+}
+
+// 싱글톤 인스턴스 생성
+export const indexedDBService = new IndexedDBService();
