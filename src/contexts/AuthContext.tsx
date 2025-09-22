@@ -33,12 +33,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // 페이지 로드 시 로그인 상태 확인 (세션 기반 - 저장소 사용 안함)
+    // 페이지 로드 시 저장된 인증 정보 확인
     const checkAuthStatus = () => {
-      // 창을 새로 열 때마다 로그인 상태 초기화
-      setIsLoggedIn(false);
-      setUserEmail(null);
-      setUserRole(null);
+      // localStorage에서 사용자 정보 확인
+      const storedEmail = localStorage.getItem('userEmail');
+      const storedRole = localStorage.getItem('userRole');
+      
+      console.log('🔍 저장된 인증 정보 확인:', { storedEmail, storedRole });
+      
+      if (storedEmail && storedRole) {
+        setIsLoggedIn(true);
+        setUserEmail(storedEmail);
+        setUserRole(storedRole as 'admin' | 'user');
+        console.log('✅ 저장된 인증 정보 로드 완료:', { storedEmail, storedRole });
+      } else {
+        console.log('❌ 저장된 인증 정보 없음 - 로그인 필요');
+      }
       setIsLoading(false);
     };
 
@@ -84,6 +94,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const finalRole = isAdminEmail ? 'admin' : (user.role || 'user');
           setUserRole(finalRole);
           
+          // localStorage에 인증 정보 저장
+          localStorage.setItem('userEmail', email);
+          localStorage.setItem('userRole', finalRole);
+          
           console.log('✅ 로그인 성공:', { email, role: finalRole, isAdminEmail });
           
           // 임시 비밀번호로 로그인한 경우 즉시 만료 처리
@@ -109,10 +123,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
-    // 저장소 사용 안함 - 메모리에서만 제거
+    // localStorage에서 인증 정보 삭제
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userRole');
+    
+    // 메모리에서도 제거
     setIsLoggedIn(false);
     setUserEmail(null);
     setUserRole(null);
+    
+    console.log('✅ 로그아웃 완료 - 인증 정보 삭제됨');
+    
     // React Router의 navigate 사용 (가장 일반적인 방법)
     navigate('/login', { replace: true });
   };
