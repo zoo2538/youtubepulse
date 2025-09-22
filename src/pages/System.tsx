@@ -81,10 +81,13 @@ const System = () => {
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
     
+    // 기본값: 커스텀 API 활성화
+    const defaultCustomApiEnabled = savedCustomApiEnabled !== null ? savedCustomApiEnabled : true;
+    
     console.log('🔧 설정 로드:', {
       youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
       customApiUrl: savedCustomApiUrl,
-      customApiEnabled: savedCustomApiEnabled,
+      customApiEnabled: defaultCustomApiEnabled,
       customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
     });
     
@@ -92,7 +95,7 @@ const System = () => {
       youtubeApiKey: savedApiKey,
       youtubeApiEnabled: !!savedApiKey,
       customApiUrl: savedCustomApiUrl,
-      customApiEnabled: savedCustomApiEnabled,
+      customApiEnabled: defaultCustomApiEnabled,
       customApiKey: savedCustomApiKey
     };
   });
@@ -138,6 +141,13 @@ const System = () => {
   // 페이지 로드 시 IndexedDB 정보 로드
   React.useEffect(() => {
     loadDatabaseInfo();
+    
+    // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
+    if (localStorage.getItem('customApiEnabled') === null) {
+      localStorage.setItem('customApiEnabled', 'true');
+      localStorage.setItem('customApiUrl', 'https://api.youthbepulse.com');
+      console.log('🔧 커스텀 API 기본값 설정 완료');
+    }
   }, []);
 
 
