@@ -56,7 +56,7 @@ const DateClassificationDetail = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { logout, userEmail } = useAuth();
-  const isAdmin = userEmail === 'ju9511503@gmail.com';
+  const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
   
   const selectedDate = searchParams.get('date') || new Date().toISOString().split('T')[0];
   const [unclassifiedData, setUnclassifiedData] = useState<UnclassifiedData[]>([]);
@@ -163,7 +163,10 @@ const DateClassificationDetail = () => {
         channelGroups[dataItem.channelName].push(dataItem);
       });
       const channelItems = channelGroups[item.channelName] || [];
-      matchesStatus = channelItems.length > 1 && item.status !== 'classified';
+      matchesStatus = channelItems.length > 1 && (item.status === 'unclassified' || item.status === 'pending');
+    } else if (filterStatus === 'unclassified') {
+      // 미분류 필터: unclassified와 pending 상태 모두 표시
+      matchesStatus = item.status === 'unclassified' || item.status === 'pending';
     } else {
       matchesStatus = item.status === filterStatus;
     }
@@ -219,10 +222,10 @@ const DateClassificationDetail = () => {
     });
   };
 
-  // 선택된 항목이 변경될 때 대량 분류 UI 표시/숨김
-  React.useEffect(() => {
-    setShowBulkActions(selectedItems.size > 0);
-  }, [selectedItems]);
+  // 선택된 항목이 변경될 때는 자동으로 분류 UI를 표시하지 않음
+  // React.useEffect(() => {
+  //   setShowBulkActions(selectedItems.size > 0);
+  // }, [selectedItems]);
 
   // 전체 선택/해제
   const handleSelectAll = (checked: boolean) => {
@@ -542,6 +545,9 @@ const DateClassificationDetail = () => {
                 <Eye className="w-4 h-4 mr-2" />
                 국내
               </Button>
+              <Button variant="outline" onClick={() => navigate('/data')}>
+                📊 데이터
+              </Button>
               <Button variant="outline" onClick={() => navigate('/system')}>
                 <Settings className="w-4 h-4 mr-2" />
                 시스템
@@ -712,118 +718,16 @@ const DateClassificationDetail = () => {
                 </Button>
               </div>
               
-              {/* 인라인 분류 UI */}
-              {showBulkActions && (
-                <div className="bg-gray-50 p-4 rounded-lg border">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    {/* 1행: 카테고리 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">카테고리</label>
-                      <select
-                        value={bulkCategory}
-                        onChange={(e) => {
-                          setBulkCategory(e.target.value);
-                          setBulkSubCategory('');
-                        }}
-                        className="w-full p-2 border border-gray-300 rounded-md bg-white text-black"
-                      >
-                        <option value="">카테고리를 선택하세요</option>
-                        {Object.keys(dynamicSubCategories).map(category => (
-                          <option key={category} value={category}>{category}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* 2행: 세부카테고리 */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">세부카테고리</label>
-                      <select
-                        value={bulkSubCategory}
-                        onChange={(e) => setBulkSubCategory(e.target.value)}
-                        disabled={!bulkCategory}
-                        className="w-full p-2 border border-gray-300 rounded-md bg-white text-black disabled:bg-gray-100"
-                      >
-                        <option value="">세부카테고리를 선택하세요</option>
-                        {bulkCategory && dynamicSubCategories[bulkCategory]?.map(subCategory => (
-                          <option key={subCategory} value={subCategory}>{subCategory}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* 3행: 취소와 확인 버튼 */}
-                    <div className="flex space-x-2">
-                      <Button
-                        onClick={() => {
-                          setShowBulkActions(false);
-                          setBulkCategory('');
-                          setBulkSubCategory('');
-                        }}
-                        variant="outline"
-                        className="bg-white text-black border-gray-300"
-                      >
-                        취소
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          if (!bulkCategory) {
-                            alert('카테고리를 선택해주세요.');
-                            return;
-                          }
-                          if (!bulkSubCategory) {
-                            alert('세부카테고리를 선택해주세요.');
-                            return;
-                          }
-                          
-                          const confirmMessage = `선택된 ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류하시겠습니까?`;
-                          if (confirm(confirmMessage)) {
-                            setUnclassifiedData(prev => 
-                              prev.map(item => 
-                                selectedItems.has(item.id) 
-                                  ? { 
-                                      ...item, 
-                                      category: bulkCategory, 
-                                      subCategory: bulkSubCategory, 
-                                      status: 'classified' 
-                                    }
-                                  : item
-                              )
-                            );
-
-                            // 선택 해제 및 상태 초기화
-                            setSelectedItems(new Set());
-                            setShowBulkActions(false);
-                            setBulkCategory('');
-                            setBulkSubCategory('');
-
-                            console.log(`✅ 대량 분류 완료: ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류`);
-                            alert(`✅ ${selectedItems.size}개 항목이 성공적으로 분류되었습니다!`);
-                          }
-                        }}
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                      >
-                        확인
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex items-center space-x-4">
-                {selectedItems.size > 0 && (
-                  <div className="text-sm text-blue-600 font-medium">
-                    {selectedItems.size}개
-                  </div>
-                )}
+              <div className="relative flex items-center space-x-4">
                 <Button
                   onClick={() => {
                     if (selectedItems.size === 0) {
                       alert('분류할 항목을 선택해주세요.');
                       return;
                     }
-                    setShowBulkActions(true);
+                    setShowBulkActions(!showBulkActions);
                   }}
-                  disabled={selectedItems.size === 0}
-                  className="bg-green-600 hover:bg-green-700"
+                  className="bg-green-600 hover:bg-green-700 text-white"
                 >
                   분류
                 </Button>
@@ -833,24 +737,18 @@ const DateClassificationDetail = () => {
                       alert('삭제할 항목을 선택해주세요.');
                       return;
                     }
-                    
-                    const confirmMessage = `선택된 ${selectedItems.size}개 항목을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`;
+                    const confirmMessage = `선택된 ${selectedItems.size}개 항목을 삭제하시겠습니까?`;
                     if (confirm(confirmMessage)) {
-                      const updatedData = unclassifiedData.filter(item => !selectedItems.has(item.id));
-                      setUnclassifiedData(updatedData);
-                      
-                      // IndexedDB에서도 삭제
-                      indexedDBService.updateUnclassifiedData(updatedData);
-                      
-                      // 선택 해제
+                      setUnclassifiedData(prev => 
+                        prev.filter(item => !selectedItems.has(item.id))
+                      );
                       setSelectedItems(new Set());
                       setShowBulkActions(false);
-
                       console.log(`✅ 대량 삭제 완료: ${selectedItems.size}개 항목 삭제`);
                       alert(`✅ ${selectedItems.size}개 항목이 성공적으로 삭제되었습니다!`);
                     }
                   }}
-                  className="bg-red-600 hover:bg-red-700"
+                  variant="destructive"
                 >
                   삭제
                 </Button>
@@ -859,6 +757,120 @@ const DateClassificationDetail = () => {
                   저장
                 </Button>
               </div>
+              
+              {/* 분류 팝업 모달 */}
+              {showBulkActions && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                    <div className="space-y-4">
+                      {/* 제목 */}
+                      <div className="text-center">
+                        <h3 className="text-lg font-semibold text-gray-800">대량 분류</h3>
+                        <p className="text-sm text-gray-600">선택된 {selectedItems.size}개 항목을 분류합니다</p>
+                      </div>
+                      
+                      {/* 카테고리 */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">카테고리</label>
+                        <select
+                          value={bulkCategory}
+                          onChange={(e) => {
+                            setBulkCategory(e.target.value);
+                            setBulkSubCategory('');
+                          }}
+                          className="w-full p-2 border border-gray-300 rounded-md bg-white text-black"
+                        >
+                          <option value="">카테고리를 선택하세요</option>
+                          {Object.keys(dynamicSubCategories).map(category => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* 세부카테고리 */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">세부카테고리</label>
+                        <select
+                          value={bulkSubCategory}
+                          onChange={(e) => setBulkSubCategory(e.target.value)}
+                          disabled={!bulkCategory}
+                          className="w-full p-2 border border-gray-300 rounded-md bg-white text-black disabled:bg-gray-100"
+                        >
+                          <option value="">세부카테고리를 선택하세요</option>
+                          {bulkCategory && dynamicSubCategories[bulkCategory]?.map(subCategory => (
+                            <option key={subCategory} value={subCategory}>{subCategory}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* 선택된 분류 정보 표시 */}
+                      {bulkCategory && bulkSubCategory && (
+                        <div className="bg-blue-50 p-3 rounded-md border border-blue-200">
+                          <p className="text-sm text-blue-800">
+                            <span className="font-medium">분류 정보:</span> {bulkCategory} → {bulkSubCategory}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* 취소와 확인 버튼 */}
+                      <div className="flex justify-center space-x-4">
+                        <Button
+                          onClick={() => {
+                            setShowBulkActions(false);
+                            setBulkCategory('');
+                            setBulkSubCategory('');
+                          }}
+                          variant="outline"
+                          className="bg-white text-black border-gray-300 px-6"
+                        >
+                          취소
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            if (!bulkCategory) {
+                              alert('카테고리를 선택해주세요.');
+                              return;
+                            }
+                            if (!bulkSubCategory) {
+                              alert('세부카테고리를 선택해주세요.');
+                              return;
+                            }
+                            
+                            const confirmMessage = `선택된 ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류하시겠습니까?`;
+                            if (confirm(confirmMessage)) {
+                              setUnclassifiedData(prev => 
+                                prev.map(item => 
+                                  selectedItems.has(item.id) 
+                                    ? { 
+                                        ...item, 
+                                        category: bulkCategory, 
+                                        subCategory: bulkSubCategory, 
+                                        status: 'classified' 
+                                      }
+                                    : item
+                                )
+                              );
+
+                              // 선택 해제 및 상태 초기화
+                              setSelectedItems(new Set());
+                              setShowBulkActions(false);
+                              setBulkCategory('');
+                              setBulkSubCategory('');
+
+                              console.log(`✅ 대량 분류 완료: ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류`);
+                              alert(`✅ ${selectedItems.size}개 항목이 성공적으로 분류되었습니다!`);
+                            }
+                          }}
+                          className="bg-green-600 hover:bg-green-700 text-white px-6"
+                        >
+                          확인
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
             </div>
           </div>
         </Card>
@@ -976,7 +988,7 @@ const DateClassificationDetail = () => {
                         onValueChange={(value) => updateItem(item.id, { 
                           category: value, 
                           subCategory: '', 
-                          status: 'classified' 
+                          status: 'pending' 
                         })}
                       >
                         <SelectTrigger className="w-32 bg-white text-black border-gray-300">

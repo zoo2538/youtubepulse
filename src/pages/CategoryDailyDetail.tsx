@@ -139,6 +139,14 @@ const CategoryDailyDetail = () => {
                   국내
                 </Button>
               </Link>
+              <Link to="/data">
+                <Button 
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  📊 데이터
+                </Button>
+              </Link>
               <Link to="/system">
                 <Button 
                   size="sm"

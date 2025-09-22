@@ -4,14 +4,56 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Mail, CheckCircle, ArrowRight } from "lucide-react";
+import { ArrowLeft, Mail, CheckCircle, ArrowRight, Copy } from "lucide-react";
+import emailjs from '@emailjs/browser';
+import { EMAILJS_CONFIG } from '@/config/emailjs';
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const navigate = useNavigate();
+
+  // EmailJS 초기화
+  const EMAILJS_SERVICE_ID = EMAILJS_CONFIG.SERVICE_ID;
+  const EMAILJS_TEMPLATE_ID = EMAILJS_CONFIG.TEMPLATE_ID;
+  const EMAILJS_PUBLIC_KEY = EMAILJS_CONFIG.PUBLIC_KEY;
+
+  // 이메일 발송 함수
+  const sendPasswordResetEmail = async (userEmail: string, tempPassword: string) => {
+    try {
+      // EmailJS 설정이 제대로 되어있는지 확인
+      if (EMAILJS_PUBLIC_KEY === 'your_public_key_here') {
+        console.warn('⚠️ EmailJS가 설정되지 않았습니다. 개발 모드로 실행됩니다.');
+        // 개발 모드에서는 시뮬레이션만 수행
+        await new Promise(resolve => setTimeout(resolve, 2000)); // 2초 대기
+        console.log('📧 개발 모드: 이메일 발송 시뮬레이션 완료');
+        return true;
+      }
+
+      const templateParams = {
+        to_email: userEmail,
+        temp_password: tempPassword,
+        app_name: 'YouTube Pulse',
+        reset_link: `${window.location.origin}/login`
+      };
+
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
+      
+      console.log('✅ 이메일 발송 성공:', userEmail);
+      return true;
+    } catch (error) {
+      console.error('❌ 이메일 발송 실패:', error);
+      return false;
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,11 +66,70 @@ const ForgotPassword = () => {
 
     setIsLoading(true);
 
-    // 간단한 비밀번호 재설정 로직 (실제로는 API 호출)
-    setTimeout(() => {
+    // 실제 비밀번호 재설정 로직
+    try {
+      // 로컬 스토리지에서 사용자 데이터 확인
+      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      const defaultAdmin = {
+        id: "admin-1",
+        email: "ju9511503@gmail.com",
+        password: "@ju9180417"
+      };
+      
+      const allUsers = [defaultAdmin, ...storedUsers];
+      const user = allUsers.find(u => u.email === email);
+      
+      if (!user) {
+        setError("해당 이메일로 등록된 계정을 찾을 수 없습니다.");
+        setIsLoading(false);
+        return;
+      }
+      
+      // 비밀번호 재설정 (임시 비밀번호 생성)
+      const tempPassword = Math.random().toString(36).slice(-8); // 8자리 임시 비밀번호
+      console.log('🔑 생성된 임시 비밀번호:', tempPassword);
+      
+      // 사용자 데이터 업데이트
+      const updatedUsers = storedUsers.map((u: any) => 
+        u.email === email ? { ...u, password: tempPassword } : u
+      );
+      
+      // 이메일 발송 시도
+      const emailSentSuccessfully = await sendPasswordResetEmail(email, tempPassword);
+      
+      if (emailSentSuccessfully) {
+        // 이메일 발송 성공
+        setEmailSent(true);
+        
+        // 기본 관리자 계정은 별도 처리 (하드코딩된 비밀번호를 임시로 변경)
+        if (email === "ju9511503@gmail.com") {
+          // 기본 관리자 계정의 임시 비밀번호를 localStorage에 저장
+          const adminTempPassword = { tempPassword: tempPassword, timestamp: Date.now() };
+          localStorage.setItem('adminTempPassword', JSON.stringify(adminTempPassword));
+          console.log('👑 관리자 임시 비밀번호 저장:', tempPassword);
+        } else {
+          localStorage.setItem('users', JSON.stringify(updatedUsers));
+          console.log('👤 일반 사용자 비밀번호 업데이트:', tempPassword);
+        }
+        
+        setIsLoading(false);
+        setSuccess(true);
+      } else {
+        // 이메일 발송 실패
+        setError("이메일 발송에 실패했습니다. 잠시 후 다시 시도해주세요.");
+        setIsLoading(false);
+      }
+      
+      // 3초 후 로그인 페이지로 이동
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
+      
+    } catch (error) {
+      console.error('비밀번호 재설정 오류:', error);
+      setError("비밀번호 재설정 중 오류가 발생했습니다.");
       setIsLoading(false);
-      setSuccess(true);
-    }, 2000);
+    }
   };
 
   if (success) {
@@ -40,12 +141,23 @@ const ForgotPassword = () => {
               <div className="text-center space-y-4">
                 <CheckCircle className="w-16 h-16 text-green-400 mx-auto" />
                 <h2 className="text-2xl font-bold text-white">이메일을 확인하세요</h2>
-                <p className="text-gray-300">
-                  <strong className="text-white">{email}</strong>로<br />
-                  비밀번호 재설정 링크를 보내드렸습니다.
-                </p>
-                <p className="text-sm text-gray-400">
-                  이메일이 오지 않는다면 스팸 폴더를 확인해주세요.
+                <div className="bg-blue-500/20 border border-blue-400/30 rounded-lg p-4">
+                  <Mail className="w-8 h-8 text-blue-400 mx-auto mb-2" />
+                  <p className="text-white font-semibold mb-2">비밀번호 재설정 이메일 발송 완료</p>
+                  <p className="text-gray-300">
+                    <strong className="text-white">{email}</strong>로<br />
+                    임시 비밀번호를 보내드렸습니다.
+                  </p>
+                </div>
+                <div className="bg-yellow-500/20 border border-yellow-400/30 rounded-lg p-3">
+                  <p className="text-yellow-200 text-sm">
+                    ⚠️ <strong>보안 안내:</strong> 임시 비밀번호로 로그인한 후<br />
+                    반드시 새로운 비밀번호로 변경해주세요.
+                  </p>
+                </div>
+                <p className="text-gray-300 text-sm">
+                  📧 이메일이 오지 않는다면 스팸 폴더를 확인해주세요.<br />
+                  ⏰ 임시 비밀번호는 <strong className="text-white">1시간</strong> 후 만료됩니다.
                 </p>
                 <div className="pt-4 space-y-2">
                   <Button 
@@ -138,10 +250,13 @@ const ForgotPassword = () => {
                 disabled={isLoading}
               >
                 {isLoading ? (
-                  "링크 전송 중..."
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    이메일 발송 중...
+                  </>
                 ) : (
                   <>
-                    재설정 링크 보내기
+                    임시 비밀번호 이메일 보내기
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </>
                 )}
@@ -181,4 +296,9 @@ const ForgotPassword = () => {
 };
 
 export default ForgotPassword;
+
+
+
+
+
 

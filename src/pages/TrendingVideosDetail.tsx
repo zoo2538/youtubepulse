@@ -66,7 +66,7 @@ const TrendingVideosDetail = () => {
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
-  const isAdmin = userEmail === 'ju9511503@gmail.com';
+  const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
 
   const handleLogout = () => {
     logout();
@@ -279,6 +279,9 @@ const TrendingVideosDetail = () => {
               <Button variant="outline" onClick={() => navigate('/dashboard')}>
                 <Eye className="w-4 h-4 mr-2" />
                 국내
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/data')}>
+                📊 데이터
               </Button>
               <Button variant="outline" onClick={() => navigate('/system')}>
                 <Calendar className="w-4 h-4 mr-2" />

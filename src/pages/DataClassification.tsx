@@ -18,6 +18,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { 
   Settings, 
   Database, 
@@ -85,11 +94,11 @@ interface DataManagementConfig {
 
 const DataClassification = () => {
   const navigate = useNavigate();
-  const { logout, userEmail } = useAuth();
+  const { logout, userEmail, userRole } = useAuth();
   const [unclassifiedData, setUnclassifiedData] = useState<UnclassifiedData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
-  const isAdmin = userEmail === 'ju9511503@gmail.com';
+  const isAdmin = userRole === 'admin'; // 관리자 권한 확인
 
   const handleLogout = () => {
     logout();
@@ -235,7 +244,7 @@ const DataClassification = () => {
   }, []);
 
   const [dataManagementConfig, setDataManagementConfig] = useState<DataManagementConfig>({
-    retentionDays: 7,
+    retentionDays: 14,
     autoCleanup: true
   });
 
@@ -252,6 +261,14 @@ const DataClassification = () => {
   const [dateStats, setDateStats] = useState<{ [date: string]: { total: number; classified: number; progress: number } }>({});
   const [showCategoryManager, setShowCategoryManager] = useState(false);
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
+  
+  // 모달 상태 관리
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [currentCategory, setCurrentCategory] = useState<string>('');
+  const [currentSubCategory, setCurrentSubCategory] = useState<string>('');
+  const [newSubCategoryName, setNewSubCategoryName] = useState<string>('');
 
   // 한국어/영어 판별 함수
   const isKoreanText = (text: string): boolean => {
@@ -437,31 +454,54 @@ const DataClassification = () => {
   };
 
   const handleAddSubCategory = (category: string) => {
-    const newSubCategory = prompt(`${category} 카테고리에 추가할 세부카테고리 이름을 입력하세요:`);
-    if (newSubCategory && newSubCategory.trim()) {
+    setCurrentCategory(category);
+    setNewSubCategoryName('');
+    setShowAddModal(true);
+  };
+
+  const handleConfirmAddSubCategory = () => {
+    if (newSubCategoryName.trim()) {
       setDynamicSubCategories(prev => ({
         ...prev,
-        [category]: [...(prev[category] || []), newSubCategory.trim()]
+        [currentCategory]: [...(prev[currentCategory] || []), newSubCategoryName.trim()]
       }));
+      console.log(`✅ ${currentCategory} 카테고리에 "${newSubCategoryName.trim()}" 세부카테고리 추가됨`);
+      setShowAddModal(false);
+      setNewSubCategoryName('');
     }
   };
 
   const handleRemoveSubCategory = (category: string, subCategory: string) => {
-    if (confirm(`"${subCategory}" 세부카테고리를 삭제하시겠습니까?`)) {
-      setDynamicSubCategories(prev => ({
-        ...prev,
-        [category]: prev[category].filter(sub => sub !== subCategory)
-      }));
-    }
+    setCurrentCategory(category);
+    setCurrentSubCategory(subCategory);
+    setShowDeleteModal(true);
+  };
+
+  const handleConfirmDeleteSubCategory = () => {
+    setDynamicSubCategories(prev => ({
+      ...prev,
+      [currentCategory]: prev[currentCategory].filter(sub => sub !== currentSubCategory)
+    }));
+    console.log(`✅ ${currentCategory} 카테고리에서 "${currentSubCategory}" 세부카테고리 삭제됨`);
+    setShowDeleteModal(false);
   };
 
   const handleEditSubCategory = (category: string, oldSubCategory: string) => {
-    const newSubCategory = prompt(`"${oldSubCategory}"를 새로운 이름으로 변경하세요:`, oldSubCategory);
-    if (newSubCategory && newSubCategory.trim() && newSubCategory !== oldSubCategory) {
+    setCurrentCategory(category);
+    setCurrentSubCategory(oldSubCategory);
+    setNewSubCategoryName(oldSubCategory);
+    setShowEditModal(true);
+  };
+
+  const handleConfirmEditSubCategory = () => {
+    if (newSubCategoryName.trim() && newSubCategoryName !== currentSubCategory) {
       setDynamicSubCategories(prev => ({
         ...prev,
-        [category]: prev[category].map(sub => sub === oldSubCategory ? newSubCategory.trim() : sub)
+        [currentCategory]: prev[currentCategory].map(sub => sub === currentSubCategory ? newSubCategoryName.trim() : sub)
       }));
+      console.log(`✅ ${currentCategory} 카테고리의 "${currentSubCategory}" → "${newSubCategoryName.trim()}"로 변경됨`);
+      setShowEditModal(false);
+      setNewSubCategoryName('');
     }
   };
 
@@ -538,7 +578,7 @@ const DataClassification = () => {
       // 분류된 데이터를 IndexedDB에 저장 (대시보드용)
       await indexedDBService.saveClassifiedData(allClassifiedData);
       
-      // 진행률 데이터 생성 (7일간 모든 날짜)
+      // 진행률 데이터 생성 (14일간 모든 날짜)
       const progressData = sevenDays.map(date => {
         const dateData = unclassifiedData.filter(item => {
           const itemDate = item.collectionDate || item.uploadDate;
@@ -572,7 +612,7 @@ const DataClassification = () => {
         dataCount: allClassifiedData.length
       }));
       
-      alert(`✅ 7일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n대시보드가 자동으로 업데이트됩니다.`);
+      alert(`✅ 14일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n대시보드가 자동으로 업데이트됩니다.`);
     } catch (error) {
       console.error('진행률 저장 실패:', error);
       alert('❌ 진행률 저장에 실패했습니다.');
@@ -979,15 +1019,41 @@ const DataClassification = () => {
     }
   };
 
-  // 통계 계산
-  const totalVideos = unclassifiedData.length;
-  const classifiedVideos = unclassifiedData.filter(item => item.status === 'classified').length;
-  const unclassifiedVideos = unclassifiedData.filter(item => item.status === 'unclassified').length;
-  const pendingVideos = unclassifiedData.filter(item => item.status === 'pending').length;
+  // 선택된 날짜 기준 14일 데이터 필터링
+  const getDateRange = (startDate: string) => {
+    const dates = [];
+    const start = new Date(startDate);
+    for (let i = 0; i < 14; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() - i);
+      dates.push(date.toISOString().split('T')[0]);
+    }
+    return dates;
+  };
+
+  const dateRange = getDateRange(selectedDate);
+  const filteredData = unclassifiedData.filter(item => {
+    const itemDate = item.collectionDate || item.uploadDate;
+    return itemDate && dateRange.includes(itemDate.split('T')[0]);
+  });
+
+  // 통계 계산 (일별 분류 진행률 섹션의 데이터만 합쳐서 계산 - 최근 7일)
+  const totalVideos = availableDates.slice(0, 7).reduce((sum, date) => {
+    const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+    return sum + stats.total;
+  }, 0);
+  
+  const classifiedVideos = availableDates.slice(0, 7).reduce((sum, date) => {
+    const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+    return sum + stats.classified;
+  }, 0);
+  
+  const unclassifiedVideos = totalVideos - classifiedVideos;
+  const pendingVideos = 0; // 일별 진행률에서는 pending 상태를 별도로 관리하지 않음
   const classificationProgress = totalVideos > 0 ? (classifiedVideos / totalVideos) * 100 : 0;
 
-  // 카테고리별 통계
-  const categoryStats = unclassifiedData.reduce((acc, item) => {
+  // 카테고리별 통계 (선택된 날짜 기준 7일 데이터만)
+  const categoryStats = filteredData.reduce((acc, item) => {
     if (item.status === 'classified' && item.category) {
       if (!acc[item.category]) {
         acc[item.category] = { count: 0, totalViews: 0 };
@@ -1065,12 +1131,22 @@ const DataClassification = () => {
         </div>
 
         {/* 통계 카드 */}
+        <div className="mb-4">
+          <div className="flex items-center space-x-2 mb-2">
+            <Calendar className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              기간: {dateRange[6]} ~ {dateRange[0]} (7일간)
+            </span>
+          </div>
+        </div>
+        
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">전체 영상</p>
                 <p className="text-2xl font-bold text-foreground">{totalVideos.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">7일간</p>
               </div>
               <Database className="w-8 h-8 text-blue-600" />
             </div>
@@ -1081,6 +1157,7 @@ const DataClassification = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">분류 완료</p>
                 <p className="text-2xl font-bold text-green-600">{classifiedVideos.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">7일간</p>
               </div>
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
@@ -1091,6 +1168,7 @@ const DataClassification = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">미분류</p>
                 <p className="text-2xl font-bold text-red-600">{unclassifiedVideos.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">7일간</p>
               </div>
               <XCircle className="w-8 h-8 text-red-600" />
             </div>
@@ -1101,6 +1179,7 @@ const DataClassification = () => {
               <div>
                 <p className="text-sm font-medium text-muted-foreground">분류 진행률</p>
                 <p className="text-2xl font-bold text-primary">{Math.round(classificationProgress)}%</p>
+                <p className="text-xs text-muted-foreground">7일간</p>
               </div>
               <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                 <span className="text-primary font-bold text-sm">{Math.round(classificationProgress)}%</span>
@@ -1121,6 +1200,14 @@ const DataClassification = () => {
                 <Save className="w-4 h-4 mr-2" />
                 세부카테고리 저장
               </Button>
+            </div>
+            
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                💡 <strong>사용법:</strong> 각 카테고리에서 <strong>추가</strong> 버튼으로 세부카테고리를 추가하고, 
+                <strong>수정</strong> 버튼으로 이름을 변경하며, <strong>삭제</strong> 버튼으로 제거할 수 있습니다.
+                변경사항을 저장하려면 상단의 <strong>세부카테고리 저장</strong> 버튼을 클릭하세요.
+              </p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -1304,11 +1391,11 @@ const DataClassification = () => {
                   </Card>
 
 
-        {/* 7일 데이터 관리 */}
+        {/* 14일 데이터 관리 */}
         <Card className="p-6 mt-6">
           <div className="flex items-center space-x-2 mb-4">
             <Settings className="w-5 h-5 text-blue-600" />
-            <h2 className="text-xl font-semibold text-foreground">7일 데이터 관리</h2>
+            <h2 className="text-xl font-semibold text-foreground">14일 데이터 관리</h2>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -1392,9 +1479,99 @@ const DataClassification = () => {
                    <p>• 7일 이전 데이터는 자동으로 정리됩니다</p>
                  </div>
                </div>
-             </div>
+              </div>
           </div>
         </Card>
+
+        {/* 모달들 */}
+        {/* 추가 모달 */}
+        <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>세부카테고리 추가</DialogTitle>
+              <DialogDescription>
+                {currentCategory} 카테고리에 추가할 세부카테고리 이름을 입력하세요.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                value={newSubCategoryName}
+                onChange={(e) => setNewSubCategoryName(e.target.value)}
+                placeholder="세부카테고리 이름을 입력하세요"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleConfirmAddSubCategory();
+                  }
+                }}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAddModal(false)}>
+                취소
+              </Button>
+              <Button onClick={handleConfirmAddSubCategory} disabled={!newSubCategoryName.trim()}>
+                추가
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 수정 모달 */}
+        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>세부카테고리 수정</DialogTitle>
+              <DialogDescription>
+                {currentCategory} 카테고리의 "{currentSubCategory}"를 새로운 이름으로 변경하세요.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <Input
+                value={newSubCategoryName}
+                onChange={(e) => setNewSubCategoryName(e.target.value)}
+                placeholder="새로운 세부카테고리 이름을 입력하세요"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleConfirmEditSubCategory();
+                  }
+                }}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowEditModal(false)}>
+                취소
+              </Button>
+              <Button 
+                onClick={handleConfirmEditSubCategory} 
+                disabled={!newSubCategoryName.trim() || newSubCategoryName === currentSubCategory}
+              >
+                수정
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 삭제 확인 모달 */}
+        <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>세부카테고리 삭제</DialogTitle>
+              <DialogDescription>
+                {currentCategory} 카테고리의 "{currentSubCategory}" 세부카테고리를 삭제하시겠습니까?
+                <br />
+                <strong className="text-red-600">이 작업은 되돌릴 수 없습니다.</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                취소
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDeleteSubCategory}>
+                삭제
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
               </div>
 

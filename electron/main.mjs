@@ -20,7 +20,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       enableRemoteModule: false,
-             preload: path.join(__dirname, 'preload.mjs')
+      preload: path.join(__dirname, 'preload.mjs')
     },
     icon: path.join(__dirname, '../public/favicon.ico'),
     titleBarStyle: 'default',

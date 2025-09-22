@@ -175,8 +175,8 @@ export const getDatabaseInfo = async () => {
   return await indexedDBService.getDatabaseInfo();
 };
 
-// 7일 데이터 정리 실행
-export const cleanupOldData = async (retentionDays: number = 7) => {
+// 14일 데이터 정리 실행
+export const cleanupOldData = async (retentionDays: number = 14) => {
   return await indexedDBService.cleanupOldData(retentionDays);
 };
 

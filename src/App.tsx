@@ -2,12 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ForgotPassword from "./pages/ForgotPassword";
+import ChangePassword from "./pages/ChangePassword";
 import UserManagement from "./pages/UserManagement";
 import Dashboard from "./pages/Dashboard";
 import CategoryChannelRanking from "./pages/CategoryChannelRanking";
@@ -23,7 +24,7 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/user-management" element={<UserManagement />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/category" element={<Navigate to="/dashboard" replace />} />
@@ -40,6 +42,7 @@ const App = () => (
             <Route path="/category-detail/:category" element={<CategoryDailyDetail />} />
             <Route path="/channel/:channelId" element={<ChannelDetail />} />
             <Route path="/system" element={<System />} />
+            <Route path="/data" element={<DataClassification />} />
             <Route path="/data-classification" element={<DataClassification />} />
             <Route path="/date-classification-detail" element={<DateClassificationDetail />} />
             <Route path="/trending-videos" element={<TrendingVideosDetail />} />
@@ -48,7 +51,7 @@ const App = () => (
           </Routes>
         </TooltipProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   </QueryClientProvider>
 );
 

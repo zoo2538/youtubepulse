@@ -19,6 +19,23 @@ const Login = () => {
     e.preventDefault();
     setError("");
     
+    // 사용자 상태 확인
+    const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+    const defaultAdmin = {
+      id: "admin-1",
+      email: "ju9511503@gmail.com",
+      password: "@ju9180417",
+      status: "active"
+    };
+    
+    const allUsers = [defaultAdmin, ...storedUsers];
+    const user = allUsers.find(u => u.email === email);
+    
+    if (user && user.status === 'pending') {
+      setError("계정이 관리자 승인 대기 중입니다. 승인 후 로그인 가능합니다.");
+      return;
+    }
+    
     const success = await login(email, password);
     if (success) {
       navigate("/dashboard");

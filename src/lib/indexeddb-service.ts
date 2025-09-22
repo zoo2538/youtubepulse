@@ -1,4 +1,6 @@
 // IndexedDB 데이터 저장 서비스
+import { getKoreanDateString } from './utils';
+
 class IndexedDBService {
   private dbName = 'YouTubePulseDB';
   private version = 2;
@@ -99,10 +101,42 @@ class IndexedDBService {
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
-      // 기존 데이터 삭제
-      const clearRequest = store.clear();
-      clearRequest.onsuccess = () => {
-        // 새 데이터 추가
+      // 오늘 날짜의 기존 데이터만 삭제하고 새 데이터 추가
+      const today = getKoreanDateString();
+      
+      // 오늘 날짜 데이터 조회
+      const getAllRequest = store.getAll();
+      getAllRequest.onsuccess = () => {
+        const existingData = getAllRequest.result;
+        const todayData = existingData.filter(item => {
+          const itemDate = item.collectionDate || item.uploadDate;
+          return itemDate && itemDate.split('T')[0] === today;
+        });
+        
+        // 오늘 날짜 데이터만 삭제
+        let deleteCompleted = 0;
+        const deleteTotal = todayData.length;
+        
+        if (deleteTotal === 0) {
+          // 삭제할 데이터가 없으면 바로 새 데이터 추가
+          addNewData();
+        } else {
+          todayData.forEach(item => {
+            const deleteRequest = store.delete(item.id);
+            deleteRequest.onsuccess = () => {
+              deleteCompleted++;
+              if (deleteCompleted === deleteTotal) {
+                addNewData();
+              }
+            };
+            deleteRequest.onerror = () => reject(deleteRequest.error);
+          });
+        }
+      };
+      getAllRequest.onerror = () => reject(getAllRequest.error);
+      
+      // 새 데이터 추가 함수
+      const addNewData = () => {
         let completed = 0;
         const total = data.length;
         
@@ -112,21 +146,43 @@ class IndexedDBService {
         }
 
         data.forEach((item, index) => {
-          // id가 없는 경우 자동 생성
+          // 고유한 ID 생성 (타임스탬프 + 랜덤 + 인덱스)
           if (!item.id) {
-            item.id = Date.now() + index;
+            item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
           }
-          const addRequest = store.add(item);
-          addRequest.onsuccess = () => {
-            completed++;
-            if (completed === total) {
-              resolve();
+          
+          // 중복 ID 확인 후 저장
+          const checkRequest = store.get(item.id);
+          checkRequest.onsuccess = () => {
+            if (checkRequest.result) {
+              // 이미 존재하는 ID라면 새로운 ID로 변경
+              item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
             }
+            
+            const addRequest = store.add(item);
+            addRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                resolve();
+              }
+            };
+            addRequest.onerror = () => {
+              console.warn(`ID 충돌 발생, 새 ID로 재시도: ${item.id}`);
+              // ID 충돌 시 새로운 ID로 재시도
+              item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}_retry`;
+              const retryRequest = store.add(item);
+              retryRequest.onsuccess = () => {
+                completed++;
+                if (completed === total) {
+                  resolve();
+                }
+              };
+              retryRequest.onerror = () => reject(retryRequest.error);
+            };
           };
-          addRequest.onerror = () => reject(addRequest.error);
+          checkRequest.onerror = () => reject(checkRequest.error);
         });
       };
-      clearRequest.onerror = () => reject(clearRequest.error);
     });
   }
 
@@ -944,8 +1000,8 @@ class IndexedDBService {
     });
   }
 
-  // 7일 데이터 정리
-  async cleanupOldData(retentionDays: number = 7): Promise<number> {
+  // 14일 데이터 정리
+  async cleanupOldData(retentionDays: number = 14): Promise<number> {
     if (!this.db) await this.init();
     
     const cutoffDate = new Date();

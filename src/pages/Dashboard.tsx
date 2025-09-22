@@ -7,11 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Settings, Users, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import Logo from "@/components/ui/logo";
+import { useEffect } from "react";
 
 const Dashboard = () => {
-  const { userEmail, logout } = useAuth();
+  const { userEmail, userRole, logout } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = userEmail === 'ju9511503@gmail.com';
+  const isAdmin = userRole === 'admin';
+
+  // 임시 비밀번호 기능은 현재 비활성화 상태
+  // useEffect(() => {
+  //   // 임시 비밀번호 감지 로직 비활성화
+  // }, [userEmail, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -39,17 +46,14 @@ const Dashboard = () => {
 
             {/* Navigation Buttons */}
             <div className="flex items-center space-x-3">
-              {isAdmin && (
-                <Link to="/user-management">
-                  <Button 
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <Users className="w-4 h-4 mr-2" />
-                    회원관리
-                  </Button>
-                </Link>
-              )}
+              <Link to="/change-password">
+                <Button 
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  비밀번호 변경
+                </Button>
+              </Link>
               <Link to="/dashboard">
                 <Button 
                   variant="destructive" 
@@ -59,15 +63,36 @@ const Dashboard = () => {
                   국내
                 </Button>
               </Link>
-              <Link to="/system">
+              <Link to="/data">
                 <Button 
                   size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
                 >
-                  <Settings className="w-4 h-4 mr-2" />
-                  시스템
+                  📊 데이터
                 </Button>
               </Link>
+              {isAdmin && (
+                <Link to="/system">
+                  <Button 
+                    size="sm"
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    시스템
+                  </Button>
+                </Link>
+              )}
+              {isAdmin && (
+                <Link to="/user-management">
+                  <Button 
+                    size="sm"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Users className="w-4 h-4 mr-2" />
+                    회원관리
+                  </Button>
+                </Link>
+              )}
               <Button 
                 onClick={handleLogout}
                 variant="outline"

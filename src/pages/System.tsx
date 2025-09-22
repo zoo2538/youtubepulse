@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,14 +29,16 @@ import {
   Download,
   Upload,
   Filter,
-  Play
+  Play,
+  Users
 } from "lucide-react";
 import DataCollectionManager from "@/components/DataCollectionManager";
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
-import { migrateSubCategoriesToDynamic, checkMigrationStatus } from "@/lib/data-migration";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 interface ApiConfig {
   youtubeApiKey: string;
@@ -70,6 +72,8 @@ interface SystemConfig {
 }
 
 const System = () => {
+  const { userRole, isLoggedIn } = useAuth();
+  const navigate = useNavigate();
   const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
     // localStorage에서 저장된 설정 불러오기
     const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
@@ -107,39 +111,25 @@ const System = () => {
 
   const [dbInfo, setDbInfo] = useState<any>(null);
   const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false);
-  const [migrationStatus, setMigrationStatus] = useState<any>(null);
+
+  // 관리자 권한 체크
+  useEffect(() => {
+    console.log('🔍 System 페이지 권한 체크:', { isLoggedIn, userRole, userEmail: 'ju9511503@gmail.com' });
+    if (!isLoggedIn) {
+      console.log('❌ 로그인되지 않음 - 대시보드로 리다이렉트');
+      navigate('/dashboard');
+    } else if (userRole !== 'admin') {
+      console.log('❌ 관리자 권한 없음 - 대시보드로 리다이렉트');
+      navigate('/dashboard');
+    }
+  }, [isLoggedIn, userRole, navigate]);
 
   // 페이지 로드 시 IndexedDB 정보 로드
   React.useEffect(() => {
     loadDatabaseInfo();
-    checkMigration();
   }, []);
 
-  // 마이그레이션 상태 확인
-  const checkMigration = async () => {
-    try {
-      const status = await checkMigrationStatus();
-      setMigrationStatus(status);
-    } catch (error) {
-      console.error('마이그레이션 상태 확인 실패:', error);
-    }
-  };
 
-  // 세부카테고리 마이그레이션 실행
-  const handleMigration = async () => {
-    try {
-      const result = await migrateSubCategoriesToDynamic();
-      if (result.success) {
-        alert(`✅ 마이그레이션 완료!\n\n분류된 데이터: ${result.classifiedDataCount}개\n미분류 데이터: ${result.unclassifiedDataCount}개\n사용된 카테고리: ${result.usedCategories.length}개\n사용된 세부카테고리: ${result.usedSubCategories.length}개`);
-        await checkMigration();
-      } else {
-        alert(`❌ 마이그레이션 실패: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('마이그레이션 실행 실패:', error);
-      alert('❌ 마이그레이션 실행 중 오류가 발생했습니다.');
-    }
-  };
 
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
@@ -294,6 +284,7 @@ const System = () => {
     // 트렌드 기반 수집으로 변경되어 키워드 기반 검색을 하지 않습니다.
     return [];
   };
+
 
   const handleStartDataCollection = async () => {
     try {
@@ -472,26 +463,56 @@ const System = () => {
         }
       }
 
-      // 3. 기존 분류된 데이터에서 카테고리 정보 가져오기 (IndexedDB에서)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 7일간)
       let existingClassifiedData: any[] = [];
       try {
-        existingClassifiedData = await indexedDBService.loadUnclassifiedData();
-        // 분류된 데이터만 필터링
-        existingClassifiedData = existingClassifiedData.filter((item: any) => item.status === 'classified');
+        const allData = await indexedDBService.loadUnclassifiedData();
+        
+        // 최근 7일간의 분류된 데이터만 필터링
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+        
+        existingClassifiedData = allData.filter((item: any) => {
+          const isClassified = item.status === 'classified';
+          const isRecent = item.collectionDate >= sevenDaysAgoString;
+          return isClassified && isRecent;
+        });
+        
+        console.log(`📊 분류 데이터 참조 범위: 최근 7일 (${sevenDaysAgoString} 이후)`);
+        console.log(`📊 전체 분류 데이터: ${allData.filter(item => item.status === 'classified').length}개`);
+        console.log(`📊 최근 7일 분류 데이터: ${existingClassifiedData.length}개`);
       } catch (error) {
         console.log('기존 분류 데이터 로드 실패, 새로 시작합니다.');
         existingClassifiedData = [];
       }
       
       const classifiedChannelMap = new Map();
+      
+      // 채널별로 가장 최근 분류 정보만 사용 (같은 채널의 최신 분류 우선)
+      const channelLatestClassification = new Map();
       existingClassifiedData.forEach((item: any) => {
-        classifiedChannelMap.set(item.channelId, {
-          category: item.category,
-          subCategory: item.subCategory
+        if (!channelLatestClassification.has(item.channelId) || 
+            item.collectionDate > channelLatestClassification.get(item.channelId).collectionDate) {
+          channelLatestClassification.set(item.channelId, {
+            category: item.category,
+            subCategory: item.subCategory,
+            collectionDate: item.collectionDate,
+            channelName: item.channelName
+          });
+        }
+      });
+      
+      // 최종 분류 맵 구성
+      channelLatestClassification.forEach((classification, channelId) => {
+        classifiedChannelMap.set(channelId, {
+          category: classification.category,
+          subCategory: classification.subCategory
         });
       });
       
-      console.log(`기존 분류된 채널: ${classifiedChannelMap.size}개`);
+      console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
+      console.log(`📊 분류 참조 기간: 최근 7일간의 최신 분류 정보만 사용`);
       
       // 5. 데이터 변환 및 저장
       const { getKoreanDateString, getKoreanDateTimeString } = await import('@/lib/utils');
@@ -526,34 +547,108 @@ const System = () => {
         // 기존 데이터 로드
         const existingData = await indexedDBService.loadUnclassifiedData();
         
-        // 분류된 데이터를 우선적으로 보존하는 중복 제거 로직
-        const videoIdMap = new Map();
+        // 일별 데이터 보존을 위한 중복 제거 로직
+        // Key: videoId + collectionDate (같은 영상이라도 날짜가 다르면 별도 보존)
+        const videoDateMap = new Map();
         
         // 1단계: 기존 데이터를 먼저 추가 (분류된 데이터 우선)
         existingData.forEach(item => {
-          videoIdMap.set(item.videoId, item);
+          const key = `${item.videoId}_${item.collectionDate}`;
+          videoDateMap.set(key, item);
         });
         
-        // 2단계: 새 데이터 추가 (기존에 없는 videoId만)
+        // 2단계: 새 데이터 추가 (같은 날짜의 같은 영상만 업데이트)
         newData.forEach(item => {
-          if (!videoIdMap.has(item.videoId)) {
-            videoIdMap.set(item.videoId, item);
+          const key = `${item.videoId}_${item.collectionDate}`;
+          
+          if (!videoDateMap.has(key)) {
+            // 새로운 영상 또는 새로운 날짜면 바로 추가
+            videoDateMap.set(key, item);
           } else {
-            // 기존 데이터가 분류되지 않은 상태이고 새 데이터가 분류된 상태라면 업데이트
-            const existing = videoIdMap.get(item.videoId);
+            // 같은 날짜의 같은 영상이면 업데이트 정책 적용
+            const existing = videoDateMap.get(key);
+            
+            // 업데이트 우선순위:
+            // 1. 분류 상태 (classified > unclassified)
+            // 2. 최신 조회수 (더 높은 조회수 우선)
+            // 3. 최신 수집 시간
+            let shouldUpdate = false;
+            
             if (existing.status === 'unclassified' && item.status === 'classified') {
-              videoIdMap.set(item.videoId, item);
+              // 분류된 데이터로 업데이트
+              shouldUpdate = true;
+              console.log(`📊 영상 업데이트 (분류): ${item.videoTitle} - ${existing.status} → ${item.status}`);
+            } else if (existing.status === item.status) {
+              // 같은 상태라면 조회수나 수집 시간 비교
+              if (item.viewCount > existing.viewCount) {
+                shouldUpdate = true;
+                console.log(`📊 영상 업데이트 (조회수): ${item.videoTitle} - ${existing.viewCount?.toLocaleString()} → ${item.viewCount?.toLocaleString()}`);
+              } else if (item.viewCount === existing.viewCount && item.collectionDate > existing.collectionDate) {
+                shouldUpdate = true;
+                console.log(`📊 영상 업데이트 (시간): ${item.videoTitle} - ${existing.collectionDate} → ${item.collectionDate}`);
+              }
+            }
+            
+            if (shouldUpdate) {
+              // 기존 데이터의 분류 정보 보존하면서 통계 업데이트
+              const updatedItem = {
+                ...item,
+                // 분류 정보는 기존 데이터 우선 (분류 작업 보존)
+                category: existing.category || item.category,
+                subCategory: existing.subCategory || item.subCategory,
+                status: existing.status || item.status,
+                // 통계 정보는 최신 데이터로 업데이트
+                viewCount: Math.max(item.viewCount || 0, existing.viewCount || 0),
+                likeCount: Math.max(item.likeCount || 0, existing.likeCount || 0),
+                commentCount: Math.max(item.commentCount || 0, existing.commentCount || 0),
+                // 수집 시간은 최신 것으로
+                collectionDate: item.collectionDate > existing.collectionDate ? item.collectionDate : existing.collectionDate
+              };
+              videoDateMap.set(key, updatedItem);
             }
           }
         });
         
-        const finalData = Array.from(videoIdMap.values());
+        const finalData = Array.from(videoDateMap.values());
         
-        console.log(`데이터 누적: 기존 ${existingData.length}개 + 새 ${newData.length}개 = 총 ${finalData.length}개`);
-        console.log(`분류 보존: 기존 분류된 데이터 우선 보존`);
+        // 고유한 ID 보장 (강화된 버전)
+        const dataWithUniqueIds = finalData.map((item, index) => {
+          // ID가 없거나 유효하지 않은 경우 새로운 고유 ID 생성
+          if (!item.id || typeof item.id !== 'string') {
+            item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
+          }
+          
+          // videoId 기반으로도 고유성을 보장
+          const videoIdPrefix = item.videoId ? item.videoId.substring(0, 8) : 'unknown';
+          const uniqueId = `${videoIdPrefix}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+          
+          return {
+            ...item,
+            id: item.id || uniqueId
+          };
+        });
+        
+        // 최종 중복 ID 검사 및 제거
+        const uniqueIdMap = new Map();
+        const finalUniqueData = dataWithUniqueIds.filter(item => {
+          if (uniqueIdMap.has(item.id)) {
+            console.warn(`중복 ID 발견, 제거됨: ${item.id}`);
+            return false;
+          }
+          uniqueIdMap.set(item.id, true);
+          return true;
+        });
+        
+        console.log(`📊 일별 데이터 처리 완료:`);
+        console.log(`   - 기존 데이터: ${existingData.length}개`);
+        console.log(`   - 새 수집 데이터: ${newData.length}개`);
+        console.log(`   - 최종 저장 데이터: ${finalUniqueData.length}개`);
+        console.log(`   - 일별 데이터 보존: ${finalUniqueData.length - existingData.length}개 추가`);
+        console.log(`   - 같은 날짜 중복 업데이트: ${newData.length - (finalUniqueData.length - existingData.length)}개`);
+        console.log(`   - 중복 ID 제거: ${dataWithUniqueIds.length - finalUniqueData.length}개`);
         
         // IndexedDB에 저장
-        await indexedDBService.saveUnclassifiedData(finalData);
+        await indexedDBService.saveUnclassifiedData(finalUniqueData);
       } catch (error) {
         console.error('IndexedDB 저장 오류:', error);
         alert('데이터 저장 중 오류가 발생했습니다.');
@@ -623,6 +718,14 @@ const System = () => {
                   국내
                 </Button>
               </Link>
+              <Link to="/data">
+                <Button 
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  📊 데이터
+                </Button>
+              </Link>
               <Button 
                 size="sm"
                 className="bg-purple-600 hover:bg-purple-700 text-white"
@@ -679,6 +782,12 @@ const System = () => {
                 <Button variant="outline">
                   <Filter className="w-4 h-4 mr-2" />
                   데이터 분류 관리
+                </Button>
+              </Link>
+              <Link to="/user-management">
+                <Button variant="outline">
+                  <Users className="w-4 h-4 mr-2" />
+                  회원 관리
                 </Button>
               </Link>
             </div>
@@ -1064,6 +1173,111 @@ const System = () => {
                       </div>
                     </Card>
 
+                    {/* 데이터 수집 설정 */}
+                    <Card className="p-6 h-96">
+                      <div className="flex items-center space-x-2 mb-4">
+                        <Filter className="w-5 h-5 text-indigo-600" />
+                        <h2 className="text-xl font-semibold text-foreground">데이터 수집 설정</h2>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="min-view-count">최소 조회수 기준</Label>
+                          <Input
+                            id="min-view-count"
+                            type="number"
+                            min="1000"
+                            max="1000000"
+                            value={(() => {
+                              try {
+                                const config = loadCollectionConfig();
+                                return config.minViewCount || 50000;
+                              } catch {
+                                return 50000;
+                              }
+                            })()}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (!isNaN(value)) {
+                                const config = loadCollectionConfig();
+                                config.minViewCount = value;
+                                localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
+                              }
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            이 조회수 이상인 영상만 수집합니다
+                          </p>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label className="text-sm font-medium">한국어 영상만 수집</Label>
+                            <p className="text-xs text-muted-foreground">
+                              한국어가 아닌 영상을 자동으로 제외합니다
+                            </p>
+                          </div>
+                          <Switch
+                            checked={(() => {
+                              try {
+                                const config = loadCollectionConfig();
+                                return config.koreanOnly ?? true;
+                              } catch {
+                                return true;
+                              }
+                            })()}
+                            onCheckedChange={(checked) => {
+                              const config = loadCollectionConfig();
+                              config.koreanOnly = checked;
+                              localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
+                            }}
+                          />
+                        </div>
+
+                        <div>
+                          <Label htmlFor="language-filter">언어 필터링 강도</Label>
+                          <Select
+                            value={(() => {
+                              try {
+                                const config = loadCollectionConfig();
+                                return config.languageFilterLevel || 'moderate';
+                              } catch {
+                                return 'moderate';
+                              }
+                            })()}
+                            onValueChange={(value: 'strict' | 'moderate' | 'loose') => {
+                              const config = loadCollectionConfig();
+                              config.languageFilterLevel = value;
+                              localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="strict">엄격 (제목+설명 모두 한국어)</SelectItem>
+                              <SelectItem value="moderate">보통 (제목 또는 채널명 한국어)</SelectItem>
+                              <SelectItem value="loose">느슨 (하나라도 한국어 포함)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            한국어 감지 기준을 설정합니다
+                          </p>
+                        </div>
+
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                          <h4 className="text-sm font-medium text-blue-800 mb-2">현재 수집 키워드</h4>
+                          <div className="text-xs text-blue-700 mb-2">
+                            총 <strong>{EXPANDED_KEYWORDS.length}개</strong> 키워드로 수집 중
+                          </div>
+                          <div className="text-xs text-blue-600 mb-2">
+                            <strong>카테고리별 분류:</strong><br/>
+                            인기콘텐츠(4개), 엔터테인먼트(3개), 게임(2개), 라이프스타일(3개), 여행라이프(3개), 교육(3개), 투자경제(4개), 뉴스이슈(4개), 음악예술(2개), 영화드라마(4개), 기술개발(3개), 스포츠(3개), 쇼핑리뷰(4개), 창작취미(3개), 애니웹툰(3개), 시니어(9개), 트렌드밈(5개)
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+
                     {/* 연동 상태 */}
                     <Card className="p-6 h-96">
                       <div className="flex items-center space-x-2 mb-4">
@@ -1138,99 +1352,32 @@ const System = () => {
                           </div>
                         </div>
 
-                        {dbInfo && (
-                          <div className="p-3 rounded-lg bg-blue-600 text-white">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-sm font-medium">IndexedDB 정보</h4>
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={handleCleanupOldData}
-                                className="text-xs"
-                              >
-                                🧹 14일 정리
-                              </Button>
-                            </div>
-                            <div className="text-xs space-y-1">
-                              <div>데이터베이스: {dbInfo.name}</div>
-                              <div>버전: {dbInfo.version}</div>
-                              <div>저장소: {dbInfo.objectStores.join(', ')}</div>
-                              <div>총 데이터: {dbInfo.size}개</div>
-                              <div>보존 기간: {dbInfo.retentionDays}일</div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-                  </div>
-
-                  {/* 세부카테고리 마이그레이션 */}
-                  <div className="col-span-1">
-                    <Card className="p-6">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Database className="w-5 h-5 text-purple-600" />
-                        <h3 className="text-lg font-semibold text-foreground">세부카테고리 마이그레이션</h3>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="p-3 rounded-lg bg-muted/50">
+                        <div className="p-3 rounded-lg bg-blue-600 text-white">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium">마이그레이션 상태</span>
+                            <h4 className="text-sm font-medium">IndexedDB 정보</h4>
                             <Button 
                               variant="outline" 
                               size="sm"
-                              onClick={checkMigration}
+                              onClick={handleCleanupOldData}
+                              className="text-xs"
                             >
-                              <RefreshCw className="w-3 h-3 mr-1" />
-                              새로고침
+                              🧹 14일 정리
                             </Button>
                           </div>
-                          {migrationStatus ? (
-                            <div className="text-xs space-y-1">
-                              <div className="flex items-center space-x-2">
-                                {migrationStatus.hasDynamicCategories ? (
-                                  <>
-                                    <CheckCircle className="w-3 h-3 text-green-500" />
-                                    <span className="text-green-600">동적 카테고리 활성화됨</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle className="w-3 h-3 text-red-500" />
-                                    <span className="text-red-600">하드코딩된 카테고리 사용 중</span>
-                                  </>
-                                )}
-                              </div>
-                              {migrationStatus.savedCategories && (
-                                <div>저장된 카테고리: {Object.keys(migrationStatus.savedCategories).length}개</div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-muted-foreground">상태 확인 중...</div>
-                          )}
-                        </div>
-
-                        <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                          <div className="text-sm text-blue-800 mb-2">
-                            <strong>마이그레이션이 필요한 경우:</strong>
+                          <div className="text-xs space-y-1">
+                            <div><strong>데이터베이스:</strong> {dbInfo?.name || 'YouTubePulseDB'}</div>
+                            <div><strong>버전:</strong> {dbInfo?.version || '1.0'}</div>
+                            <div><strong>저장소:</strong> {dbInfo?.objectStores?.join(', ') || 'unclassifiedData, classifiedData, channels, videos, categories, dailySummaries, dailyProgress'}</div>
+                            <div><strong>총 데이터:</strong> {dbInfo?.size || 0}개</div>
+                            <div><strong>보존 기간:</strong> 14일 (자동 정리)</div>
+                            <div><strong>용량:</strong> 브라우저별 제한 (일반적으로 수GB)</div>
+                            <div><strong>상태:</strong> <span className="text-green-300">정상 운영</span></div>
                           </div>
-                          <ul className="text-xs text-blue-700 space-y-1">
-                            <li>• 기존 하드코딩된 세부카테고리를 동적으로 변경하고 싶을 때</li>
-                            <li>• 카테고리 관리 페이지에서 세부카테고리를 수정했을 때</li>
-                            <li>• 모든 페이지에서 새로운 카테고리가 반영되지 않을 때</li>
-                          </ul>
                         </div>
-
-                        <Button 
-                          onClick={handleMigration}
-                          className="w-full bg-purple-600 hover:bg-purple-700 text-white"
-                          disabled={migrationStatus?.hasDynamicCategories}
-                        >
-                          <Database className="w-4 h-4 mr-2" />
-                          {migrationStatus?.hasDynamicCategories ? '마이그레이션 완료' : '세부카테고리 마이그레이션 실행'}
-                        </Button>
                       </div>
                     </Card>
                   </div>
+
            
        </div>
     </div>

@@ -53,6 +53,15 @@ const Index = () => {
                 국내
               </Button>
             </Link>
+            <Link to="/data" onClick={handleProtectedClick}>
+              <Button 
+                size="sm"
+                className={`${isLoggedIn ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                disabled={!isLoggedIn}
+              >
+                📊 데이터
+              </Button>
+            </Link>
             <Link to="/system" onClick={handleProtectedClick}>
               <Button 
                 size="sm"

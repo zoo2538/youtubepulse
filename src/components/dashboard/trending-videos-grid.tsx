@@ -180,67 +180,120 @@ export function TrendingVideosGrid() {
               <p className="text-sm mt-1">데이터 수집을 먼저 진행해주세요.</p>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-16 text-center">순위</TableHead>
-                  <TableHead>동영상 정보</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {videoData.map((video, index) => (
-                  <TableRow key={video.id} className="hover:bg-surface-hover transition-colors">
-                    <TableCell className="text-center font-medium">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-4 p-2">
-                        <div className="relative">
-                          <img 
-                            src={video.thumbnail}
-                            alt={video.title}
-                            className="w-16 h-12 object-cover rounded"
-                          />
-                        </div>
-                        
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <a 
-                            href={`https://www.youtube.com/watch?v=${video.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
-                            title={`${video.title} - 새 탭에서 열기`}
-                          >
-                            {video.title}
-                          </a>
-                          <p className="text-xs text-muted-foreground">
-                            {video.channelName}
-                          </p>
-                          <div className="flex items-center space-x-2">
-                            <Badge 
-                              variant="secondary"
-                              className="text-xs bg-secondary text-secondary-foreground"
+            <div className="max-h-[600px] overflow-y-auto border rounded-lg">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="w-16 text-center">순위</TableHead>
+                    <TableHead>동영상 정보</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {videoData.slice(0, 10).map((video, index) => (
+                    <TableRow key={video.id} className="hover:bg-surface-hover transition-colors">
+                      <TableCell className="text-center font-medium">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-4 p-2">
+                          <div className="relative">
+                            <img 
+                              src={video.thumbnail}
+                              alt={video.title}
+                              className="w-16 h-12 object-cover rounded"
+                            />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <a 
+                              href={`https://www.youtube.com/watch?v=${video.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
+                              title={`${video.title} - 새 탭에서 열기`}
                             >
-                              {video.category}
-                            </Badge>
-                            <Badge className="bg-youtube text-white text-xs">
-                              <TrendingUp className="w-2 h-2 mr-1" />
-                              급등
-                            </Badge>
+                              {video.title}
+                            </a>
+                            <p className="text-xs text-muted-foreground">
+                              {video.channelName}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              <Badge 
+                                variant="secondary"
+                                className="text-xs bg-secondary text-secondary-foreground"
+                              >
+                                {video.category}
+                              </Badge>
+                              <Badge className="bg-youtube text-white text-xs">
+                                <TrendingUp className="w-2 h-2 mr-1" />
+                                급등
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-foreground">
+                              {formatViews(video.views)}회
+                            </p>
                           </div>
                         </div>
-                        
-                        <div className="text-right">
-                          <p className="text-sm font-medium text-foreground">
-                            {formatViews(video.views)}회
-                          </p>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {videoData.length > 10 && videoData.slice(10).map((video, index) => (
+                    <TableRow key={video.id} className="hover:bg-surface-hover transition-colors">
+                      <TableCell className="text-center font-medium">
+                        {index + 11}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-4 p-2">
+                          <div className="relative">
+                            <img 
+                              src={video.thumbnail}
+                              alt={video.title}
+                              className="w-16 h-12 object-cover rounded"
+                            />
+                          </div>
+                          
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <a 
+                              href={`https://www.youtube.com/watch?v=${video.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
+                              title={`${video.title} - 새 탭에서 열기`}
+                            >
+                              {video.title}
+                            </a>
+                            <p className="text-xs text-muted-foreground">
+                              {video.channelName}
+                            </p>
+                            <div className="flex items-center space-x-2">
+                              <Badge 
+                                variant="secondary"
+                                className="text-xs bg-secondary text-secondary-foreground"
+                              >
+                                {video.category}
+                              </Badge>
+                              <Badge className="bg-youtube text-white text-xs">
+                                <TrendingUp className="w-2 h-2 mr-1" />
+                                급등
+                              </Badge>
+                            </div>
+                          </div>
+                          
+                          <div className="text-right">
+                            <p className="text-sm font-medium text-foreground">
+                              {formatViews(video.views)}회
+                            </p>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       </div>

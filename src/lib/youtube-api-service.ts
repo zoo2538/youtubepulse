@@ -26,7 +26,43 @@ const callYouTubeAPI = async (endpoint: string, params: Record<string, string>) 
 // 요청 지연 유틸
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// 키워드 기반 동영상 검색 (조회수 순 정렬)
+// 한국어 텍스트 감지 함수
+const isKoreanText = (text: string): boolean => {
+  if (!text) return false;
+  
+  // 한글 유니코드 범위: \uAC00-\uD7AF (완성형 한글), \u1100-\u11FF (자모), \u3130-\u318F (호환 자모)
+  const koreanRegex = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
+  return koreanRegex.test(text);
+};
+
+// 한국어 영상 필터링 함수
+const isKoreanVideo = (video: any, filterLevel: 'strict' | 'moderate' | 'loose' = 'moderate'): boolean => {
+  if (!video?.snippet) return false;
+  
+  const { title, description, channelTitle } = video.snippet;
+  
+  // 제목, 설명, 채널명에서 한국어 텍스트 확인
+  const titleKorean = isKoreanText(title);
+  const descriptionKorean = isKoreanText(description);
+  const channelKorean = isKoreanText(channelTitle);
+  
+  // 언어 필터링 강도별 판정
+  switch (filterLevel) {
+    case 'strict':
+      // 엄격: 제목과 설명 모두 한국어여야 함
+      return titleKorean && descriptionKorean;
+    case 'moderate':
+      // 보통: 제목이 한국어이거나 채널명이 한국어여야 함
+      return titleKorean || channelKorean;
+    case 'loose':
+      // 느슨: 제목, 설명, 채널명 중 하나라도 한국어면 포함
+      return titleKorean || descriptionKorean || channelKorean;
+    default:
+      return titleKorean || channelKorean;
+  }
+};
+
+// 키워드 기반 동영상 검색 (조회수 순 정렬 + 한국어 필터링)
 export const searchVideosByKeyword = async (keyword: string, maxResults: number, regionCode?: string): Promise<any[]> => {
   const params: any = {
     part: 'snippet',
@@ -34,6 +70,7 @@ export const searchVideosByKeyword = async (keyword: string, maxResults: number,
     type: 'video',
     order: 'viewCount', // 조회수 높은 순으로 정렬
     maxResults: Math.min(50, Math.max(1, maxResults)).toString(),
+    relevanceLanguage: 'ko', // 한국어 관련 결과 우선
   };
   if (regionCode) params.regionCode = regionCode;
   
@@ -75,14 +112,23 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
   let nextPageToken: string | undefined;
   let totalCollected = 0;
   
-  // 조회수 필터링 설정 로드
+  // 필터링 설정 로드
   let minViewCount: number | undefined;
+  let koreanOnly: boolean = true;
+  let languageFilterLevel: 'strict' | 'moderate' | 'loose' = 'moderate';
+  
   try {
     const config = loadCollectionConfig();
     minViewCount = config.minViewCount;
+    koreanOnly = config.koreanOnly ?? true;
+    languageFilterLevel = config.languageFilterLevel ?? 'moderate';
+    
     console.log(`조회수 필터링 적용: ${minViewCount?.toLocaleString()}회 이상`);
+    if (koreanOnly) {
+      console.log(`한국어 필터링 적용: ${languageFilterLevel} 모드`);
+    }
   } catch (error) {
-    console.warn('조회수 필터링 설정 로드 실패, 필터링 없이 진행');
+    console.warn('필터링 설정 로드 실패, 기본 설정으로 진행');
   }
   
   try {
@@ -104,11 +150,20 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
       const data = await callYouTubeAPI('videos', params);
       
       if (data.items && data.items.length > 0) {
-        // 조회수 필터링 적용
+        // 조회수 및 한국어 필터링 적용
         const filteredVideos = data.items.filter((video: any) => {
-          if (typeof minViewCount !== 'number') return true;
-          const viewCount = parseInt(video.statistics?.viewCount) || 0;
-          return viewCount >= minViewCount;
+          // 조회수 필터링
+          if (typeof minViewCount === 'number') {
+            const viewCount = parseInt(video.statistics?.viewCount) || 0;
+            if (viewCount < minViewCount) return false;
+          }
+          
+          // 한국어 필터링
+          if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+            return false;
+          }
+          
+          return true;
         });
         
         allVideos.push(...filteredVideos);
@@ -116,9 +171,22 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
         
         const filteredCount = data.items.length - filteredVideos.length;
         if (filteredCount > 0) {
-          console.log(`조회수 순 수집 진행: ${totalCollected}/${maxResults}개 (${filteredCount}개 필터링됨, ${minViewCount?.toLocaleString()}회 미만)`);
+          const viewFiltered = data.items.filter((video: any) => {
+            if (typeof minViewCount === 'number') {
+              const viewCount = parseInt(video.statistics?.viewCount) || 0;
+              return viewCount < minViewCount;
+            }
+            return false;
+          }).length;
+          
+          const languageFiltered = koreanOnly ? 
+            data.items.filter((video: any) => !isKoreanVideo(video, languageFilterLevel)).length : 0;
+          
+          console.log(`조회수 순 수집 진행: ${totalCollected}/${maxResults}개 (${filteredCount}개 필터링됨)`);
+          if (viewFiltered > 0) console.log(`  - 조회수 미달: ${viewFiltered}개`);
+          if (languageFiltered > 0) console.log(`  - 한국어 아님: ${languageFiltered}개`);
         } else {
-          console.log(`조회수 순 수집 진행: ${totalCollected}/${maxResults}개 (모두 ${minViewCount?.toLocaleString()}회 이상)`);
+          console.log(`조회수 순 수집 진행: ${totalCollected}/${maxResults}개 (모든 조건 통과)`);
         }
       }
       
@@ -161,19 +229,24 @@ export const collectChannelDetails = async (channelIds: string[]): Promise<any[]
   return data.items || [];
 };
 
-// 채널별 최신 비디오 수집 (확장) - 조회수 필터링 적용
+// 채널별 최신 비디오 수집 (확장) - 조회수 및 한국어 필터링 적용
 export const collectChannelVideos = async (channelId: string, maxResults: number = 50): Promise<any[]> => {
   const allVideos: any[] = [];
   let nextPageToken: string | undefined;
   let totalCollected = 0;
   
-  // 조회수 필터링 설정 로드
+  // 필터링 설정 로드
   let minViewCount: number | undefined;
+  let koreanOnly: boolean = true;
+  let languageFilterLevel: 'strict' | 'moderate' | 'loose' = 'moderate';
+  
   try {
     const config = loadCollectionConfig();
     minViewCount = config.minViewCount;
+    koreanOnly = config.koreanOnly ?? true;
+    languageFilterLevel = config.languageFilterLevel ?? 'moderate';
   } catch (error) {
-    console.warn('조회수 필터링 설정 로드 실패, 필터링 없이 진행');
+    console.warn('필터링 설정 로드 실패, 기본 설정으로 진행');
   }
   
   try {
@@ -199,11 +272,20 @@ export const collectChannelVideos = async (channelId: string, maxResults: number
         const videoIds = data.items.map((item: any) => item.id.videoId);
         const videoDetails = await collectVideoDetails(videoIds);
         
-        // 조회수 필터링 적용
+        // 조회수 및 한국어 필터링 적용
         const filteredVideos = videoDetails.filter((video: any) => {
-          if (typeof minViewCount !== 'number') return true;
-          const viewCount = parseInt(video.statistics?.viewCount) || 0;
-          return viewCount >= minViewCount;
+          // 조회수 필터링
+          if (typeof minViewCount === 'number') {
+            const viewCount = parseInt(video.statistics?.viewCount) || 0;
+            if (viewCount < minViewCount) return false;
+          }
+          
+          // 한국어 필터링
+          if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+            return false;
+          }
+          
+          return true;
         });
         
         // 원본 search 결과와 매칭하여 반환

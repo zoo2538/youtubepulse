@@ -131,12 +131,14 @@ const ChannelDetail = () => {
               dailyViews,
               lastModified: "6시간 전"
             });
+
+            setVideos(channelVideos);
           }
         }
-        setLoading(false);
+        setIsLoading(false);
       } catch (error) {
         console.error('채널 데이터 로드 실패:', error);
-        setLoading(false);
+        setIsLoading(false);
       }
     };
 
@@ -144,7 +146,7 @@ const ChannelDetail = () => {
   }, [channelId]);
 
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -208,6 +210,14 @@ const ChannelDetail = () => {
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   국내
+                </Button>
+              </Link>
+              <Link to="/data">
+                <Button 
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  📊 데이터
                 </Button>
               </Link>
               <Link to="/system">

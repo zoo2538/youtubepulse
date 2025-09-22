@@ -47,6 +47,23 @@ const Register = () => {
 
     // 간단한 회원가입 로직 (실제로는 API 호출)
     setTimeout(() => {
+      // 사용자 데이터를 로컬 스토리지에 저장 (승인 대기 상태)
+      const newUser = {
+        id: Date.now().toString(),
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        status: 'pending',
+        role: 'user',
+        joinDate: new Date().toISOString().split('T')[0],
+        lastLogin: ''
+      };
+
+      // 기존 사용자 목록 가져오기
+      const existingUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      existingUsers.push(newUser);
+      localStorage.setItem('users', JSON.stringify(existingUsers));
+
       setIsLoading(false);
       setSuccess(true);
       
@@ -68,6 +85,7 @@ const Register = () => {
                 <h2 className="text-2xl font-bold text-white">회원가입 완료!</h2>
                 <p className="text-gray-300">
                   계정이 성공적으로 생성되었습니다.<br />
+                  <span className="text-yellow-400 font-semibold">관리자 승인 후 사용 가능합니다.</span><br />
                   잠시 후 로그인 페이지로 이동합니다.
                 </p>
                 <div className="pt-4">
@@ -239,4 +257,9 @@ const Register = () => {
 };
 
 export default Register;
+
+
+
+
+
 
