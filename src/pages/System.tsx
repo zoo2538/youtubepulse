@@ -79,12 +79,21 @@ const System = () => {
     const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
     const savedCustomApiUrl = localStorage.getItem('customApiUrl') || 'https://api.youthbepulse.com';
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
+    const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
+    
+    console.log('🔧 설정 로드:', {
+      youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
+      customApiUrl: savedCustomApiUrl,
+      customApiEnabled: savedCustomApiEnabled,
+      customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
+    });
+    
     return {
       youtubeApiKey: savedApiKey,
       youtubeApiEnabled: !!savedApiKey,
       customApiUrl: savedCustomApiUrl,
       customApiEnabled: savedCustomApiEnabled,
-      customApiKey: ''
+      customApiKey: savedCustomApiKey
     };
   });
 
@@ -286,20 +295,18 @@ const System = () => {
       // 설정 저장 로직
       console.log('설정 저장:', { apiConfig, dbConfig, systemConfig });
       
-      // API 설정을 localStorage에 저장
-      if (apiConfig.youtubeApiKey) {
-        localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey);
-      }
-      if (apiConfig.customApiUrl) {
-        localStorage.setItem('customApiUrl', apiConfig.customApiUrl);
-      }
+      // API 설정을 localStorage에 저장 (항상 저장)
+      localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey || '');
+      localStorage.setItem('customApiUrl', apiConfig.customApiUrl || '');
       localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
+      localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
       
       // 다른 설정들도 localStorage에 저장
       localStorage.setItem('dbConfig', JSON.stringify(dbConfig));
       localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
       
-      alert('설정이 저장되었습니다!');
+      // 설정 저장 완료 알림
+      alert('✅ 모든 설정이 저장되었습니다. 페이지를 새로고침해도 유지됩니다.');
     } catch (error) {
       alert('설정 저장에 실패했습니다.');
     }

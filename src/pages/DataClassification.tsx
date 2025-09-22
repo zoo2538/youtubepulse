@@ -123,16 +123,16 @@ const DataClassification = () => {
 
     loadCategories();
 
-    // 카테고리 업데이트 이벤트 리스너
-    const handleCategoriesUpdated = () => {
-      loadCategories();
-    };
+    // 카테고리 업데이트 이벤트 리스너 제거 - 페이지별 독립적 카테고리 관리
+    // const handleCategoriesUpdated = () => {
+    //   loadCategories();
+    // };
 
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdated);
+    // window.addEventListener('categoriesUpdated', handleCategoriesUpdated);
 
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdated);
-    };
+    // return () => {
+    //   window.removeEventListener('categoriesUpdated', handleCategoriesUpdated);
+    // };
   }, []);
 
   // IndexedDB에서 데이터 로드 (전체 데이터 - 통계용)
@@ -442,9 +442,9 @@ const DataClassification = () => {
       await indexedDBService.saveCategories(dynamicSubCategories);
       console.log('📊 카테고리 저장 완료');
       
-      // 데이터 업데이트 이벤트 발생 (다른 페이지에서 카테고리 새로고침)
-      window.dispatchEvent(new CustomEvent('categoriesUpdated'));
-      console.log('📊 categoriesUpdated 이벤트 발생');
+      // 데이터 업데이트 이벤트 발생 제거 - 페이지별 독립적 카테고리 관리
+      // window.dispatchEvent(new CustomEvent('categoriesUpdated'));
+      // console.log('📊 categoriesUpdated 이벤트 발생');
       
       alert('✅ 세부카테고리가 저장되었습니다. 모든 페이지에 반영됩니다.');
     } catch (error) {
