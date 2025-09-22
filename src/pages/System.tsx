@@ -77,11 +77,13 @@ const System = () => {
   const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
     // localStorage에서 저장된 설정 불러오기
     const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
+    const savedCustomApiUrl = localStorage.getItem('customApiUrl') || 'https://api.youthbepulse.com';
+    const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     return {
       youtubeApiKey: savedApiKey,
       youtubeApiEnabled: !!savedApiKey,
-      customApiUrl: '',
-      customApiEnabled: false,
+      customApiUrl: savedCustomApiUrl,
+      customApiEnabled: savedCustomApiEnabled,
       customApiKey: ''
     };
   });
@@ -134,6 +136,8 @@ const System = () => {
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [redisConnectionStatus, setRedisConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [apiConnectionStatus, setApiConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [apiTestMessage, setApiTestMessage] = useState('');
   const [redisTestMessage, setRedisTestMessage] = useState('');
   const [youtubeApiStatus, setYoutubeApiStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
@@ -247,15 +251,49 @@ const System = () => {
     }
   };
 
+  const testApiConnection = async () => {
+    setApiConnectionStatus('testing');
+    setApiTestMessage('API 서버를 테스트하고 있습니다...');
+
+    try {
+      if (!apiConfig.customApiUrl) {
+        throw new Error('API 서버 URL이 설정되지 않았습니다.');
+      }
+
+      // API 서버 연결 테스트
+      const response = await fetch(`${apiConfig.customApiUrl}/api/health`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 서버 연결 실패: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setApiConnectionStatus('success');
+      setApiTestMessage(`API 서버 연결 성공! 서버 상태: ${data.status || 'OK'}`);
+    } catch (error) {
+      setApiConnectionStatus('error');
+      setApiTestMessage(error instanceof Error ? error.message : '알 수 없는 오류');
+    }
+  };
+
   const saveConfig = async () => {
     try {
       // 설정 저장 로직
       console.log('설정 저장:', { apiConfig, dbConfig, systemConfig });
       
-      // API 키를 localStorage에 저장
+      // API 설정을 localStorage에 저장
       if (apiConfig.youtubeApiKey) {
         localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey);
       }
+      if (apiConfig.customApiUrl) {
+        localStorage.setItem('customApiUrl', apiConfig.customApiUrl);
+      }
+      localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
       
       // 다른 설정들도 localStorage에 저장
       localStorage.setItem('dbConfig', JSON.stringify(dbConfig));
@@ -896,15 +934,39 @@ const System = () => {
                           {apiConfig.customApiEnabled && (
                             <div className="space-y-2">
                               <Label htmlFor="custom-api-url">API URL</Label>
-                              <Input
-                                id="custom-api-url"
-                                placeholder="https://api.example.com"
-                                value={apiConfig.customApiUrl}
-                                onChange={(e) => 
-                                  setApiConfig(prev => ({ ...prev, customApiUrl: e.target.value }))
-                                }
-                              />
-                              <Label htmlFor="custom-api-key">API 키</Label>
+                              <div className="flex space-x-2">
+                                <Input
+                                  id="custom-api-url"
+                                  placeholder="https://api.youthbepulse.com"
+                                  value={apiConfig.customApiUrl}
+                                  onChange={(e) => 
+                                    setApiConfig(prev => ({ ...prev, customApiUrl: e.target.value }))
+                                  }
+                                  className="flex-1"
+                                />
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={testApiConnection}
+                                  disabled={!apiConfig.customApiUrl || apiConnectionStatus === 'testing'}
+                                >
+                                  <TestTube className="w-4 h-4 mr-1" />
+                                  {apiConnectionStatus === 'testing' ? '테스트 중...' : '테스트'}
+                                </Button>
+                              </div>
+                              
+                              {/* API 서버 테스트 결과 */}
+                              {apiConnectionStatus !== 'idle' && (
+                                <div className={`p-2 rounded-lg text-sm ${
+                                  apiConnectionStatus === 'success' 
+                                    ? 'bg-green-50 border border-green-200 text-green-800' 
+                                    : 'bg-red-50 border border-red-200 text-red-800'
+                                }`}>
+                                  {apiTestMessage}
+                                </div>
+                              )}
+                              
+                              <Label htmlFor="custom-api-key">API 키 (선택사항)</Label>
                               <Input
                                 id="custom-api-key"
                                 type="password"

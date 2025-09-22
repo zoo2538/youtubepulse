@@ -1,0 +1,133 @@
+// API 서버와 통신하는 서비스
+const API_BASE_URL = 'https://api.youthbepulse.com';
+
+interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+class ApiService {
+  private baseURL: string;
+
+  constructor() {
+    this.baseURL = API_BASE_URL;
+  }
+
+  // HTTP 요청 헬퍼
+  private async request<T>(
+    endpoint: string,
+    options: RequestInit = {}
+  ): Promise<ApiResponse<T>> {
+    try {
+      const url = `${this.baseURL}${endpoint}`;
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        },
+        ...options,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error('API 요청 실패:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  }
+
+  // 채널 데이터 저장
+  async saveChannels(channels: Record<string, any>): Promise<ApiResponse<any>> {
+    return this.request('/api/channels', {
+      method: 'POST',
+      body: JSON.stringify({ channels }),
+    });
+  }
+
+  // 채널 데이터 조회
+  async getChannels(): Promise<ApiResponse<any>> {
+    return this.request('/api/channels');
+  }
+
+  // 비디오 데이터 저장
+  async saveVideos(videos: Record<string, any>): Promise<ApiResponse<any>> {
+    return this.request('/api/videos', {
+      method: 'POST',
+      body: JSON.stringify({ videos }),
+    });
+  }
+
+  // 비디오 데이터 조회
+  async getVideos(): Promise<ApiResponse<any>> {
+    return this.request('/api/videos');
+  }
+
+  // 분류 데이터 저장
+  async saveClassifiedData(data: any): Promise<ApiResponse<any>> {
+    return this.request('/api/classified', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // 분류 데이터 조회
+  async getClassifiedData(): Promise<ApiResponse<any>> {
+    return this.request('/api/classified');
+  }
+
+  // 미분류 데이터 저장
+  async saveUnclassifiedData(data: any): Promise<ApiResponse<any>> {
+    return this.request('/api/unclassified', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // 미분류 데이터 조회
+  async getUnclassifiedData(): Promise<ApiResponse<any>> {
+    return this.request('/api/unclassified');
+  }
+
+  // 시스템 설정 저장
+  async saveSystemConfig(key: string, value: any): Promise<ApiResponse<any>> {
+    return this.request('/api/system/config', {
+      method: 'POST',
+      body: JSON.stringify({ key, value }),
+    });
+  }
+
+  // 시스템 설정 조회
+  async getSystemConfig(key: string): Promise<ApiResponse<any>> {
+    return this.request(`/api/system/config/${key}`);
+  }
+
+  // 일별 통계 저장
+  async saveDailyStats(date: string, stats: any): Promise<ApiResponse<any>> {
+    return this.request('/api/daily-stats', {
+      method: 'POST',
+      body: JSON.stringify({ date, stats }),
+    });
+  }
+
+  // 일별 통계 조회
+  async getDailyStats(date?: string): Promise<ApiResponse<any>> {
+    const endpoint = date ? `/api/daily-stats/${date}` : '/api/daily-stats';
+    return this.request(endpoint);
+  }
+
+  // API 서버 연결 테스트
+  async testConnection(): Promise<ApiResponse<any>> {
+    return this.request('/api/health');
+  }
+}
+
+export const apiService = new ApiService();
+export default apiService;
