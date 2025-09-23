@@ -1,2 +1,0 @@
-// Clear temporary admin password from localStorage
-localStorage.removeItem('adminTempPassword');

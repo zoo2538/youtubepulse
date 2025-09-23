@@ -40,3 +40,4 @@ release/
 # Temporary files
 *.tmp
 *.temp
+clear_temp_password.js
