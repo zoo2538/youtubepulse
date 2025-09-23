@@ -41,3 +41,16 @@ release/
 *.tmp
 *.temp
 clear_temp_password.js
+
+# Documentation files (not needed in production)
+*.md
+!README.md
+
+# Backup files
+backup_info.txt
+BACKUP_INFO.md
+
+# Deployment guides (not needed in production)
+*DEPLOYMENT*.md
+*GUIDE*.md
+*PLAN*.md
