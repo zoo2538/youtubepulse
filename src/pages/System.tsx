@@ -36,6 +36,7 @@ import DataCollectionManager from "@/components/DataCollectionManager";
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { dataMigrationService } from "@/lib/data-migration-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -123,6 +124,30 @@ const System = () => {
     enableNotifications: true
   });
 
+  // 데이터 마이그레이션 상태
+  const [migrationStatus, setMigrationStatus] = useState<{
+    indexeddbData: {
+      channels: number;
+      videos: number;
+      classificationData: number;
+    };
+    canMigrate: boolean;
+  }>({
+    indexeddbData: { channels: 0, videos: 0, classificationData: 0 },
+    canMigrate: false
+  });
+
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationResult, setMigrationResult] = useState<{
+    success: boolean;
+    message: string;
+    migratedData: {
+      channels: number;
+      videos: number;
+      classificationData: number;
+    };
+  } | null>(null);
+
   const [dbInfo, setDbInfo] = useState<any>(null);
   const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false);
 
@@ -141,6 +166,7 @@ const System = () => {
   // 페이지 로드 시 IndexedDB 정보 로드
   React.useEffect(() => {
     loadDatabaseInfo();
+    loadMigrationStatus();
     
     // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
     if (localStorage.getItem('customApiEnabled') === null) {
@@ -149,6 +175,40 @@ const System = () => {
       console.log('🔧 커스텀 API 기본값 설정 완료 (Railway 서버 문제로 비활성화)');
     }
   }, []);
+
+  // 마이그레이션 상태 로드
+  const loadMigrationStatus = async () => {
+    try {
+      const status = await dataMigrationService.getMigrationStatus();
+      setMigrationStatus(status);
+    } catch (error) {
+      console.error('마이그레이션 상태 로드 실패:', error);
+    }
+  };
+
+  // 데이터 동기화 실행
+  const handleDataSync = async () => {
+    setIsMigrating(true);
+    setMigrationResult(null);
+    
+    try {
+      const result = await dataMigrationService.migrateAllDataToPostgreSQL();
+      setMigrationResult(result);
+      
+      if (result.success) {
+        // 성공 시 상태 업데이트
+        await loadMigrationStatus();
+      }
+    } catch (error) {
+      setMigrationResult({
+        success: false,
+        message: `동기화 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
+        migratedData: { channels: 0, videos: 0, classificationData: 0 }
+      });
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
 
 
@@ -1452,6 +1512,51 @@ const System = () => {
                             <div><strong>용량:</strong> 브라우저별 제한 (일반적으로 수GB)</div>
                             <div><strong>상태:</strong> <span className="text-green-300">정상 운영</span></div>
                           </div>
+                        </div>
+
+                        {/* 데이터 동기화 섹션 */}
+                        <div className="p-3 rounded-lg bg-green-600 text-white">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="text-sm font-medium">데이터 동기화</h4>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={handleDataSync}
+                              disabled={isMigrating || !migrationStatus.canMigrate}
+                              className="text-xs"
+                            >
+                              {isMigrating ? '동기화 중...' : '🔄 동기화'}
+                            </Button>
+                          </div>
+                          <div className="text-xs space-y-1">
+                            <div><strong>IndexedDB 데이터:</strong></div>
+                            <div className="ml-2">• 채널: {migrationStatus.indexeddbData.channels}개</div>
+                            <div className="ml-2">• 영상: {migrationStatus.indexeddbData.videos}개</div>
+                            <div className="ml-2">• 분류 데이터: {migrationStatus.indexeddbData.classificationData}개</div>
+                            <div><strong>상태:</strong> {migrationStatus.canMigrate ? 
+                              <span className="text-yellow-300">동기화 가능</span> : 
+                              <span className="text-gray-300">동기화할 데이터 없음</span>
+                            }</div>
+                          </div>
+                          
+                          {/* 동기화 결과 표시 */}
+                          {migrationResult && (
+                            <div className={`mt-2 p-2 rounded text-xs ${
+                              migrationResult.success ? 'bg-green-700' : 'bg-red-700'
+                            }`}>
+                              <div className="font-medium">
+                                {migrationResult.success ? '✅ 동기화 완료' : '❌ 동기화 실패'}
+                              </div>
+                              <div>{migrationResult.message}</div>
+                              {migrationResult.success && (
+                                <div className="mt-1">
+                                  • 채널: {migrationResult.migratedData.channels}개
+                                  • 영상: {migrationResult.migratedData.videos}개
+                                  • 분류: {migrationResult.migratedData.classificationData}개
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Card>
