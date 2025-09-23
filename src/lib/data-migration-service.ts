@@ -1,4 +1,4 @@
-import { indexeddbService } from './indexeddb-service';
+import { indexedDBService } from './indexeddb-service';
 import { hybridDatabaseService } from './hybrid-database-service';
 
 class DataMigrationService {
@@ -16,7 +16,7 @@ class DataMigrationService {
       console.log('🔄 IndexedDB에서 PostgreSQL로 데이터 마이그레이션 시작...');
 
       // 1. 채널 데이터 마이그레이션
-      const channels = await indexeddbService.getChannels();
+      const channels = await indexedDBService.getChannels();
       let migratedChannels = 0;
       if (channels.length > 0) {
         await hybridDatabaseService.saveChannels(channels);
@@ -25,7 +25,7 @@ class DataMigrationService {
       }
 
       // 2. 영상 데이터 마이그레이션
-      const videos = await indexeddbService.getVideos();
+      const videos = await indexedDBService.getVideos();
       let migratedVideos = 0;
       if (videos.length > 0) {
         await hybridDatabaseService.saveVideos(videos);
@@ -34,7 +34,7 @@ class DataMigrationService {
       }
 
       // 3. 분류 데이터 마이그레이션
-      const classificationData = await indexeddbService.getClassificationData();
+      const classificationData = await indexedDBService.getClassificationData();
       let migratedClassificationData = 0;
       if (classificationData.length > 0) {
         await hybridDatabaseService.saveClassificationData(classificationData);
@@ -145,9 +145,9 @@ class DataMigrationService {
     canMigrate: boolean;
   }> {
     try {
-      const channels = await indexeddbService.getChannels();
-      const videos = await indexeddbService.getVideos();
-      const classificationData = await indexeddbService.getClassificationData();
+      const channels = await indexedDBService.getChannels();
+      const videos = await indexedDBService.getVideos();
+      const classificationData = await indexedDBService.getClassificationData();
 
       return {
         indexeddbData: {

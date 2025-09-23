@@ -1,4 +1,4 @@
-import { indexeddbService } from './indexeddb-service';
+import { indexedDBService } from './indexeddb-service';
 import { postgresqlService } from './postgresql-service';
 
 interface HybridConfig {
@@ -21,7 +21,7 @@ class HybridDatabaseService {
       
       // IndexedDB 초기화
       if (this.config.useIndexedDB) {
-        await indexeddbService.initialize();
+        await indexedDBService.init();
         console.log('✅ IndexedDB 초기화 완료');
       }
 
@@ -43,7 +43,7 @@ class HybridDatabaseService {
     try {
       // IndexedDB에 저장
       if (this.config.useIndexedDB) {
-        await indexeddbService.saveChannels(channels);
+        await indexedDBService.saveChannels(channels);
         console.log(`✅ ${channels.length}개 채널을 IndexedDB에 저장 완료`);
       }
 
@@ -63,7 +63,7 @@ class HybridDatabaseService {
     try {
       // IndexedDB에 저장
       if (this.config.useIndexedDB) {
-        await indexeddbService.saveVideos(videos);
+        await indexedDBService.saveVideos(videos);
         console.log(`✅ ${videos.length}개 영상을 IndexedDB에 저장 완료`);
       }
 
@@ -83,7 +83,7 @@ class HybridDatabaseService {
     try {
       // IndexedDB에 저장
       if (this.config.useIndexedDB) {
-        await indexeddbService.saveClassificationData(data);
+        await indexedDBService.saveClassificationData(data);
         console.log('✅ 분류 데이터를 IndexedDB에 저장 완료');
       }
 
@@ -102,7 +102,7 @@ class HybridDatabaseService {
   async getChannels(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexeddbService.getChannels();
+        return await indexedDBService.getChannels();
       }
       return [];
     } catch (error) {
@@ -115,7 +115,7 @@ class HybridDatabaseService {
   async getVideos(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexeddbService.getVideos();
+        return await indexedDBService.getVideos();
       }
       return [];
     } catch (error) {
@@ -128,7 +128,7 @@ class HybridDatabaseService {
   async getClassificationData(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexeddbService.getClassificationData();
+        return await indexedDBService.getClassificationData();
       }
       return [];
     } catch (error) {
@@ -141,7 +141,7 @@ class HybridDatabaseService {
   async getCategoryStats(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexeddbService.getCategoryStats();
+        return await indexedDBService.getCategoryStats();
       }
       return [];
     } catch (error) {
@@ -161,21 +161,21 @@ class HybridDatabaseService {
       console.log('🔄 IndexedDB에서 PostgreSQL로 데이터 동기화 시작...');
 
       // 채널 데이터 동기화
-      const channels = await indexeddbService.getChannels();
+      const channels = await indexedDBService.getChannels();
       if (channels.length > 0) {
         await postgresqlService.saveChannels(channels);
         console.log(`✅ ${channels.length}개 채널 동기화 완료`);
       }
 
       // 영상 데이터 동기화
-      const videos = await indexeddbService.getVideos();
+      const videos = await indexedDBService.getVideos();
       if (videos.length > 0) {
         await postgresqlService.saveVideos(videos);
         console.log(`✅ ${videos.length}개 영상 동기화 완료`);
       }
 
       // 분류 데이터 동기화
-      const classificationData = await indexeddbService.getClassificationData();
+      const classificationData = await indexedDBService.getClassificationData();
       if (classificationData.length > 0) {
         await postgresqlService.saveClassificationData(classificationData);
         console.log(`✅ ${classificationData.length}개 분류 데이터 동기화 완료`);
@@ -206,17 +206,17 @@ class HybridDatabaseService {
 
         // IndexedDB에 저장
         if (channels.length > 0) {
-          await indexeddbService.saveChannels(channels);
+          await indexedDBService.saveChannels(channels);
           console.log(`✅ ${channels.length}개 채널 동기화 완료`);
         }
 
         if (videos.length > 0) {
-          await indexeddbService.saveVideos(videos);
+          await indexedDBService.saveVideos(videos);
           console.log(`✅ ${videos.length}개 영상 동기화 완료`);
         }
 
         if (classificationData.length > 0) {
-          await indexeddbService.saveClassificationData(classificationData);
+          await indexedDBService.saveClassificationData(classificationData);
           console.log(`✅ ${classificationData.length}개 분류 데이터 동기화 완료`);
         }
       }
