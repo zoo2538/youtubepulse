@@ -81,8 +81,8 @@ const System = () => {
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
     
-    // 기본값: 커스텀 API 활성화
-    const defaultCustomApiEnabled = savedCustomApiEnabled !== null ? savedCustomApiEnabled : true;
+    // 기본값: 커스텀 API 비활성화 (Railway 서버 문제로 인해)
+    const defaultCustomApiEnabled = savedCustomApiEnabled !== null ? savedCustomApiEnabled : false;
     
     console.log('🔧 설정 로드:', {
       youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
@@ -144,9 +144,9 @@ const System = () => {
     
     // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
     if (localStorage.getItem('customApiEnabled') === null) {
-      localStorage.setItem('customApiEnabled', 'true');
+      localStorage.setItem('customApiEnabled', 'false'); // Railway 서버 문제로 비활성화
       localStorage.setItem('customApiUrl', 'https://api.youthbepulse.com');
-      console.log('🔧 커스텀 API 기본값 설정 완료');
+      console.log('🔧 커스텀 API 기본값 설정 완료 (Railway 서버 문제로 비활성화)');
     }
   }, []);
 

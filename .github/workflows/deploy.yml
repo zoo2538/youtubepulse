@@ -1,10 +1,10 @@
-name: Deploy to GitHub Pages
+name: Deploy to Railway
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   build-and-deploy:
@@ -28,12 +28,20 @@ jobs:
       env:
         VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
         VITE_YOUTUBE_API_KEY: ${{ secrets.VITE_YOUTUBE_API_KEY }}
+        VITE_EMAILJS_SERVICE_ID: ${{ secrets.VITE_EMAILJS_SERVICE_ID }}
+        VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
+        VITE_EMAILJS_PUBLIC_KEY: ${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}
         
-    - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/main'
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist
+    - name: Deploy to Railway
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        # Railway CLI 설치
+        npm install -g @railway/cli
+        
+        # Railway 로그인 (토큰 사용)
+        railway login --token ${{ secrets.RAILWAY_TOKEN }}
+        
+        # Railway 배포
+        railway up --service ${{ secrets.RAILWAY_SERVICE_ID }}
 
 
