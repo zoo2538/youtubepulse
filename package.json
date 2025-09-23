@@ -2,6 +2,7 @@
   "name": "youtube-pulse",
   "private": true,
   "version": "1.0.0",
+  "type": "module",
   "description": "실시간 유튜브 트렌드 분석 플랫폼",
   "author": "YouTube Pulse Team",
   "main": "electron/main.mjs",
