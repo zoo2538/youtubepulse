@@ -38,10 +38,10 @@ jobs:
         # Railway CLI 설치
         npm install -g @railway/cli
         
-        # Railway 로그인 (토큰 사용)
-        railway login --token ${{ secrets.RAILWAY_TOKEN }}
+        # Railway 환경변수 설정
+        export RAILWAY_TOKEN=${{ secrets.RAILWAY_TOKEN }}
         
         # Railway 배포
-        railway up --service ${{ secrets.RAILWAY_SERVICE_ID }}
+        railway up
 
 
