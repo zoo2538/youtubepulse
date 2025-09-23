@@ -41,10 +41,10 @@ jobs:
         # Railway 환경변수 설정
         export RAILWAY_TOKEN=${{ secrets.RAILWAY_TOKEN }}
         
-        # Railway 서비스 목록 확인
-        railway service list
+        # Railway 프로젝트 상태 확인
+        railway status
         
-        # Railway 배포 (첫 번째 서비스 자동 선택)
+        # Railway 배포
         railway up --detach
 
 
