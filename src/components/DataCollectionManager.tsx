@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { initializeDatabase, saveToDatabase, calculateDailyViews, getDatabaseInfo, cleanupOldData } from '@/lib/database-schema';
 import { collectDailyData } from '@/lib/youtube-api-service';
+import { hybridDatabaseService } from '@/lib/hybrid-database-service';
 
 interface CollectionStatus {
   isRunning: boolean;
@@ -46,39 +47,37 @@ const DataCollectionManager = () => {
   const [db, setDb] = useState<any>(null);
 
   useEffect(() => {
-    // IndexedDB 데이터베이스 초기화
+    // 하이브리드 데이터베이스 초기화
     const initDatabase = async () => {
       try {
-        const database = await initializeDatabase();
-        setDb(database);
+        // 하이브리드 데이터베이스 초기화
+        await hybridDatabaseService.initialize({
+          useIndexedDB: true,
+          usePostgreSQL: false, // 클라이언트에서는 IndexedDB만 사용
+          syncEnabled: true
+        });
         
         // 통계 업데이트
-        await updateStats(database);
+        await updateStats();
         
-        // 마지막 수집 시간 확인
-        const lastCollection = await database.loadSystemConfig('lastCollection');
-        if (lastCollection) {
-          setStatus(prev => ({ ...prev, lastCollection }));
-        }
-        
-        console.log('✅ IndexedDB 초기화 완료');
+        console.log('✅ 하이브리드 데이터베이스 초기화 완료');
       } catch (error) {
-        console.error('❌ IndexedDB 초기화 실패:', error);
+        console.error('❌ 하이브리드 데이터베이스 초기화 실패:', error);
       }
     };
     
     initDatabase();
   }, []);
 
-  const updateStats = async (database: any) => {
+  const updateStats = async () => {
     try {
-      const dbInfo = await getDatabaseInfo();
+      const dbStatus = await hybridDatabaseService.getStatus();
       setStatus(prev => ({
         ...prev,
         stats: {
-          totalChannels: dbInfo.size || 0,
-          totalVideos: dbInfo.size || 0,
-          totalDailyStats: dbInfo.size || 0
+          totalChannels: dbStatus.totalChannels,
+          totalVideos: dbStatus.totalVideos,
+          totalDailyStats: dbStatus.totalClassificationData
         }
       }));
     } catch (error) {
@@ -87,8 +86,6 @@ const DataCollectionManager = () => {
   };
 
   const startCollection = async () => {
-    if (!db) return;
-
     setStatus(prev => ({
       ...prev,
       isRunning: true,
@@ -117,16 +114,21 @@ const DataCollectionManager = () => {
       // 5단계: 데이터 처리
       setStatus(prev => ({ ...prev, progress: 80, currentStep: '데이터 처리 및 저장 중...' }));
       
-      // 실제 데이터 수집
-      const result = await collectDailyData(db);
+      // 실제 데이터 수집 (하이브리드 데이터베이스 사용)
+      const result = await collectDailyData();
       
-      // IndexedDB에 데이터 저장
-      await saveToDatabase({
-        channels: result.channels,
-        videos: result.videos,
-        dailyStats: result.dailyStats,
-        trendingData: result.trendingData
-      });
+      // 하이브리드 데이터베이스에 데이터 저장
+      if (result.channels && result.channels.length > 0) {
+        await hybridDatabaseService.saveChannels(result.channels);
+      }
+      
+      if (result.videos && result.videos.length > 0) {
+        await hybridDatabaseService.saveVideos(result.videos);
+      }
+      
+      if (result.dailyStats) {
+        await hybridDatabaseService.saveClassificationData(result.dailyStats);
+      }
       
       // 6단계: 완료
       setStatus(prev => ({ 
@@ -137,14 +139,8 @@ const DataCollectionManager = () => {
         lastCollection: new Date().toISOString()
       }));
 
-      // 마지막 수집 시간 저장
-      await db.saveSystemConfig('lastCollection', new Date().toISOString());
-      
-      // 7일 데이터 정리 실행
-      await cleanupOldData(7);
-      
       // 통계 업데이트
-      await updateStats(db);
+      await updateStats();
 
       console.log('데이터 수집 완료:', result);
 
