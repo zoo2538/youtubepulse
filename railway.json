@@ -11,7 +11,8 @@
   "environments": {
     "production": {
       "variables": {
-        "NODE_VERSION": "20"
+        "NODE_VERSION": "20",
+        "NIXPACKS_CACHE": "false"
       }
     }
   }
