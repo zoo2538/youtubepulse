@@ -58,68 +58,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const login = async (email: string, password: string): Promise<boolean> => {
     setIsLoading(true);
     
-    // 간단한 로그인 로직 (실제로는 API 호출)
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        // 사용자 데이터 확인
-        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+    try {
+      console.log('🔐 로그인 시도:', email);
+      
+      // 기본 관리자 계정 확인
+      if (email === 'ju9511503@gmail.com' && password === '@ju9180417') {
+        setIsLoggedIn(true);
+        setUserEmail(email);
+        setUserRole('admin');
         
-        // 기본 관리자 계정의 비밀번호 확인
-        let adminPassword = "@ju9180417"; // 기본 비밀번호
-        console.log('🔍 로그인 시도 - 이메일:', email, '비밀번호:', password);
-        console.log('🔍 관리자 계정 비밀번호:', adminPassword);
+        // localStorage에 인증 정보 저장
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('userRole', 'admin');
         
-        const defaultAdmin = {
-          id: "admin-1",
-          name: "관리자",
-          email: "ju9511503@gmail.com",
-          password: adminPassword,
-          status: "active",
-          role: "admin"
-        };
-        
-        const allUsers = [defaultAdmin, ...storedUsers];
-        const user = allUsers.find(u => u.email === email && u.password === password);
-        
-        console.log('🔍 찾은 사용자:', user);
-        console.log('🔍 사용자 역할:', user?.role);
-        
-        if (user && user.status === 'active') {
-          // 승인된 사용자만 로그인 허용
-          setIsLoggedIn(true);
-          setUserEmail(email);
-          
-          // 관리자 이메일 직접 체크
-          const isAdminEmail = email === 'ju9511503@gmail.com';
-          const finalRole = isAdminEmail ? 'admin' : (user.role || 'user');
-          setUserRole(finalRole);
-          
-          // localStorage에 인증 정보 저장
-          localStorage.setItem('userEmail', email);
-          localStorage.setItem('userRole', finalRole);
-          
-          console.log('✅ 로그인 성공:', { email, role: finalRole, isAdminEmail });
-          
-          // 임시 비밀번호로 로그인한 경우 즉시 만료 처리
-          if (EMAILJS_CONFIG.PUBLIC_KEY !== 'your_public_key_here' && adminTempPasswordData) {
-            const tempData = JSON.parse(adminTempPasswordData);
-            if (tempData.tempPassword === password) {
-              localStorage.removeItem('adminTempPassword');
-              console.log('🔒 임시 비밀번호 사용 후 즉시 만료 처리');
-            }
-          }
-          
-          resolve(true);
-        } else if (user && user.status === 'pending') {
-          // 승인 대기 중인 사용자
-          resolve(false);
-        } else {
-          // 사용자를 찾을 수 없거나 비밀번호가 틀림
-          resolve(false);
-        }
+        console.log('✅ 관리자 로그인 성공:', { email, role: 'admin' });
         setIsLoading(false);
-      }, 1000);
-    });
+        return true;
+      }
+      
+      // 일반 사용자 확인 (로컬 스토리지에서)
+      const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+      const user = storedUsers.find((u: any) => u.email === email && u.password === password);
+      
+      if (user && user.status === 'active') {
+        setIsLoggedIn(true);
+        setUserEmail(email);
+        setUserRole(user.role || 'user');
+        
+        // localStorage에 인증 정보 저장
+        localStorage.setItem('userEmail', email);
+        localStorage.setItem('userRole', user.role || 'user');
+        
+        console.log('✅ 사용자 로그인 성공:', { email, role: user.role });
+        setIsLoading(false);
+        return true;
+      }
+      
+      console.log('❌ 로그인 실패: 잘못된 인증 정보');
+      setIsLoading(false);
+      return false;
+      
+    } catch (error) {
+      console.error('❌ 로그인 에러:', error);
+      setIsLoading(false);
+      return false;
+    }
   };
 
   const logout = () => {
