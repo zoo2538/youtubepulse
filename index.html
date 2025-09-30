@@ -57,6 +57,13 @@
           );
         }
       }(window.location))
+      
+      // 404.html에서 리다이렉트된 URL 처리
+      if (sessionStorage.redirect) {
+        var redirectUrl = sessionStorage.redirect;
+        sessionStorage.removeItem('redirect');
+        window.location.replace(redirectUrl);
+      }
     </script>
   </body>
 </html>

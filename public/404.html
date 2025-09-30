@@ -8,15 +8,11 @@
         // GitHub Pages SPA 라우팅을 위한 리다이렉트
         // 현재 URL을 저장하고 index.html로 리다이렉트
         sessionStorage.redirect = location.href;
+        // 즉시 리다이렉트
+        location.replace('/');
     </script>
-    <meta http-equiv="refresh" content="0; url=/">
-    <link rel="canonical" href="/">
 </head>
 <body>
     <p>리다이렉트 중입니다...</p>
-    <script>
-        // JavaScript가 활성화된 경우 즉시 리다이렉트
-        location.replace('/');
-    </script>
 </body>
 </html>
