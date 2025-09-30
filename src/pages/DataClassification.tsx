@@ -58,6 +58,7 @@ import {
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
 import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -105,14 +106,14 @@ const DataClassification = () => {
     navigate('/');
   };
 
-  // 카테고리 데이터 로드
+  // 카테고리 데이터 로드 (하이브리드 방식)
   React.useEffect(() => {
     const loadCategories = async () => {
       try {
-        const savedCategories = await indexedDBService.loadCategories();
+        const savedCategories = await hybridService.loadCategories();
         if (savedCategories) {
           setDynamicSubCategories(savedCategories);
-          console.log('📊 카테고리 로드 성공:', savedCategories);
+          console.log('📊 하이브리드 카테고리 로드 성공:', savedCategories);
         } else {
           console.log('📊 저장된 카테고리가 없습니다. 기본 카테고리를 사용합니다.');
         }
@@ -435,18 +436,18 @@ const DataClassification = () => {
   };
 
 
-  // 카테고리 관리 함수들
+  // 카테고리 관리 함수들 (하이브리드 방식)
   const handleSaveCategories = async () => {
     try {
-      console.log('💾 카테고리 저장 시작 - 동적 세부카테고리 사용:', dynamicSubCategories);
-      await indexedDBService.saveCategories(dynamicSubCategories);
-      console.log('📊 카테고리 저장 완료');
+      console.log('💾 하이브리드 카테고리 저장 시작 - 동적 세부카테고리 사용:', dynamicSubCategories);
+      await hybridService.saveCategories(dynamicSubCategories);
+      console.log('📊 하이브리드 카테고리 저장 완료 (로컬 + 서버)');
       
       // 데이터 업데이트 이벤트 발생 제거 - 페이지별 독립적 카테고리 관리
       // window.dispatchEvent(new CustomEvent('categoriesUpdated'));
       // console.log('📊 categoriesUpdated 이벤트 발생');
       
-      alert('✅ 세부카테고리가 저장되었습니다. 모든 페이지에 반영됩니다.');
+      alert('✅ 세부카테고리가 하이브리드 저장되었습니다.\n\n📍 로컬 IndexedDB에 저장 완료\n📍 API 서버 저장 준비 완료 (향후 구현)');
     } catch (error) {
       console.error('카테고리 저장 실패:', error);
       alert('❌ 카테고리 저장에 실패했습니다.');

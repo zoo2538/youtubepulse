@@ -302,6 +302,58 @@ class HybridService {
     }
   }
 
+  // 세부카테고리 저장
+  async saveCategories(categories: Record<string, string[]>): Promise<void> {
+    try {
+      // API 서버에 저장 (향후 구현)
+      if (this.config.useApiServer) {
+        // TODO: API 서버에 카테고리 저장 기능 추가
+        console.log('⚠️ API 서버 카테고리 저장 기능은 아직 구현되지 않았습니다.');
+      }
+
+      // 로컬에 저장 (항상)
+      await indexedDBService.saveCategories(categories);
+      console.log('✅ 로컬 IndexedDB에 세부카테고리 저장 완료');
+    } catch (error) {
+      console.error('❌ 세부카테고리 저장 실패:', error);
+      
+      if (this.config.fallbackToLocal) {
+        await indexedDBService.saveCategories(categories);
+        console.log('⚠️ 로컬 IndexedDB에만 저장됨');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // 세부카테고리 조회
+  async loadCategories(): Promise<Record<string, string[]> | null> {
+    try {
+      // API 서버에서 조회 (향후 구현)
+      if (this.config.useApiServer) {
+        // TODO: API 서버에서 카테고리 조회 기능 추가
+        console.log('⚠️ API 서버 카테고리 조회 기능은 아직 구현되지 않았습니다.');
+      }
+
+      // 로컬에서 조회 (항상)
+      if (this.config.fallbackToLocal) {
+        const localData = await indexedDBService.loadCategories();
+        console.log('✅ 로컬 IndexedDB에서 세부카테고리 조회');
+        return localData;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ 세부카테고리 조회 실패:', error);
+      
+      if (this.config.fallbackToLocal) {
+        return await indexedDBService.loadCategories();
+      }
+      
+      return null;
+    }
+  }
+
   // API 서버 연결 테스트
   async testApiConnection(): Promise<boolean> {
     try {
