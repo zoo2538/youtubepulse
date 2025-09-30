@@ -1,32 +1,34 @@
 // YouTube Pulse Service Worker
 const CACHE_NAME = 'youtube-pulse-v1';
-const urlsToCache = [
-  '/',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
-  '/manifest.json'
-];
 
 // Install event
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('Opened cache');
-        return cache.addAll(urlsToCache);
-      })
-  );
+  console.log('Service Worker installing...');
+  self.skipWaiting();
 });
 
 // Fetch event
 self.addEventListener('fetch', (event) => {
+  // Only handle GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
         // Return cached version or fetch from network
-        return response || fetch(event.request);
-      }
-    )
+        if (response) {
+          return response;
+        }
+        
+        return fetch(event.request).catch(() => {
+          // Return offline page or fallback for navigation requests
+          if (event.request.destination === 'document') {
+            return caches.match('/');
+          }
+        });
+      })
   );
 });
 

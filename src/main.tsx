@@ -23,8 +23,8 @@ try {
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// PWA Service Worker 등록
-if ('serviceWorker' in navigator) {
+// PWA Service Worker 등록 (개발 환경에서는 비활성화)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js')
       .then((registration) => {
