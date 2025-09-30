@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
@@ -20,7 +20,7 @@ import TrendingVideosDetail from "@/pages/TrendingVideosDetail";
 import NotFound from "./pages/NotFound";
 
 const App = () => (
-  <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <AuthProvider>
       <TooltipProvider>
         <Toaster />
@@ -47,7 +47,7 @@ const App = () => (
         </Routes>
       </TooltipProvider>
     </AuthProvider>
-  </HashRouter>
+  </BrowserRouter>
 );
 
 export default App;
