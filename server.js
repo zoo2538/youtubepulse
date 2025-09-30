@@ -24,7 +24,13 @@ if (process.env.DATABASE_URL) {
 
 // CORS 설정
 app.use(cors({
-  origin: ['http://localhost:8080', 'http://localhost:5173', 'https://api.youthbepulse.com'],
+  origin: [
+    'http://localhost:8080', 
+    'http://localhost:5173', 
+    'https://youthbepulse.com',
+    'https://www.youthbepulse.com',
+    'https://api.youthbepulse.com'
+  ],
   credentials: true
 }));
 
