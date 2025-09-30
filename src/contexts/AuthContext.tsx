@@ -49,9 +49,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         console.log('🔍 저장된 인증 정보 확인:', { storedEmail, storedRole });
         
-        // 도메인별 특별 처리
-        const isProduction = window.location.hostname === 'youthbepulse.com' || 
-                           window.location.hostname === 'www.youthbepulse.com';
+        // 도메인별 특별 처리 (localhost가 아니면 프로덕션으로 간주)
+        const isProduction = !window.location.hostname.includes('localhost') && 
+                           !window.location.hostname.includes('127.0.0.1');
         
         if (isProduction) {
           console.log('🏭 프로덕션 환경 감지');
@@ -110,9 +110,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (email === 'ju9511503@gmail.com' && password === '@ju9180417') {
         console.log('✅ 관리자 계정 확인됨');
         
-        // 도메인별 특별 처리
-        const isProduction = window.location.hostname === 'youthbepulse.com' || 
-                           window.location.hostname === 'www.youthbepulse.com';
+        // 도메인별 특별 처리 (localhost가 아니면 프로덕션으로 간주)
+        const isProduction = !window.location.hostname.includes('localhost') && 
+                           !window.location.hostname.includes('127.0.0.1');
         
         if (isProduction) {
           console.log('🏭 프로덕션 로그인 처리');
