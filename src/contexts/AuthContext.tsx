@@ -68,14 +68,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     
     try {
-      console.log('🔐 로그인 시도:', email);
+      console.log('🔐 로그인 시도:', { email, timestamp: new Date().toISOString() });
+      console.log('🌐 현재 도메인:', window.location.hostname);
+      console.log('🔧 localStorage 사용 가능:', typeof Storage !== 'undefined');
       
       // 기본 관리자 계정 확인
       if (email === 'ju9511503@gmail.com' && password === '@ju9180417') {
+        console.log('✅ 관리자 계정 확인됨');
+        
         // localStorage에 안전하게 저장
         try {
           localStorage.setItem('userEmail', email);
           localStorage.setItem('userRole', 'admin');
+          
+          // 저장 확인
+          const savedEmail = localStorage.getItem('userEmail');
+          const savedRole = localStorage.getItem('userRole');
+          console.log('💾 저장된 데이터 확인:', { savedEmail, savedRole });
           
           setIsLoggedIn(true);
           setUserEmail(email);
@@ -86,6 +95,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return true;
         } catch (storageError) {
           console.error('❌ localStorage 저장 실패:', storageError);
+          console.error('❌ 저장 오류 상세:', {
+            name: storageError.name,
+            message: storageError.message,
+            code: storageError.code
+          });
           setIsLoading(false);
           return false;
         }
@@ -114,11 +128,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       
       console.log('❌ 로그인 실패: 잘못된 인증 정보');
+      console.log('❌ 입력된 정보:', { email, passwordLength: password.length });
       setIsLoading(false);
       return false;
       
     } catch (error) {
       console.error('❌ 로그인 에러:', error);
+      console.error('❌ 에러 상세:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
       setIsLoading(false);
       return false;
     }
