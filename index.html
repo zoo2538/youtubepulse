@@ -46,6 +46,9 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      console.log('🚀 index.html 로드됨');
+      console.log('📍 현재 URL:', location.href);
+      
       // GitHub Pages SPA 라우팅을 위한 리다이렉트 처리
       (function(l) {
         if (l.search[1] === '/' ) {
@@ -61,8 +64,11 @@
       // 404.html에서 리다이렉트된 URL 처리
       if (sessionStorage.redirect) {
         var redirectUrl = sessionStorage.redirect;
+        console.log('🔄 404.html에서 리다이렉트된 URL:', redirectUrl);
         sessionStorage.removeItem('redirect');
         window.location.replace(redirectUrl);
+      } else {
+        console.log('✅ 정상적인 index.html 로드');
       }
     </script>
   </body>

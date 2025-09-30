@@ -5,14 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>YouTube Pulse</title>
     <script>
+        console.log('🔄 404.html 실행됨 - SPA 라우팅 처리');
+        console.log('📍 현재 URL:', location.href);
+        
         // GitHub Pages SPA 라우팅을 위한 리다이렉트
-        // 현재 URL을 저장하고 index.html로 리다이렉트
         sessionStorage.redirect = location.href;
+        console.log('💾 리다이렉트 URL 저장:', location.href);
+        
         // 즉시 리다이렉트
+        console.log('🔄 index.html로 리다이렉트 중...');
         location.replace('/');
     </script>
 </head>
 <body>
     <p>리다이렉트 중입니다...</p>
+    <script>
+        // 3초 후 강제 리다이렉트 (백업)
+        setTimeout(() => {
+            console.log('⏰ 타임아웃 - 강제 리다이렉트');
+            location.replace('/');
+        }, 3000);
+    </script>
 </body>
 </html>
