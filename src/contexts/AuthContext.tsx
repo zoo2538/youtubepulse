@@ -36,22 +36,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // 페이지 로드 시 저장된 인증 정보 확인
     const checkAuthStatus = () => {
       try {
+        console.log('🌐 환경 정보:', {
+          hostname: window.location.hostname,
+          protocol: window.location.protocol,
+          origin: window.location.origin,
+          userAgent: navigator.userAgent.substring(0, 50) + '...'
+        });
+        
         // localStorage에서 사용자 정보 확인
         const storedEmail = localStorage.getItem('userEmail');
         const storedRole = localStorage.getItem('userRole');
         
         console.log('🔍 저장된 인증 정보 확인:', { storedEmail, storedRole });
         
-        if (storedEmail && storedRole) {
-          setIsLoggedIn(true);
-          setUserEmail(storedEmail);
-          setUserRole(storedRole as 'admin' | 'user');
-          console.log('✅ 저장된 인증 정보 로드 완료:', { storedEmail, storedRole });
+        // 도메인별 특별 처리
+        const isProduction = window.location.hostname === 'youthbepulse.com' || 
+                           window.location.hostname === 'www.youthbepulse.com';
+        
+        if (isProduction) {
+          console.log('🏭 프로덕션 환경 감지');
+          // 프로덕션에서는 더 엄격한 검증
+          if (storedEmail && storedRole && storedEmail.includes('@')) {
+            setIsLoggedIn(true);
+            setUserEmail(storedEmail);
+            setUserRole(storedRole as 'admin' | 'user');
+            console.log('✅ 프로덕션 인증 정보 로드 완료:', { storedEmail, storedRole });
+          } else {
+            console.log('❌ 프로덕션: 유효하지 않은 인증 정보');
+            // 프로덕션에서는 잘못된 데이터 정리
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userRole');
+          }
         } else {
-          console.log('❌ 저장된 인증 정보 없음 - 로그인 필요');
+          console.log('💻 개발 환경 감지');
+          // 개발 환경에서는 더 관대한 처리
+          if (storedEmail && storedRole) {
+            setIsLoggedIn(true);
+            setUserEmail(storedEmail);
+            setUserRole(storedRole as 'admin' | 'user');
+            console.log('✅ 개발 인증 정보 로드 완료:', { storedEmail, storedRole });
+          } else {
+            console.log('❌ 개발: 저장된 인증 정보 없음');
+          }
         }
       } catch (error) {
         console.error('❌ 인증 정보 확인 중 오류:', error);
+        console.error('❌ 오류 상세:', {
+          name: error.name,
+          message: error.message,
+          stack: error.stack?.substring(0, 200) + '...'
+        });
         // 오류 발생 시 로그아웃 상태로 설정
         setIsLoggedIn(false);
         setUserEmail(null);
@@ -76,32 +110,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (email === 'ju9511503@gmail.com' && password === '@ju9180417') {
         console.log('✅ 관리자 계정 확인됨');
         
-        // localStorage에 안전하게 저장
-        try {
-          localStorage.setItem('userEmail', email);
-          localStorage.setItem('userRole', 'admin');
-          
-          // 저장 확인
-          const savedEmail = localStorage.getItem('userEmail');
-          const savedRole = localStorage.getItem('userRole');
-          console.log('💾 저장된 데이터 확인:', { savedEmail, savedRole });
-          
-          setIsLoggedIn(true);
-          setUserEmail(email);
-          setUserRole('admin');
-          
-          console.log('✅ 관리자 로그인 성공:', { email, role: 'admin' });
-          setIsLoading(false);
-          return true;
-        } catch (storageError) {
-          console.error('❌ localStorage 저장 실패:', storageError);
-          console.error('❌ 저장 오류 상세:', {
-            name: storageError.name,
-            message: storageError.message,
-            code: storageError.code
-          });
-          setIsLoading(false);
-          return false;
+        // 도메인별 특별 처리
+        const isProduction = window.location.hostname === 'youthbepulse.com' || 
+                           window.location.hostname === 'www.youthbepulse.com';
+        
+        if (isProduction) {
+          console.log('🏭 프로덕션 로그인 처리');
+          // 프로덕션에서는 더 안전한 저장 방식
+          try {
+            // 기존 데이터 정리
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userRole');
+            
+            // 새 데이터 저장
+            localStorage.setItem('userEmail', email);
+            localStorage.setItem('userRole', 'admin');
+            
+            // 저장 확인
+            const savedEmail = localStorage.getItem('userEmail');
+            const savedRole = localStorage.getItem('userRole');
+            console.log('💾 프로덕션 저장 확인:', { savedEmail, savedRole });
+            
+            if (savedEmail === email && savedRole === 'admin') {
+              setIsLoggedIn(true);
+              setUserEmail(email);
+              setUserRole('admin');
+              console.log('✅ 프로덕션 관리자 로그인 성공:', { email, role: 'admin' });
+              setIsLoading(false);
+              return true;
+            } else {
+              throw new Error('저장된 데이터가 일치하지 않음');
+            }
+          } catch (storageError) {
+            console.error('❌ 프로덕션 localStorage 저장 실패:', storageError);
+            setIsLoading(false);
+            return false;
+          }
+        } else {
+          console.log('💻 개발 로그인 처리');
+          // 개발 환경에서는 기존 방식
+          try {
+            localStorage.setItem('userEmail', email);
+            localStorage.setItem('userRole', 'admin');
+            
+            setIsLoggedIn(true);
+            setUserEmail(email);
+            setUserRole('admin');
+            
+            console.log('✅ 개발 관리자 로그인 성공:', { email, role: 'admin' });
+            setIsLoading(false);
+            return true;
+          } catch (storageError) {
+            console.error('❌ 개발 localStorage 저장 실패:', storageError);
+            setIsLoading(false);
+            return false;
+          }
         }
       }
       
