@@ -360,15 +360,15 @@ const System = () => {
       console.log('=====================================');
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // 1단계: YouTube 공식 트렌드 수집 (상위 100개)
+      // 1단계: YouTube 공식 트렌드 수집 (상위 200개)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       console.log('📺 1단계: YouTube 공식 트렌드 영상 수집 중...');
       let trendingVideos: any[] = [];
       
       try {
-        // 첫 번째 요청: 1~50위
+        // 상위 200개 수집 (50개씩 4페이지)
         let nextPageToken = '';
-        for (let page = 0; page < 2; page++) {
+        for (let page = 0; page < 4; page++) {
           const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiConfig.youtubeApiKey}`;
           const trendingResponse = await fetch(trendingUrl);
           
@@ -389,10 +389,22 @@ const System = () => {
           }
           
           // API 요청 간 지연
-          if (page < 1) await new Promise(resolve => setTimeout(resolve, 500));
+          if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         console.log(`✅ 트렌드 영상 총 ${trendingVideos.length}개 수집 완료`);
+        
+        // 한글 필터링 적용 (한국어 영상만)
+        if (collectionConfig.koreanOnly) {
+          const beforeFilter = trendingVideos.length;
+          trendingVideos = trendingVideos.filter(video => {
+            const title = video.snippet?.title || '';
+            const channelName = video.snippet?.channelTitle || '';
+            const hasKorean = /[가-힣]/.test(title) || /[가-힣]/.test(channelName);
+            return hasKorean;
+          });
+          console.log(`🇰🇷 한글 필터링: ${beforeFilter}개 → ${trendingVideos.length}개 (${beforeFilter - trendingVideos.length}개 제거)`);
+        }
       } catch (error) {
         console.error('❌ 트렌드 영상 수집 오류:', error);
         console.log('⚠️ 키워드 수집만 진행합니다.');
@@ -1174,8 +1186,8 @@ const System = () => {
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <div className="bg-white p-2 rounded border border-blue-200">
                               <p className="text-xs text-blue-600 font-medium">📺 트렌드 영상</p>
-                              <p className="text-sm font-bold text-blue-900">상위 100개</p>
-                              <p className="text-xs text-muted-foreground">YouTube 공식</p>
+                              <p className="text-sm font-bold text-blue-900">상위 200개</p>
+                              <p className="text-xs text-muted-foreground">YouTube 공식 (한글만)</p>
                             </div>
                             <div className="bg-white p-2 rounded border border-blue-200">
                               <p className="text-xs text-blue-600 font-medium">🔍 키워드 영상</p>
