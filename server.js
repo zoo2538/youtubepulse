@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool } from 'pg';
+import cron from 'node-cron';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -526,6 +527,219 @@ app.get('/api/data/stats', async (req, res) => {
 // 정적 파일 서빙 (SPA) - 반드시 먼저 배치
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 자동 데이터 수집 함수
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function autoCollectData() {
+  console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🤖 자동 데이터 수집 시작');
+  console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
+  console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  const apiKey = process.env.VITE_YOUTUBE_API_KEY;
+  if (!apiKey) {
+    console.error('❌ YouTube API Key가 설정되지 않았습니다.');
+    return;
+  }
+
+  if (!pool) {
+    console.error('❌ PostgreSQL 연결이 없습니다.');
+    return;
+  }
+
+  try {
+    let requestCount = 0;
+    const keywords = [
+      '브이로그', '리뷰', '언박싱', '튜토리얼', '케이팝', '인터뷰', '예능',
+      '게임요약', '게임 공략', '뷰티', '메이크업', '패션', '여행', '인테리어', '집꾸미기',
+      '공부', '시험', '취업', '부동산 이슈', '경제 이슈', '경제 요약', '재테크',
+      '뉴스 요약', '사회 이슈', '정치 이슈', '정치 요약', '연예인', '아이돌', '가수', '스타 소식',
+      '영화', '드라마', '영화리뷰', '드라마리뷰', '인공지능', 'ai 이슈', '기술 트렌드',
+      '스포츠 요약', '스포츠 이슈', '운동', '쇼핑', '쇼핑리뷰', '구매', '리뷰',
+      '취미', '여가', '반려동물', '애니메이션', '애니', '웹툰',
+      '막장', '건강관리', '인생경험', '지혜', '사연', '감동', '인생', '국뽕', '실화',
+      '썰', '밈', '힐링', '커뮤니티', '짤'
+    ];
+
+    // 1단계: 트렌드 영상 200개 수집
+    console.log('📺 1단계: 트렌드 영상 수집 중...');
+    let trendingVideos = [];
+    let nextPageToken = '';
+    
+    for (let page = 0; page < 4; page++) {
+      const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
+      const response = await fetch(trendingUrl);
+      
+      if (response.ok) {
+        const data = await response.json();
+        requestCount++;
+        if (data.items) {
+          trendingVideos = [...trendingVideos, ...data.items];
+          nextPageToken = data.nextPageToken;
+          if (!nextPageToken) break;
+        }
+      }
+      
+      if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // 한글 필터링
+    const beforeFilter = trendingVideos.length;
+    trendingVideos = trendingVideos.filter(video => {
+      const title = video.snippet?.title || '';
+      const channelName = video.snippet?.channelTitle || '';
+      return /[가-힣]/.test(title) || /[가-힣]/.test(channelName);
+    });
+    console.log(`✅ 트렌드: ${beforeFilter}개 → ${trendingVideos.length}개 (한글 필터링)`);
+
+    // 2단계: 키워드 기반 영상 수집
+    console.log('🔍 2단계: 키워드 영상 수집 중...');
+    let keywordVideos = [];
+    
+    for (const keyword of keywords) {
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
+      const searchResponse = await fetch(searchUrl);
+      
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        requestCount++;
+        
+        if (searchData.items && searchData.items.length > 0) {
+          const videoIds = searchData.items.map(item => item.id.videoId).join(',');
+          const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`;
+          const videosResponse = await fetch(videosUrl);
+          
+          if (videosResponse.ok) {
+            const videosData = await videosResponse.json();
+            requestCount++;
+            if (videosData.items) {
+              keywordVideos = [...keywordVideos, ...videosData.items];
+            }
+          }
+        }
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    console.log(`✅ 키워드: ${keywordVideos.length}개 수집`);
+
+    // 3단계: 합치기 및 중복 제거
+    const allVideos = [...trendingVideos, ...keywordVideos];
+    const videoMap = new Map();
+    
+    allVideos.forEach(video => {
+      const existing = videoMap.get(video.id);
+      if (!existing || parseInt(video.statistics?.viewCount || '0') > parseInt(existing.statistics?.viewCount || '0')) {
+        videoMap.set(video.id, video);
+      }
+    });
+    
+    let uniqueVideos = Array.from(videoMap.values());
+    uniqueVideos.sort((a, b) => parseInt(b.statistics?.viewCount || '0') - parseInt(a.statistics?.viewCount || '0'));
+    
+    console.log(`✅ 전체: ${allVideos.length}개 → 중복 제거: ${uniqueVideos.length}개`);
+
+    // 4단계: 채널 정보 수집
+    console.log('📊 채널 정보 수집 중...');
+    const channelIds = [...new Set(uniqueVideos.map(v => v.snippet.channelId))];
+    let allChannels = [];
+    
+    for (let i = 0; i < channelIds.length; i += 50) {
+      const batchIds = channelIds.slice(i, i + 50);
+      const channelsUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchIds.join(',')}&key=${apiKey}`;
+      const response = await fetch(channelsUrl);
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.items) allChannels = [...allChannels, ...data.items];
+        requestCount++;
+      }
+      
+      if (i + 50 < channelIds.length) await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    console.log(`✅ 채널: ${allChannels.length}개 수집`);
+
+    // 5단계: 14일 자동 분류 로직 조회
+    console.log('🔄 자동 분류 참조 데이터 조회 중...');
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
+    
+    const client = await pool.connect();
+    const classifiedResult = await client.query(`
+      SELECT data FROM classification_data 
+      WHERE data_type = 'unclassified' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    let classifiedChannelMap = new Map();
+    if (classifiedResult.rows.length > 0) {
+      const existingData = classifiedResult.rows[0].data || [];
+      const recentClassified = existingData.filter(item => 
+        item.status === 'classified' && item.collectionDate >= fourteenDaysAgoString
+      );
+      
+      recentClassified.forEach(item => {
+        if (!classifiedChannelMap.has(item.channelId) || 
+            item.collectionDate > (classifiedChannelMap.get(item.channelId)?.collectionDate || '')) {
+          classifiedChannelMap.set(item.channelId, {
+            category: item.category,
+            subCategory: item.subCategory,
+            collectionDate: item.collectionDate
+          });
+        }
+      });
+    }
+    
+    console.log(`✅ 자동 분류 참조: ${classifiedChannelMap.size}개 채널 (최근 14일)`);
+
+    // 6단계: 데이터 변환 및 저장
+    const today = new Date().toISOString().split('T')[0];
+    const newData = uniqueVideos.map((video, index) => {
+      const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
+      const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
+      
+      return {
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
+        channelId: video.snippet.channelId,
+        channelName: video.snippet.channelTitle,
+        description: channel?.snippet?.description || "설명 없음",
+        videoId: video.id,
+        videoTitle: video.snippet.title,
+        videoDescription: video.snippet.description,
+        viewCount: parseInt(video.statistics?.viewCount || '0'),
+        uploadDate: video.snippet.publishedAt.split('T')[0],
+        collectionDate: today,
+        thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
+        category: existingClassification?.category || "",
+        subCategory: existingClassification?.subCategory || "",
+        status: existingClassification ? "classified" : "unclassified"
+      };
+    });
+
+    // PostgreSQL에 저장
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+    `, ['auto_collected', JSON.stringify(newData)]);
+    
+    client.release();
+
+    console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🤖 자동 수집 완료!');
+    console.log(`🤖 총 ${newData.length}개 영상 수집`);
+    console.log(`🤖 자동 분류: ${newData.filter(d => d.status === 'classified').length}개`);
+    console.log(`🤖 미분류: ${newData.filter(d => d.status === 'unclassified').length}개`);
+    console.log(`🤖 API 요청: ${requestCount}번`);
+    console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  } catch (error) {
+    console.error('❌ 자동 수집 실패:', error);
+  }
+}
+
 // SPA 폴백 - 루트 포함 모든 경로 (Express 5 호환, 명명된 와일드카드)
 app.get('/*splat', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
@@ -533,4 +747,17 @@ app.get('/*splat', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
+  
+  // 자동 수집 cron job 설정 (매일 자정 KST)
+  // cron 표현식: '분 시 일 월 요일'
+  // '0 0 * * *' = 매일 자정 (서버 시간 기준)
+  // Railway는 UTC를 사용하므로 KST 자정 = UTC 15:00 (전날)
+  cron.schedule('0 15 * * *', () => {
+    console.log('⏰ 자동 수집 스케줄 실행 (매일 자정 KST)');
+    autoCollectData();
+  }, {
+    timezone: 'Asia/Seoul'
+  });
+  
+  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 00:00 (한국시간)');
 });
