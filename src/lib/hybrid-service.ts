@@ -247,6 +247,91 @@ class HybridService {
     }
   }
 
+  // 미분류 데이터 로드 (getUnclassifiedData의 alias)
+  async loadUnclassifiedData(): Promise<any[]> {
+    try {
+      // IndexedDB에서 직접 로드 (API 서버는 아직 이 기능 없음)
+      const localData = await indexedDBService.loadUnclassifiedData();
+      console.log('✅ 하이브리드: IndexedDB에서 미분류 데이터 로드');
+      return localData;
+    } catch (error) {
+      console.error('❌ 미분류 데이터 로드 실패:', error);
+      return [];
+    }
+  }
+
+  // 날짜별 미분류 데이터 로드
+  async loadUnclassifiedDataByDate(collectionDate: string): Promise<any[]> {
+    try {
+      const localData = await indexedDBService.loadUnclassifiedDataByDate(collectionDate);
+      console.log(`✅ 하이브리드: ${collectionDate} 날짜 데이터 로드`);
+      return localData;
+    } catch (error) {
+      console.error('❌ 날짜별 데이터 로드 실패:', error);
+      return [];
+    }
+  }
+
+  // 미분류 데이터 업데이트
+  async updateUnclassifiedData(data: any[]): Promise<void> {
+    try {
+      // IndexedDB 업데이트 (save와 동일)
+      await this.saveUnclassifiedData(data);
+      console.log('✅ 하이브리드: 미분류 데이터 업데이트 완료');
+    } catch (error) {
+      console.error('❌ 미분류 데이터 업데이트 실패:', error);
+      throw error;
+    }
+  }
+
+  // 분류 데이터 로드
+  async loadClassifiedData(): Promise<any[]> {
+    try {
+      const localData = await indexedDBService.loadClassifiedData();
+      console.log('✅ 하이브리드: IndexedDB에서 분류 데이터 로드');
+      return localData;
+    } catch (error) {
+      console.error('❌ 분류 데이터 로드 실패:', error);
+      return [];
+    }
+  }
+
+  // 날짜별 분류 데이터 로드
+  async loadClassifiedByDate(date: string): Promise<any[]> {
+    try {
+      const localData = await indexedDBService.loadClassifiedByDate(date);
+      console.log(`✅ 하이브리드: ${date} 날짜 분류 데이터 로드`);
+      return localData || [];
+    } catch (error) {
+      console.error('❌ 날짜별 분류 데이터 로드 실패:', error);
+      return [];
+    }
+  }
+
+  // 일별 진행률 저장
+  async saveDailyProgress(progressData: any[]): Promise<void> {
+    try {
+      // 로컬에 저장 (API 서버 기능은 향후 구현)
+      await indexedDBService.saveDailyProgress(progressData);
+      console.log('✅ 하이브리드: 일별 진행률 저장 완료');
+    } catch (error) {
+      console.error('❌ 일별 진행률 저장 실패:', error);
+      throw error;
+    }
+  }
+
+  // 사용 가능한 날짜 목록 조회
+  async getAvailableDates(): Promise<string[]> {
+    try {
+      const dates = await indexedDBService.getAvailableDates();
+      console.log('✅ 하이브리드: 사용 가능한 날짜 조회');
+      return dates;
+    } catch (error) {
+      console.error('❌ 날짜 목록 조회 실패:', error);
+      return [];
+    }
+  }
+
   // 시스템 설정 저장
   async saveSystemConfig(key: string, value: any): Promise<void> {
     try {

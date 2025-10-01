@@ -43,7 +43,7 @@ import {
   } from "lucide-react";
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
-import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
 import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -103,8 +103,8 @@ const DataClassification = () => {
       try {
         setIsLoading(true);
         
-        // 1. IndexedDB에서 전체 unclassifiedData 로드 (통계용)
-        const savedData = await indexedDBService.loadUnclassifiedData();
+        // 1. 하이브리드 서비스에서 전체 unclassifiedData 로드 (통계용)
+        const savedData = await hybridService.loadUnclassifiedData();
         if (savedData && savedData.length > 0) {
           const { getKoreanDateString } = await import('@/lib/utils');
           const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜
@@ -181,8 +181,8 @@ const DataClassification = () => {
           });
           
           if (combinedData.length > 0) {
-            console.log('🔄 localStorage 데이터를 IndexedDB로 마이그레이션:', combinedData.length, '개');
-            await indexedDBService.saveUnclassifiedData(combinedData);
+            console.log('🔄 localStorage 데이터를 하이브리드 저장소로 마이그레이션:', combinedData.length, '개');
+            await hybridService.saveUnclassifiedData(combinedData);
             setUnclassifiedData(combinedData);
             } else {
               console.log('📊 실제 데이터가 없습니다. 데이터 수집을 먼저 진행해주세요.');
@@ -240,13 +240,13 @@ const DataClassification = () => {
           setIsLoading(true);
           console.log('🔄 데이터 분류 관리 페이지 - 데이터 새로고침 시작');
           
-          // 1. IndexedDB에서 전체 unclassifiedData 로드 (통계용) - 강제 새로고침
-          console.log('🔄 IndexedDB에서 최신 데이터 강제 로드 중...');
-          const savedData = await indexedDBService.loadUnclassifiedData();
+          // 1. 하이브리드 서비스에서 전체 unclassifiedData 로드 (통계용) - 강제 새로고침
+          console.log('🔄 하이브리드 서비스에서 최신 데이터 강제 로드 중...');
+          const savedData = await hybridService.loadUnclassifiedData();
           console.log(`📊 로드된 데이터 개수: ${savedData?.length || 0}개`);
           
           // 2. 사용 가능한 날짜 목록 새로고침
-          const dates = await indexedDBService.getAvailableDates();
+          const dates = await hybridService.getAvailableDates();
           console.log('🔄 사용 가능한 날짜 새로고침:', dates);
           setAvailableDates(dates);
           
@@ -294,7 +294,7 @@ const DataClassification = () => {
             console.log(`✅ 데이터 분류 관리 페이지 - ${sanitized.length}개 데이터 업데이트 완료`);
             
             // 사용 가능한 날짜 목록도 새로고침
-            const availableDatesFromDB = await indexedDBService.getAvailableDates();
+            const availableDatesFromDB = await hybridService.getAvailableDates();
             const { getKoreanDateStringWithOffset } = await import('@/lib/utils');
             const dates = new Set<string>();
             
@@ -352,8 +352,8 @@ const DataClassification = () => {
         const { getKoreanDateString, getKoreanDateStringWithOffset } = await import('@/lib/utils');
         const dates = new Set<string>();
         
-        // 1. IndexedDB에서 실제 데이터가 있는 날짜들 조회
-        const availableDatesFromDB = await indexedDBService.getAvailableDates();
+        // 1. 하이브리드 서비스에서 실제 데이터가 있는 날짜들 조회
+        const availableDatesFromDB = await hybridService.getAvailableDates();
         availableDatesFromDB.forEach(date => dates.add(date));
         
         // 2. 오늘 기준 최근 7일 날짜들 추가 (데이터가 없어도 표시) - 한국 시간 기준
@@ -411,7 +411,7 @@ const DataClassification = () => {
     });
     
     setUnclassifiedData(filteredData);
-    await indexedDBService.updateUnclassifiedData(filteredData);
+    await hybridService.updateUnclassifiedData(filteredData);
     
     alert(`✅ ${dataManagementConfig.retentionDays}일 이전 데이터가 정리되었습니다.`);
   };
@@ -461,8 +461,8 @@ const DataClassification = () => {
         allClassifiedData.push(...dateClassifiedData);
       });
 
-      // 분류된 데이터를 IndexedDB에 저장 (대시보드용)
-      await indexedDBService.saveClassifiedData(allClassifiedData);
+      // 분류된 데이터를 하이브리드 저장 (대시보드용)
+      await hybridService.saveClassifiedData(allClassifiedData);
       
       // 진행률 데이터 생성 (14일간 모든 날짜)
       const progressData = sevenDays.map(date => {
@@ -485,8 +485,8 @@ const DataClassification = () => {
         };
       });
 
-      // IndexedDB에 진행률 데이터 저장
-      await indexedDBService.saveDailyProgress(progressData);
+      // 하이브리드 저장 - 진행률 데이터
+      await hybridService.saveDailyProgress(progressData);
       
       // 데이터 업데이트 이벤트 발생 (대시보드 새로고침)
       window.dispatchEvent(new CustomEvent('dataUpdated'));
@@ -644,18 +644,18 @@ const DataClassification = () => {
               );
               
               if (confirmed) {
-                // 원본 날짜를 그대로 유지하여 저장
-                await indexedDBService.saveUnclassifiedData(allData);
+                // 원본 날짜를 그대로 유지하여 하이브리드 저장
+                await hybridService.saveUnclassifiedData(allData);
                 setUnclassifiedData(allData);
                 
-                // dailyData를 classifiedData와 dailyProgress로도 저장 (원본 데이터 사용)
+                // dailyData를 classifiedData와 dailyProgress로도 하이브리드 저장 (원본 데이터 사용)
                 const classifiedData = allData.filter((item: any) => item.status === 'classified');
                 if (classifiedData.length > 0) {
-                  await indexedDBService.saveClassifiedData(classifiedData);
+                  await hybridService.saveClassifiedData(classifiedData);
                   console.log(`📊 ${classifiedData.length}개의 분류된 데이터도 저장 완료`);
                 }
                 
-                // dailyProgress 데이터 생성 및 저장 (원본 날짜 기준)
+                // dailyProgress 데이터 생성 및 하이브리드 저장 (원본 날짜 기준)
                 const progressData = restoredData.dailyData.map((dayData: any) => ({
                   date: dayData.date,
                   total: dayData.total,
@@ -663,7 +663,7 @@ const DataClassification = () => {
                   unclassified: dayData.unclassified,
                   progress: dayData.progress
                 }));
-                await indexedDBService.saveDailyProgress(progressData);
+                await hybridService.saveDailyProgress(progressData);
                 console.log(`📊 ${progressData.length}일간의 진행률 데이터 저장 완료`);
                 
                 // dateStats 상태 강제 업데이트 (원본 데이터 사용)
@@ -708,7 +708,7 @@ const DataClassification = () => {
               );
               
               if (confirmed) {
-                await indexedDBService.saveUnclassifiedData(dataToRestore);
+                await hybridService.saveUnclassifiedData(dataToRestore);
                 setUnclassifiedData(dataToRestore);
                 
                 // dateStats 상태 강제 업데이트
