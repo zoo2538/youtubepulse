@@ -152,7 +152,7 @@ const System = () => {
   const [dbInfo, setDbInfo] = useState<any>(null);
   const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false);
 
-  // 관리자 권한 체크 (디버깅 강화)
+  // 관리자 권한 체크 (임시 비활성화 - 디버깅용)
   useEffect(() => {
     const userEmail = localStorage.getItem('userEmail');
     const storedRole = localStorage.getItem('userRole');
@@ -166,24 +166,31 @@ const System = () => {
       localStorage_userRole: localStorage.getItem('userRole')
     });
     
+    // 임시로 권한 체크 완전 비활성화 - 로그인만 확인
     if (!isLoggedIn) {
       console.log('❌ 로그인되지 않음 - 대시보드로 리다이렉트');
       navigate('/dashboard');
-    } else if (userRole !== 'admin') {
-      console.log('❌ 관리자 권한 없음 - 대시보드로 리다이렉트');
-      console.log('현재 userRole:', userRole);
-      console.log('localStorage userRole:', storedRole);
-      
-      // 관리자 이메일이면 강제로 통과 (임시)
-      if (userEmail === 'ju9511503@gmail.com' || storedRole === 'admin') {
-        console.log('✅ 관리자 이메일 확인됨 - 강제 통과');
-        return;
-      }
-      
-      navigate('/dashboard');
-    } else {
-      console.log('✅ 관리자 권한 확인 완료 - System 페이지 접근 허용');
+      return;
     }
+    
+    console.log('✅ 로그인 확인됨 - System 페이지 접근 허용 (권한 체크 임시 비활성화)');
+    
+    // 원래 코드 (주석 처리)
+    // if (userRole !== 'admin') {
+    //   console.log('❌ 관리자 권한 없음 - 대시보드로 리다이렉트');
+    //   console.log('현재 userRole:', userRole);
+    //   console.log('localStorage userRole:', storedRole);
+    //   
+    //   // 관리자 이메일이면 강제로 통과 (임시)
+    //   if (userEmail === 'ju9511503@gmail.com' || storedRole === 'admin') {
+    //     console.log('✅ 관리자 이메일 확인됨 - 강제 통과');
+    //     return;
+    //   }
+    //   
+    //   navigate('/dashboard');
+    // } else {
+    //   console.log('✅ 관리자 권한 확인 완료 - System 페이지 접근 허용');
+    // }
   }, [isLoggedIn, userRole, navigate]);
 
   // 페이지 로드 시 IndexedDB 정보 로드
