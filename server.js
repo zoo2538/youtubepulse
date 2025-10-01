@@ -243,7 +243,7 @@ app.post('/api/sync/classification', async (req, res) => {
   }
 });
 
-// 분류 데이터 API (api-service.ts 호환)
+// 수동수집 전용 분류 데이터 저장 API (수동수집과 자동수집 분리)
 app.post('/api/classified', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });
@@ -252,29 +252,43 @@ app.post('/api/classified', async (req, res) => {
   try {
     const data = req.body;
     const dataSize = JSON.stringify(data).length;
-    console.log(`📊 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
+    console.log(`👤 수동수집 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
     
     const client = await pool.connect();
     
-    // 데이터가 너무 크면 청크로 나누어 저장
-    if (dataSize > 10 * 1024 * 1024) { // 10MB 초과
-      console.log('⚠️ 대용량 데이터 감지, 청크 단위로 저장');
+    // 수동수집 데이터 저장 (중복 체크 및 업데이트)
+    for (const item of data) {
+      // 기존 데이터 확인 (videoId 기준)
+      const existing = await client.query(`
+        SELECT id, data_type FROM classification_data 
+        WHERE data_type IN ('auto_classified', 'manual_classified')
+        AND data->>'videoId' = $1
+      `, [item.videoId]);
       
-      const chunkSize = 1000; // 1000개씩 나누기
-      for (let i = 0; i < data.length; i += chunkSize) {
-        const chunk = data.slice(i, i + chunkSize);
+      if (existing.rows.length === 0) {
+        // 중복이 없으면 새로 저장
         await client.query(`
           INSERT INTO classification_data (data_type, data)
           VALUES ($1, $2)
-        `, ['classified', JSON.stringify(chunk)]);
-        console.log(`✅ 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
+        `, ['manual_classified', JSON.stringify(item)]);
+      } else {
+        // 중복이 있으면 조회수 비교 후 업데이트
+        const existingData = existing.rows[0];
+        const existingViews = parseInt(existingData.data?.statistics?.viewCount || '0');
+        const newViews = parseInt(item.statistics?.viewCount || '0');
+        
+        if (newViews > existingViews) {
+          // 조회수가 더 높으면 업데이트
+          await client.query(`
+            UPDATE classification_data 
+            SET data_type = 'manual_classified', data = $1, created_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+          `, [JSON.stringify(item), existingData.id]);
+          console.log(`🔄 영상 업데이트: ${item.videoId} (조회수 ${existingViews.toLocaleString()} → ${newViews.toLocaleString()})`);
+        } else {
+          console.log(`⏭️ 영상 건너뛰기: ${item.videoId} (기존 조회수 ${existingViews.toLocaleString()} > 신규 ${newViews.toLocaleString()})`);
+        }
       }
-    } else {
-      // 일반 저장
-      await client.query(`
-        INSERT INTO classification_data (data_type, data)
-        VALUES ($1, $2)
-      `, ['classified', JSON.stringify(data)]);
     }
     
     client.release();
@@ -404,6 +418,69 @@ app.get('/api/channels', async (req, res) => {
   } catch (error) {
     console.error('채널 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get channels' });
+  }
+});
+
+// 자동 수집 전용 분류 데이터 저장 API (자동수집과 수동수집 분리)
+app.post('/api/auto-classified', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const data = req.body;
+    const dataSize = JSON.stringify(data).length;
+    console.log(`🤖 자동수집 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
+    
+    const client = await pool.connect();
+    
+    // 자동수집 데이터 저장 (중복 체크)
+    for (const item of data) {
+      // 기존 데이터 확인 (videoId 기준)
+      const existing = await client.query(`
+        SELECT id FROM classification_data 
+        WHERE data_type IN ('auto_classified', 'manual_classified')
+        AND data->>'videoId' = $1
+      `, [item.videoId]);
+      
+      if (existing.rows.length === 0) {
+        // 중복이 없으면 저장
+        await client.query(`
+          INSERT INTO classification_data (data_type, data)
+          VALUES ($1, $2)
+        `, ['auto_classified', JSON.stringify(item)]);
+      } else {
+        // 중복이 있으면 조회수 비교 후 업데이트
+        const existingData = existing.rows[0];
+        const existingViews = parseInt(existingData.data?.statistics?.viewCount || '0');
+        const newViews = parseInt(item.statistics?.viewCount || '0');
+        
+        if (newViews > existingViews) {
+          // 조회수가 더 높으면 업데이트
+          await client.query(`
+            UPDATE classification_data 
+            SET data_type = 'auto_classified', data = $1, created_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+          `, [JSON.stringify(item), existingData.id]);
+          console.log(`🤖 자동수집 업데이트: ${item.videoId} (조회수 ${existingViews.toLocaleString()} → ${newViews.toLocaleString()})`);
+        } else {
+          console.log(`⏭️ 자동수집 건너뛰기: ${item.videoId} (기존 조회수 ${existingViews.toLocaleString()} > 신규 ${newViews.toLocaleString()})`);
+        }
+      }
+    }
+    
+    client.release();
+    res.json({ success: true, message: 'Auto classified data saved' });
+  } catch (error) {
+    console.error('자동수집 분류 데이터 저장 실패:', error);
+    console.error('에러 상세:', error.message);
+    console.error('에러 코드:', error.code);
+    console.error('데이터 크기:', JSON.stringify(data).length / 1024 / 1024, 'MB');
+    res.status(500).json({ 
+      error: 'Failed to save auto classified data',
+      details: error.message,
+      dataSize: JSON.stringify(data).length
+    });
   }
 });
 
@@ -581,6 +658,18 @@ app.get('/api/data/stats', async (req, res) => {
 
 // 정적 파일 서빙 (SPA) - 반드시 먼저 배치
 app.use(express.static(path.join(__dirname, 'dist')));
+
+// 자동수집 API 엔드포인트 (GitHub Actions에서 호출)
+app.post('/api/auto-collect', async (req, res) => {
+  try {
+    console.log('🤖 자동수집 API 호출됨');
+    await autoCollectData();
+    res.json({ success: true, message: 'Auto collection completed' });
+  } catch (error) {
+    console.error('자동수집 실패:', error);
+    res.status(500).json({ error: 'Auto collection failed' });
+  }
+});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 자동 데이터 수집 함수
@@ -803,16 +892,16 @@ app.get('/*splat', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
   
-  // 자동 수집 cron job 설정 (매일 자정 KST)
+  // 자동 수집 cron job 설정 (매일 오전 9시 KST)
   // cron 표현식: '분 시 일 월 요일'
-  // '0 0 * * *' = 매일 자정 (서버 시간 기준)
-  // Railway는 UTC를 사용하므로 KST 자정 = UTC 15:00 (전날)
-  cron.schedule('0 15 * * *', () => {
-    console.log('⏰ 자동 수집 스케줄 실행 (매일 자정 KST)');
+  // '0 0 * * *' = 매일 오전 9시 (서버 시간 기준)
+  // Railway는 UTC를 사용하므로 KST 오전 9시 = UTC 00:00 (같은 날)
+  cron.schedule('0 0 * * *', () => {
+    console.log('⏰ 자동 수집 스케줄 실행 (매일 오전 9시 KST)');
     autoCollectData();
   }, {
     timezone: 'Asia/Seoul'
   });
   
-  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 00:00 (한국시간)');
+  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 09:00 (한국시간)');
 });
