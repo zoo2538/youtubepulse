@@ -1,41 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { subCategories, categoryColors } from "@/lib/subcategories";
-import { indexedDBService } from "@/lib/indexeddb-service";
 
-// 중앙화된 카테고리 및 색상 사용
-const defaultCategories = Object.keys(subCategories);
+// 하드코딩된 카테고리 순서 사용 (subcategories.ts에서)
+const categories = Object.keys(subCategories);
 
 export function DashboardFilters() {
-  const [dynamicCategories, setDynamicCategories] = useState<string[]>(defaultCategories);
-
-  // 카테고리 데이터 로드
+  // 동적 카테고리 로드 제거 - 항상 subcategories.ts 순서 사용
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const savedCategories = await indexedDBService.loadCategories();
-        if (savedCategories) {
-          setDynamicCategories(Object.keys(savedCategories));
-        }
-      } catch (error) {
-        console.error('📊 카테고리 로드 실패:', error);
-      }
-    };
-
-    loadCategories();
-
-    // 카테고리 업데이트 이벤트 리스너
-    const handleCategoriesUpdated = () => {
-      loadCategories();
-    };
-
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdated);
-
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdated);
-    };
+    console.log('📊 하드코딩된 카테고리 순서 사용:', categories);
   }, []);
 
   return (
@@ -48,7 +23,7 @@ export function DashboardFilters() {
               카테고리
             </label>
             <div className="grid grid-cols-8 gap-2">
-              {dynamicCategories.map((category) => (
+              {categories.map((category) => (
                 <Link key={category} to={`/category/${encodeURIComponent(category)}`}>
                   <Badge
                     className="cursor-pointer transition-all duration-200 w-full text-center text-sm py-2 text-muted-foreground hover:text-white hover:shadow-lg"
