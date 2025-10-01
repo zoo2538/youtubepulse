@@ -251,18 +251,44 @@ app.post('/api/classified', async (req, res) => {
   
   try {
     const data = req.body;
+    const dataSize = JSON.stringify(data).length;
+    console.log(`📊 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
+    
     const client = await pool.connect();
     
-    await client.query(`
-      INSERT INTO classification_data (data_type, data)
-      VALUES ($1, $2)
-    `, ['classified', JSON.stringify(data)]);
+    // 데이터가 너무 크면 청크로 나누어 저장
+    if (dataSize > 10 * 1024 * 1024) { // 10MB 초과
+      console.log('⚠️ 대용량 데이터 감지, 청크 단위로 저장');
+      
+      const chunkSize = 1000; // 1000개씩 나누기
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        await client.query(`
+          INSERT INTO classification_data (data_type, data)
+          VALUES ($1, $2)
+        `, ['classified', JSON.stringify(chunk)]);
+        console.log(`✅ 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
+      }
+    } else {
+      // 일반 저장
+      await client.query(`
+        INSERT INTO classification_data (data_type, data)
+        VALUES ($1, $2)
+      `, ['classified', JSON.stringify(data)]);
+    }
     
     client.release();
     res.json({ success: true, message: 'Classified data saved' });
   } catch (error) {
     console.error('분류 데이터 저장 실패:', error);
-    res.status(500).json({ error: 'Failed to save classified data' });
+    console.error('에러 상세:', error.message);
+    console.error('에러 코드:', error.code);
+    console.error('데이터 크기:', JSON.stringify(data).length / 1024 / 1024, 'MB');
+    res.status(500).json({ 
+      error: 'Failed to save classified data',
+      details: error.message,
+      dataSize: JSON.stringify(data).length
+    });
   }
 });
 
