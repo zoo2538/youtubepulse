@@ -381,6 +381,35 @@ app.get('/api/channels', async (req, res) => {
   }
 });
 
+// 자동 수집 데이터 조회 API
+app.get('/api/auto-collected', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    const result = await client.query(`
+      SELECT data, created_at FROM classification_data 
+      WHERE data_type = 'auto_collected' 
+      ORDER BY created_at DESC
+    `);
+    
+    client.release();
+    
+    // 모든 자동 수집 데이터 반환 (날짜별)
+    const collections = result.rows.map(row => ({
+      data: row.data,
+      collectedAt: row.created_at
+    }));
+    
+    res.json({ success: true, data: collections });
+  } catch (error) {
+    console.error('자동 수집 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get auto-collected data' });
+  }
+});
+
 // 비디오 데이터 API (api-service.ts 호환)
 app.post('/api/videos', async (req, res) => {
   if (!pool) {

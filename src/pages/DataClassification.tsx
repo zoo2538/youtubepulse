@@ -754,6 +754,120 @@ const DataClassification = () => {
     }
   };
 
+  // 자동 수집 데이터 가져오기
+  const handleFetchAutoCollected = async (action: 'download' | 'merge') => {
+    try {
+      setIsLoading(true);
+      
+      // API에서 자동 수집 데이터 조회
+      const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+      const result = await response.json();
+      
+      if (!result.success || !result.data || result.data.length === 0) {
+        alert('자동 수집된 데이터가 없습니다.');
+        setIsLoading(false);
+        return;
+      }
+      
+      // 가장 최신 자동 수집 데이터 사용
+      const latestCollection = result.data[0];
+      const autoCollectedData = latestCollection.data;
+      const collectedAt = new Date(latestCollection.collectedAt).toLocaleString('ko-KR');
+      
+      console.log(`📥 자동 수집 데이터: ${autoCollectedData.length}개 (수집 시간: ${collectedAt})`);
+      
+      if (action === 'download') {
+        // JSON 다운로드
+        const blob = new Blob([JSON.stringify(autoCollectedData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `auto-collected-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert(`✅ 자동 수집 데이터 다운로드 완료!\n\n수집 시간: ${collectedAt}\n데이터: ${autoCollectedData.length}개`);
+      } else if (action === 'merge') {
+        // IndexedDB에 병합
+        const existingData = await hybridService.loadUnclassifiedData();
+        
+        // videoId + collectionDate 기반 중복 제거
+        const mergedMap = new Map();
+        
+        // 기존 데이터 먼저
+        existingData.forEach(item => {
+          const key = `${item.videoId}_${item.collectionDate}`;
+          mergedMap.set(key, item);
+        });
+        
+        // 자동 수집 데이터 추가/업데이트
+        let addedCount = 0;
+        let updatedCount = 0;
+        
+        autoCollectedData.forEach(item => {
+          const key = `${item.videoId}_${item.collectionDate}`;
+          if (!mergedMap.has(key)) {
+            mergedMap.set(key, item);
+            addedCount++;
+          } else {
+            const existing = mergedMap.get(key);
+            // 조회수가 더 높거나 분류된 데이터로 업데이트
+            if (item.viewCount > existing.viewCount || (item.status === 'classified' && existing.status !== 'classified')) {
+              mergedMap.set(key, item);
+              updatedCount++;
+            }
+          }
+        });
+        
+        const mergedData = Array.from(mergedMap.values());
+        
+        // IndexedDB에 저장
+        const { indexedDBService } = await import('@/lib/indexeddb-service');
+        await indexedDBService.replaceAllUnclassifiedData(mergedData);
+        
+        setUnclassifiedData(mergedData);
+        
+        // 통계 재계산
+        const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+        mergedData.forEach(item => {
+          const date = item.collectionDate || item.uploadDate;
+          if (date) {
+            if (!newDateStats[date]) {
+              newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+            }
+            newDateStats[date].total++;
+            if (item.status === 'classified') {
+              newDateStats[date].classified++;
+            }
+          }
+        });
+        
+        Object.keys(newDateStats).forEach(date => {
+          const stats = newDateStats[date];
+          stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+        });
+        
+        setDateStats(newDateStats);
+        
+        alert(`✅ 자동 수집 데이터 병합 완료!\n\n` +
+              `📥 수집 시간: ${collectedAt}\n` +
+              `➕ 추가된 데이터: ${addedCount}개\n` +
+              `🔄 업데이트된 데이터: ${updatedCount}개\n` +
+              `📊 전체 데이터: ${mergedData.length}개\n\n` +
+              `페이지를 새로고침합니다.`);
+        
+        window.location.reload();
+      }
+    } catch (error) {
+      console.error('자동 수집 데이터 가져오기 실패:', error);
+      alert('❌ 자동 수집 데이터 가져오기에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 백업 복원
   const handleRestoreBackup = () => {
     const input = document.createElement('input');
@@ -1265,6 +1379,25 @@ const DataClassification = () => {
                 <Trash2 className="w-4 h-4" />
                 <span>중복 제거</span>
               </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex items-center space-x-1 border-purple-500 text-purple-600 hover:bg-purple-50">
+                    <Download className="w-4 h-4" />
+                    <span>자동 수집 가져오기</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleFetchAutoCollected('download')}>
+                    <FileDown className="w-4 h-4 mr-2 text-purple-500" />
+                    JSON 다운로드
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleFetchAutoCollected('merge')}>
+                    <Database className="w-4 h-4 mr-2 text-purple-500" />
+                    데이터 병합
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
