@@ -567,25 +567,25 @@ const System = () => {
         }
       }
 
-      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 7일간)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 14일간)
       let existingClassifiedData: any[] = [];
       try {
         const allData = await indexedDBService.loadUnclassifiedData();
         
-        // 최근 7일간의 분류된 데이터만 필터링
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+        // 최근 14일간의 분류된 데이터만 필터링
+        const fourteenDaysAgo = new Date();
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+        const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
         
         existingClassifiedData = allData.filter((item: any) => {
           const isClassified = item.status === 'classified';
-          const isRecent = item.collectionDate >= sevenDaysAgoString;
+          const isRecent = item.collectionDate >= fourteenDaysAgoString;
           return isClassified && isRecent;
         });
         
-        console.log(`📊 분류 데이터 참조 범위: 최근 7일 (${sevenDaysAgoString} 이후)`);
+        console.log(`📊 분류 데이터 참조 범위: 최근 14일 (${fourteenDaysAgoString} 이후)`);
         console.log(`📊 전체 분류 데이터: ${allData.filter(item => item.status === 'classified').length}개`);
-        console.log(`📊 최근 7일 분류 데이터: ${existingClassifiedData.length}개`);
+        console.log(`📊 최근 14일 분류 데이터: ${existingClassifiedData.length}개`);
       } catch (error) {
         console.log('기존 분류 데이터 로드 실패, 새로 시작합니다.');
         existingClassifiedData = [];
@@ -616,7 +616,7 @@ const System = () => {
       });
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
-      console.log(`📊 분류 참조 기간: 최근 7일간의 최신 분류 정보만 사용`);
+      console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
       
       // 5. 데이터 변환 및 저장
       const { getKoreanDateString, getKoreanDateTimeString } = await import('@/lib/utils');
