@@ -364,9 +364,9 @@ const UserManagement = () => {
                 이 페이지는 관리자만 접근할 수 있습니다.
               </p>
               <div className="pt-4 space-y-2">
-                <Link to="/dashboard">
+                <Link to="/system">
                   <Button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
-                    대시보드로 돌아가기
+                    시스템으로 돌아가기
                   </Button>
                 </Link>
                 <Link to="/">
@@ -388,10 +388,10 @@ const UserManagement = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
-            <Link to="/dashboard">
+            <Link to="/system">
               <Button variant="outline" size="sm" className="bg-transparent border-white/30 text-white hover:bg-white/10">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                대시보드로 돌아가기
+                시스템으로 돌아가기
               </Button>
             </Link>
             <div>

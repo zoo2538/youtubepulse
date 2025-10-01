@@ -33,12 +33,9 @@ import {
   Users
 } from "lucide-react";
 import DataCollectionManager from "@/components/DataCollectionManager";
-import { postgresqlService } from "@/lib/postgresql-service";
-import { redisService } from "@/lib/redis-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { dataMigrationService } from "@/lib/data-migration-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
-import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -50,21 +47,7 @@ interface ApiConfig {
   customApiKey: string;
 }
 
-interface DatabaseConfig {
-  host: string;
-  port: string;
-  database: string;
-  username: string;
-  password: string;
-  connectionType: 'mysql' | 'postgresql' | 'mongodb';
-}
-
-interface RedisConfig {
-  host: string;
-  port: string;
-  password: string;
-  database: number;
-}
+// PostgreSQL과 Redis 설정 인터페이스 제거 - 서버에서 자동 관리
 
 interface SystemConfig {
   dataRefreshInterval: number;
@@ -102,21 +85,7 @@ const System = () => {
     };
   });
 
-  const [dbConfig, setDbConfig] = useState<DatabaseConfig>({
-    host: 'localhost',
-    port: '5432',
-    database: 'youtubepulse',
-    username: 'postgres',
-    password: '',
-    connectionType: 'postgresql'
-  });
-
-  const [redisConfig, setRedisConfig] = useState<RedisConfig>({
-    host: 'localhost',
-    port: '6379',
-    password: '',
-    database: 0
-  });
+  // PostgreSQL과 Redis 설정 제거 - Railway와 서버에서 자동 관리
 
   const [systemConfig, setSystemConfig] = useState<SystemConfig>({
     dataRefreshInterval: 300,
@@ -242,12 +211,8 @@ const System = () => {
 
 
 
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
-  const [testMessage, setTestMessage] = useState('');
-  const [redisConnectionStatus, setRedisConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [apiConnectionStatus, setApiConnectionStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [apiTestMessage, setApiTestMessage] = useState('');
-  const [redisTestMessage, setRedisTestMessage] = useState('');
   const [youtubeApiStatus, setYoutubeApiStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
 
@@ -277,60 +242,7 @@ const System = () => {
   };
 
 
-  const testConnection = async () => {
-    setConnectionStatus('testing');
-    setTestMessage('PostgreSQL 연결을 테스트하고 있습니다...');
-    
-    try {
-
-      
-      const success = await postgresqlService.connect(dbConfig);
-      
-      if (success) {
-        // 테이블 생성
-        await postgresqlService.createTables();
-        setConnectionStatus('success');
-        setTestMessage('PostgreSQL 연결이 성공적으로 설정되었습니다!');
-      } else {
-        setConnectionStatus('error');
-        setTestMessage('PostgreSQL 연결에 실패했습니다. 설정을 확인해주세요.');
-      }
-    } catch (error) {
-      setConnectionStatus('error');
-      setTestMessage(`PostgreSQL 연결 오류: ${error}`);
-    }
-  };
-
-  const testRedisConnection = async () => {
-    setRedisConnectionStatus('testing');
-    setRedisTestMessage('Redis 연결을 테스트하고 있습니다...');
-    
-    try {
-
-      
-      const success = await redisService.connect(redisConfig);
-      
-      if (success) {
-        // 간단한 테스트 데이터 저장/조회
-        await redisService.set('test_key', { message: 'Redis 연결 테스트 성공' }, 60);
-        const testData = await redisService.get('test_key');
-        
-        if (testData) {
-          setRedisConnectionStatus('success');
-          setRedisTestMessage('Redis 연결이 성공적으로 설정되었습니다!');
-        } else {
-          setRedisConnectionStatus('error');
-          setRedisTestMessage('Redis 데이터 저장/조회 테스트에 실패했습니다.');
-        }
-      } else {
-        setRedisConnectionStatus('error');
-        setRedisTestMessage('Redis 연결에 실패했습니다. 설정을 확인해주세요.');
-      }
-    } catch (error) {
-      setRedisConnectionStatus('error');
-      setRedisTestMessage(`Redis 연결 오류: ${error}`);
-    }
-  };
+  // PostgreSQL과 Redis 연결 테스트 함수 제거 - 서버에서 자동 관리
 
   const testYouTubeAPI = async () => {
     setYoutubeApiStatus('testing');
@@ -401,8 +313,7 @@ const System = () => {
       localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
       localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
       
-      // 다른 설정들도 localStorage에 저장
-      localStorage.setItem('dbConfig', JSON.stringify(dbConfig));
+      // 시스템 설정도 localStorage에 저장
       localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
       
       // 설정 저장 완료 알림
@@ -413,7 +324,7 @@ const System = () => {
   };
 
   const exportConfig = () => {
-    const config = { apiConfig, dbConfig, systemConfig };
+    const config = { apiConfig, systemConfig };
     const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -821,9 +732,8 @@ const System = () => {
       reader.onload = (e) => {
         try {
           const config = JSON.parse(e.target?.result as string);
-          setApiConfig(config.apiConfig);
-          setDbConfig(config.dbConfig);
-          setSystemConfig(config.systemConfig);
+          if (config.apiConfig) setApiConfig(config.apiConfig);
+          if (config.systemConfig) setSystemConfig(config.systemConfig);
           alert('설정이 가져와졌습니다!');
         } catch (error) {
           alert('설정 파일 형식이 올바르지 않습니다.');
@@ -854,6 +764,15 @@ const System = () => {
 
             {/* Navigation Buttons */}
             <div className="flex items-center space-x-3">
+              <Link to="/user-management">
+                <Button 
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Users className="w-4 h-4 mr-2" />
+                  회원관리
+                </Button>
+              </Link>
               <Link to="/dashboard">
                 <Button 
                   variant="destructive" 
@@ -878,6 +797,15 @@ const System = () => {
                 <Settings className="w-4 h-4 mr-2" />
                 시스템
               </Button>
+              <Link to="/subcategory-settings">
+                <Button 
+                  size="sm"
+                  className="bg-pink-600 hover:bg-pink-700 text-white"
+                >
+                  <Filter className="w-4 h-4 mr-2" />
+                  세부카테고리
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
@@ -929,18 +857,12 @@ const System = () => {
                   데이터 분류 관리
                 </Button>
               </Link>
-              <Link to="/user-management">
-                <Button variant="outline">
-                  <Users className="w-4 h-4 mr-2" />
-                  회원 관리
-                </Button>
-              </Link>
             </div>
           </div>
 
                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* 첫 번째 행 */}
-                    <Card className="p-6 h-96">
+                    {/* API 설정 */}
+                    <Card className="p-6">
                       <div className="flex items-center space-x-2 mb-4">
                         <Globe className="w-5 h-5 text-blue-600" />
                         <h2 className="text-xl font-semibold text-foreground">API 설정</h2>
@@ -1089,200 +1011,8 @@ const System = () => {
                       </div>
                     </Card>
 
-                    {/* PostgreSQL 설정 */}
-                    <Card className="p-6 h-96">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Database className="w-5 h-5 text-green-600" />
-                        <h2 className="text-xl font-semibold text-foreground">PostgreSQL 설정</h2>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="db-host">호스트</Label>
-                            <Input
-                              id="db-host"
-                              placeholder="localhost"
-                              value={dbConfig.host}
-                              onChange={(e) => 
-                                setDbConfig(prev => ({ ...prev, host: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="db-port">포트</Label>
-                            <Input
-                              id="db-port"
-                              placeholder="5432"
-                              value={dbConfig.port}
-                              onChange={(e) => 
-                                setDbConfig(prev => ({ ...prev, port: e.target.value }))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label htmlFor="db-name">데이터베이스명</Label>
-                          <Input
-                            id="db-name"
-                            placeholder="youtubepulse"
-                            value={dbConfig.database}
-                            onChange={(e) => 
-                              setDbConfig(prev => ({ ...prev, database: e.target.value }))
-                            }
-                          />
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="db-username">사용자명</Label>
-                            <Input
-                              id="db-username"
-                              placeholder="postgres"
-                              value={dbConfig.username}
-                              onChange={(e) => 
-                                setDbConfig(prev => ({ ...prev, username: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="db-password">비밀번호</Label>
-                            <Input
-                              id="db-password"
-                              type="password"
-                              placeholder="비밀번호"
-                              value={dbConfig.password}
-                              onChange={(e) => 
-                                setDbConfig(prev => ({ ...prev, password: e.target.value }))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <Button onClick={testConnection} disabled={connectionStatus === 'testing'}>
-                          {connectionStatus === 'testing' ? (
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <TestTube className="w-4 h-4 mr-2" />
-                          )}
-                          연결 테스트
-                        </Button>
-
-                        {testMessage && (
-                          <div className={`flex items-center space-x-2 p-3 rounded-lg ${
-                            connectionStatus === 'success' ? 'bg-green-50 text-green-800' :
-                            connectionStatus === 'error' ? 'bg-red-50 text-red-800' :
-                            'bg-blue-50 text-blue-800'
-                          }`}>
-                            {connectionStatus === 'success' ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : connectionStatus === 'error' ? (
-                              <XCircle className="w-4 h-4" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4" />
-                            )}
-                            <span className="text-sm">{testMessage}</span>
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-
-                    {/* 두 번째 행 */}
-                    {/* Redis 설정 */}
-                    <Card className="p-6 h-96">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <div className="w-5 h-5 bg-red-600 rounded flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">R</span>
-                        </div>
-                        <h2 className="text-xl font-semibold text-foreground">Redis 설정</h2>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="redis-host">호스트</Label>
-                            <Input
-                              id="redis-host"
-                              placeholder="localhost"
-                              value={redisConfig.host}
-                              onChange={(e) => 
-                                setRedisConfig(prev => ({ ...prev, host: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="redis-port">포트</Label>
-                            <Input
-                              id="redis-port"
-                              placeholder="6379"
-                              value={redisConfig.port}
-                              onChange={(e) => 
-                                setRedisConfig(prev => ({ ...prev, port: e.target.value }))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="redis-password">비밀번호</Label>
-                            <Input
-                              id="redis-password"
-                              type="password"
-                              placeholder="비밀번호 (선택사항)"
-                              value={redisConfig.password}
-                              onChange={(e) => 
-                                setRedisConfig(prev => ({ ...prev, password: e.target.value }))
-                              }
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="redis-database">데이터베이스</Label>
-                            <Input
-                              id="redis-database"
-                              type="number"
-                              min="0"
-                              max="15"
-                              placeholder="0"
-                              value={redisConfig.database}
-                              onChange={(e) => 
-                                setRedisConfig(prev => ({ ...prev, database: parseInt(e.target.value) }))
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        <Button onClick={testRedisConnection} disabled={redisConnectionStatus === 'testing'}>
-                          {redisConnectionStatus === 'testing' ? (
-                            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          ) : (
-                            <TestTube className="w-4 h-4 mr-2" />
-                          )}
-                          연결 테스트
-                        </Button>
-
-                        {redisTestMessage && (
-                          <div className={`flex items-center space-x-2 p-3 rounded-lg ${
-                            redisConnectionStatus === 'success' ? 'bg-green-50 text-green-800' :
-                            redisConnectionStatus === 'error' ? 'bg-red-50 text-red-800' :
-                            'bg-blue-50 text-blue-800'
-                          }`}>
-                            {redisConnectionStatus === 'success' ? (
-                              <CheckCircle className="w-4 h-4" />
-                            ) : redisConnectionStatus === 'error' ? (
-                              <XCircle className="w-4 h-4" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4" />
-                            )}
-                            <span className="text-sm">{redisTestMessage}</span>
-                          </div>
-                        )}
-                      </div>
-                    </Card>
-
                     {/* 시스템 설정 */}
-                    <Card className="p-6 h-96">
+                    <Card className="p-6">
                       <div className="flex items-center space-x-2 mb-4">
                         <Settings className="w-5 h-5 text-purple-600" />
                         <h2 className="text-xl font-semibold text-foreground">시스템 설정</h2>
@@ -1343,7 +1073,7 @@ const System = () => {
                     </Card>
 
                     {/* 데이터 수집 설정 */}
-                    <Card className="p-6 h-96">
+                    <Card className="p-6">
                       <div className="flex items-center space-x-2 mb-4">
                         <Filter className="w-5 h-5 text-indigo-600" />
                         <h2 className="text-xl font-semibold text-foreground">데이터 수집 설정</h2>
@@ -1448,7 +1178,7 @@ const System = () => {
                     </Card>
 
                     {/* 연동 상태 */}
-                    <Card className="p-6 h-96">
+                    <Card className="p-6">
                       <div className="flex items-center space-x-2 mb-4">
                         <Key className="w-5 h-5 text-orange-600" />
                         <h2 className="text-xl font-semibold text-foreground">연동 상태</h2>
@@ -1464,30 +1194,6 @@ const System = () => {
                           </div>
                           <Badge variant={apiConfig.youtubeApiEnabled ? "default" : "secondary"}>
                             {apiConfig.youtubeApiEnabled ? "연결됨" : "연결 안됨"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              connectionStatus === 'success' ? 'bg-green-500' : 'bg-gray-400'
-                            }`} />
-                            <span className="text-sm font-medium">PostgreSQL</span>
-                          </div>
-                          <Badge variant={connectionStatus === 'success' ? "default" : "secondary"}>
-                            {connectionStatus === 'success' ? "연결됨" : "연결 안됨"}
-                          </Badge>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              redisConnectionStatus === 'success' ? 'bg-green-500' : 'bg-gray-400'
-                            }`} />
-                            <span className="text-sm font-medium">Redis</span>
-                          </div>
-                          <Badge variant={redisConnectionStatus === 'success' ? "default" : "secondary"}>
-                            {redisConnectionStatus === 'success' ? "연결됨" : "연결 안됨"}
                           </Badge>
                         </div>
 
@@ -1590,51 +1296,7 @@ const System = () => {
                         </div>
                       </div>
                     </Card>
-
-                    {/* 세부카테고리 보기 */}
-                    <Card className="p-6 lg:col-span-2">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Filter className="w-5 h-5 text-pink-600" />
-                        <h2 className="text-xl font-semibold text-foreground">세부카테고리 설정</h2>
-                      </div>
-                      
-                      <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <p className="text-sm text-yellow-800">
-                          💡 <strong>하드코딩 방식:</strong> 세부카테고리는 <code className="bg-yellow-100 px-1 rounded">src/lib/subcategories.ts</code> 파일에서 직접 수정해야 합니다.
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto">
-                        {Object.entries(subCategories).map(([category, subs]) => (
-                          <div key={category} className="border rounded-lg p-3">
-                            <h3 className="font-medium text-foreground mb-2">{category}</h3>
-                            <div className="space-y-1">
-                              {subs.map((sub, index) => (
-                                <div key={index} className="text-sm text-muted-foreground bg-muted/50 px-2 py-1 rounded">
-                                  • {sub}
-                                </div>
-                              ))}
-                            </div>
-                            <div className="text-xs text-muted-foreground mt-2">
-                              총 {subs.length}개
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                        <div className="text-sm text-blue-800">
-                          <strong>전체 통계:</strong>
-                          <div className="mt-1 grid grid-cols-2 gap-2">
-                            <div>• 총 카테고리: <strong>{categories.length}개</strong></div>
-                            <div>• 총 세부카테고리: <strong>{Object.values(subCategories).reduce((sum, subs) => sum + subs.length, 0)}개</strong></div>
-                          </div>
-                        </div>
-                      </div>
-                    </Card>
                   </div>
-
-           
        </div>
     </div>
   );

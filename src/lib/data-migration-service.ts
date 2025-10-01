@@ -15,8 +15,8 @@ class DataMigrationService {
     try {
       console.log('🔄 IndexedDB에서 PostgreSQL로 데이터 마이그레이션 시작...');
 
-      // 1. 채널 데이터 마이그레이션
-      const channels = await indexedDBService.getChannels();
+      // 1. 채널 데이터 마이그레이션 (하이브리드 방식)
+      const channels = await hybridDatabaseService.getChannels();
       let migratedChannels = 0;
       if (channels.length > 0) {
         await hybridDatabaseService.saveChannels(channels);
@@ -24,8 +24,8 @@ class DataMigrationService {
         console.log(`✅ ${channels.length}개 채널 마이그레이션 완료`);
       }
 
-      // 2. 영상 데이터 마이그레이션
-      const videos = await indexedDBService.getVideos();
+      // 2. 영상 데이터 마이그레이션 (하이브리드 방식)
+      const videos = await hybridDatabaseService.getVideos();
       let migratedVideos = 0;
       if (videos.length > 0) {
         await hybridDatabaseService.saveVideos(videos);
@@ -33,8 +33,8 @@ class DataMigrationService {
         console.log(`✅ ${videos.length}개 영상 마이그레이션 완료`);
       }
 
-      // 3. 분류 데이터 마이그레이션
-      const classificationData = await indexedDBService.getClassificationData();
+      // 3. 분류 데이터 마이그레이션 (하이브리드 방식)
+      const classificationData = await hybridDatabaseService.getClassificationData();
       let migratedClassificationData = 0;
       if (classificationData.length > 0) {
         await hybridDatabaseService.saveClassificationData(classificationData);
@@ -135,7 +135,7 @@ class DataMigrationService {
     }
   }
 
-  // 마이그레이션 상태 확인
+  // 마이그레이션 상태 확인 (하이브리드 방식)
   async getMigrationStatus(): Promise<{
     indexeddbData: {
       channels: number;
@@ -145,9 +145,10 @@ class DataMigrationService {
     canMigrate: boolean;
   }> {
     try {
-      const channels = await indexedDBService.getChannels();
-      const videos = await indexedDBService.getVideos();
-      const classificationData = await indexedDBService.getClassificationData();
+      // 하이브리드 데이터베이스 서비스 사용
+      const channels = await hybridDatabaseService.getChannels();
+      const videos = await hybridDatabaseService.getVideos();
+      const classificationData = await hybridDatabaseService.getClassificationData();
 
       return {
         indexeddbData: {

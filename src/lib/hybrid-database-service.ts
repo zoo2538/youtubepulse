@@ -98,11 +98,27 @@ class HybridDatabaseService {
     }
   }
 
-  // 채널 데이터 조회 (IndexedDB 우선)
+  // 채널 데이터 조회 (IndexedDB 우선) - unclassifiedData와 classifiedData에서 추출
   async getChannels(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexedDBService.getChannels();
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData() || [];
+        const classifiedData = await indexedDBService.loadClassifiedData() || [];
+        const allData = [...unclassifiedData, ...classifiedData];
+        
+        // 고유한 채널 추출
+        const channelMap = new Map();
+        allData.forEach(item => {
+          if (item.channelId && !channelMap.has(item.channelId)) {
+            channelMap.set(item.channelId, {
+              id: item.channelId,
+              name: item.channelName,
+              description: item.description
+            });
+          }
+        });
+        
+        return Array.from(channelMap.values());
       }
       return [];
     } catch (error) {
@@ -111,11 +127,13 @@ class HybridDatabaseService {
     }
   }
 
-  // 영상 데이터 조회 (IndexedDB 우선)
+  // 영상 데이터 조회 (IndexedDB 우선) - unclassifiedData와 classifiedData 합침
   async getVideos(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexedDBService.getVideos();
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData() || [];
+        const classifiedData = await indexedDBService.loadClassifiedData() || [];
+        return [...unclassifiedData, ...classifiedData];
       }
       return [];
     } catch (error) {
@@ -128,7 +146,7 @@ class HybridDatabaseService {
   async getClassificationData(): Promise<any[]> {
     try {
       if (this.config.useIndexedDB) {
-        return await indexedDBService.getClassificationData();
+        return await indexedDBService.loadClassifiedData() || [];
       }
       return [];
     } catch (error) {
