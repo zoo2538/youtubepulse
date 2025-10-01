@@ -31,36 +31,8 @@ function formatViews(views: number): string {
 export function TrendingVideosGrid() {
   const [videoData, setVideoData] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
-
-  // 동적 카테고리 로드
-  useEffect(() => {
-    const loadDynamicCategories = async () => {
-      try {
-        const savedCategories = await indexedDBService.loadCategories();
-        if (savedCategories && Object.keys(savedCategories).length > 0) {
-          console.log('📊 TrendingVideosGrid - 저장된 카테고리 로드:', savedCategories);
-          setDynamicSubCategories(savedCategories);
-        } else {
-          console.log('📊 TrendingVideosGrid - 저장된 카테고리가 없음, 기본 카테고리 사용');
-        }
-      } catch (error) {
-        console.error('TrendingVideosGrid - 카테고리 로드 실패:', error);
-      }
-    };
-
-    loadDynamicCategories();
-
-    // 카테고리 업데이트 이벤트 리스너
-    const handleCategoriesUpdate = () => {
-      loadDynamicCategories();
-    };
-
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdate);
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdate);
-    };
-  }, []);
+  // 하드코딩된 세부카테고리 사용
+  const dynamicSubCategories = subCategories;
 
   // 분류된 데이터에서 트렌딩 비디오 데이터 생성
   const loadTrendingVideosData = async () => {

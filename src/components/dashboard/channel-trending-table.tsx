@@ -38,36 +38,8 @@ export function ChannelTrendingTable() {
   const [channelData, setChannelData] = useState<ChannelData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
-
-  // 동적 카테고리 로드
-  useEffect(() => {
-    const loadDynamicCategories = async () => {
-      try {
-        const savedCategories = await indexedDBService.loadCategories();
-        if (savedCategories && Object.keys(savedCategories).length > 0) {
-          console.log('📊 ChannelTrendingTable - 저장된 카테고리 로드:', savedCategories);
-          setDynamicSubCategories(savedCategories);
-        } else {
-          console.log('📊 ChannelTrendingTable - 저장된 카테고리가 없음, 기본 카테고리 사용');
-        }
-      } catch (error) {
-        console.error('ChannelTrendingTable - 카테고리 로드 실패:', error);
-      }
-    };
-
-    loadDynamicCategories();
-
-    // 카테고리 업데이트 이벤트 리스너
-    const handleCategoriesUpdate = () => {
-      loadDynamicCategories();
-    };
-
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdate);
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdate);
-    };
-  }, []);
+  // 하드코딩된 세부카테고리 사용
+  const dynamicSubCategories = subCategories;
 
   // 날짜 변경 이벤트 리스너
   useEffect(() => {

@@ -65,7 +65,8 @@ const TrendingVideosDetail = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
   const [selectedDate, setSelectedDate] = useState<string>('');
-  const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
+  // 하드코딩된 세부카테고리 사용
+  const dynamicSubCategories = subCategories;
   const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
 
   const handleLogout = () => {
@@ -86,46 +87,9 @@ const TrendingVideosDetail = () => {
     };
   }, []);
 
-  // 카테고리 로드 및 업데이트 이벤트 리스너
+  // 하드코딩된 카테고리 사용 (동적 로딩 제거)
   useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const savedCategories = await indexedDBService.loadCategories();
-        if (savedCategories) {
-          setDynamicSubCategories(savedCategories);
-          console.log('📊 조회수 급등 동영상 상세 - 초기 카테고리 로드 완료:', savedCategories);
-          console.log('📊 정치 카테고리 세부카테고리:', savedCategories['정치']);
-        } else {
-          console.log('📊 조회수 급등 동영상 상세 - 저장된 카테고리 없음, 기본 카테고리 사용');
-          console.log('📊 기본 정치 카테고리 세부카테고리:', subCategories['정치']);
-        }
-      } catch (error) {
-        console.error('카테고리 로드 실패:', error);
-      }
-    };
-
-    const handleCategoriesUpdated = async () => {
-      console.log('📊 조회수 급등 동영상 상세 - 카테고리 업데이트 이벤트 감지');
-      try {
-        const savedCategories = await indexedDBService.loadCategories();
-        if (savedCategories) {
-          setDynamicSubCategories(savedCategories);
-          console.log('📊 조회수 급등 동영상 상세 - 카테고리 업데이트 완료:', savedCategories);
-        }
-      } catch (error) {
-        console.error('카테고리 업데이트 실패:', error);
-      }
-    };
-    
-    // 초기 카테고리 로드
-    loadCategories();
-    
-    // 카테고리 업데이트 이벤트 리스너
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdated);
-    
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdated);
-    };
+    console.log('📊 하드코딩된 카테고리 사용:', subCategories);
   }, []);
 
   // 데이터 로드

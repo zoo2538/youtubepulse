@@ -66,7 +66,8 @@ const DateClassificationDetail = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
-  const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
+  // 하드코딩된 세부카테고리 사용
+  const dynamicSubCategories = subCategories;
   const [showBulkActions, setShowBulkActions] = useState<boolean>(false);
   const [bulkCategory, setBulkCategory] = useState<string>('');
   const [bulkSubCategory, setBulkSubCategory] = useState<string>('');
@@ -77,33 +78,9 @@ const DateClassificationDetail = () => {
   };
 
   // 카테고리 데이터 로드
+  // 하드코딩된 카테고리 사용 (동적 로딩 제거)
   React.useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const savedCategories = await indexedDBService.loadCategories();
-        if (savedCategories) {
-          setDynamicSubCategories(savedCategories);
-          console.log('📊 카테고리 로드 성공:', savedCategories);
-        } else {
-          console.log('📊 저장된 카테고리가 없습니다. 기본 카테고리를 사용합니다.');
-        }
-      } catch (error) {
-        console.error('📊 카테고리 로드 실패:', error);
-      }
-    };
-
-    loadCategories();
-
-    // 카테고리 업데이트 이벤트 리스너
-    const handleCategoriesUpdated = () => {
-      loadCategories();
-    };
-
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdated);
-
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdated);
-    };
+    console.log('📊 하드코딩된 카테고리 사용:', subCategories);
   }, []);
 
   // 데이터 로드
