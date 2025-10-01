@@ -499,27 +499,28 @@ app.get('/api/data/stats', async (req, res) => {
   }
 });
 
-// YouTube API 프록시
-app.get('/api/youtube/:path(*)', async (req, res) => {
-  try {
-    const apiKey = process.env.VITE_YOUTUBE_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: 'YouTube API key not configured' });
-    }
-    
-    // YouTube API 요청 프록시
-    const youtubeApiPath = req.params.path || '';
-    const queryString = new URLSearchParams(req.query).toString();
-    const youtubeUrl = `https://www.googleapis.com/youtube/v3/${youtubeApiPath}?key=${apiKey}${queryString ? '&' + queryString : ''}`;
-    
-    const response = await fetch(youtubeUrl);
-    const data = await response.json();
-    res.json(data);
-  } catch (error) {
-    console.error('YouTube API Error:', error);
-    res.status(500).json({ error: 'YouTube API request failed' });
-  }
-});
+// YouTube API 프록시 (현재 미사용으로 주석 처리)
+// Express Router의 와일드카드 문법 변경으로 인한 에러 방지
+// app.get('/api/youtube/:path(*)', async (req, res) => {
+//   try {
+//     const apiKey = process.env.VITE_YOUTUBE_API_KEY;
+//     if (!apiKey) {
+//       return res.status(500).json({ error: 'YouTube API key not configured' });
+//     }
+//     
+//     // YouTube API 요청 프록시
+//     const youtubeApiPath = req.params.path || '';
+//     const queryString = new URLSearchParams(req.query).toString();
+//     const youtubeUrl = `https://www.googleapis.com/youtube/v3/${youtubeApiPath}?key=${apiKey}${queryString ? '&' + queryString : ''}`;
+//     
+//     const response = await fetch(youtubeUrl);
+//     const data = await response.json();
+//     res.json(data);
+//   } catch (error) {
+//     console.error('YouTube API Error:', error);
+//     res.status(500).json({ error: 'YouTube API request failed' });
+//   }
+// });
 
 // 정적 파일 서빙 (SPA)
 app.use(express.static(path.join(__dirname, 'dist')));
