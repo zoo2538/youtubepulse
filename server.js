@@ -522,11 +522,11 @@ app.get('/api/data/stats', async (req, res) => {
 //   }
 // });
 
-// 정적 파일 서빙 (SPA)
+// 정적 파일 서빙 (SPA) - 반드시 먼저 배치
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// SPA 라우팅 - 모든 경로를 index.html로 (Express Router 호환)
-app.use((req, res) => {
+// SPA 폴백 - 루트 포함 모든 경로 (Express 5 호환, 명명된 와일드카드)
+app.get('/*splat', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
