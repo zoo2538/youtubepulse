@@ -93,6 +93,41 @@ class IndexedDBService {
     });
   }
 
+  // unclassifiedData 전체 교체 (중복 제거용)
+  async replaceAllUnclassifiedData(data: any[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      
+      // 1. 전체 데이터 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        // 2. 새 데이터 추가
+        let completed = 0;
+        const total = data.length;
+        
+        if (total === 0) {
+          resolve();
+          return;
+        }
+
+        data.forEach((item) => {
+          const addRequest = store.add(item);
+          addRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          };
+          addRequest.onerror = () => reject(addRequest.error);
+        });
+      };
+      clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
   // unclassifiedData 저장
   async saveUnclassifiedData(data: any[]): Promise<void> {
     if (!this.db) await this.init();

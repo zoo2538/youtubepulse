@@ -644,8 +644,11 @@ const DataClassification = () => {
       
       const uniqueData = Array.from(videoDateMap.values());
       
-      // 저장
-      await hybridService.saveUnclassifiedData(uniqueData);
+      // 저장 (전체 교체 방식 - 중복 방지)
+      const { indexedDBService } = await import('@/lib/indexeddb-service');
+      await indexedDBService.replaceAllUnclassifiedData(uniqueData);
+      console.log('✅ 중복 제거 후 전체 데이터 교체 완료');
+      
       setUnclassifiedData(uniqueData);
       
       // 날짜별 통계 재계산
