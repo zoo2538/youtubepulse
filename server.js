@@ -241,6 +241,190 @@ app.post('/api/sync/classification', async (req, res) => {
   }
 });
 
+// 분류 데이터 API (api-service.ts 호환)
+app.post('/api/classified', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const data = req.body;
+    const client = await pool.connect();
+    
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+    `, ['classified', JSON.stringify(data)]);
+    
+    client.release();
+    res.json({ success: true, message: 'Classified data saved' });
+  } catch (error) {
+    console.error('분류 데이터 저장 실패:', error);
+    res.status(500).json({ error: 'Failed to save classified data' });
+  }
+});
+
+app.get('/api/classified', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    const result = await client.query(`
+      SELECT data FROM classification_data 
+      WHERE data_type = 'classified' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    client.release();
+    const data = result.rows.length > 0 ? result.rows[0].data : [];
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('분류 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get classified data' });
+  }
+});
+
+// 미분류 데이터 API (api-service.ts 호환)
+app.post('/api/unclassified', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const data = req.body;
+    const client = await pool.connect();
+    
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+    `, ['unclassified', JSON.stringify(data)]);
+    
+    client.release();
+    res.json({ success: true, message: 'Unclassified data saved' });
+  } catch (error) {
+    console.error('미분류 데이터 저장 실패:', error);
+    res.status(500).json({ error: 'Failed to save unclassified data' });
+  }
+});
+
+app.get('/api/unclassified', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    const result = await client.query(`
+      SELECT data FROM classification_data 
+      WHERE data_type = 'unclassified' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    client.release();
+    const data = result.rows.length > 0 ? result.rows[0].data : [];
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('미분류 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get unclassified data' });
+  }
+});
+
+// 채널 데이터 API (api-service.ts 호환)
+app.post('/api/channels', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { channels } = req.body;
+    const client = await pool.connect();
+    
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+    `, ['channels', JSON.stringify(channels)]);
+    
+    client.release();
+    res.json({ success: true, message: 'Channels saved' });
+  } catch (error) {
+    console.error('채널 데이터 저장 실패:', error);
+    res.status(500).json({ error: 'Failed to save channels' });
+  }
+});
+
+app.get('/api/channels', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    const result = await client.query(`
+      SELECT data FROM classification_data 
+      WHERE data_type = 'channels' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    client.release();
+    const data = result.rows.length > 0 ? result.rows[0].data : {};
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('채널 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get channels' });
+  }
+});
+
+// 비디오 데이터 API (api-service.ts 호환)
+app.post('/api/videos', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { videos } = req.body;
+    const client = await pool.connect();
+    
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+    `, ['videos', JSON.stringify(videos)]);
+    
+    client.release();
+    res.json({ success: true, message: 'Videos saved' });
+  } catch (error) {
+    console.error('비디오 데이터 저장 실패:', error);
+    res.status(500).json({ error: 'Failed to save videos' });
+  }
+});
+
+app.get('/api/videos', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    const result = await client.query(`
+      SELECT data FROM classification_data 
+      WHERE data_type = 'videos' 
+      ORDER BY created_at DESC 
+      LIMIT 1
+    `);
+    
+    client.release();
+    const data = result.rows.length > 0 ? result.rows[0].data : {};
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('비디오 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get videos' });
+  }
+});
+
 // 데이터 조회 API
 app.get('/api/data/channels', async (req, res) => {
   if (!pool) {

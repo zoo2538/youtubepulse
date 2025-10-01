@@ -16,14 +16,14 @@ class HybridService {
                          window.location.hostname === '127.0.0.1';
     
     this.config = {
-      useApiServer: !isDevelopment, // 개발 환경에서는 API 서버 비활성화
+      useApiServer: !isDevelopment, // 프로덕션에서만 API 서버 사용
       fallbackToLocal: true, // API 실패시 로컬 사용
     };
     
     if (isDevelopment) {
-      console.log('🔧 개발 환경 감지: API 서버 비활성화, IndexedDB만 사용');
+      console.log('🔧 개발 환경: IndexedDB만 사용');
     } else {
-      console.log('🌐 프로덕션 환경: API 서버 활성화');
+      console.log('🌐 프로덕션 환경: IndexedDB + PostgreSQL (하이브리드)');
     }
   }
 
