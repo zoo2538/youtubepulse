@@ -659,6 +659,23 @@ app.get('/api/data/stats', async (req, res) => {
 // 정적 파일 서빙 (SPA) - 반드시 먼저 배치
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// data 파일 요청 처리 (404 에러 방지)
+app.get('/data', (req, res) => {
+  console.log('📁 /data 요청됨:', req.url);
+  res.status(200).json({ 
+    message: 'Data endpoint reached',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// 모든 정적 파일 요청 로깅
+app.use((req, res, next) => {
+  if (req.url.includes('data') || req.url.includes('assets')) {
+    console.log('📁 정적 파일 요청:', req.url);
+  }
+  next();
+});
+
 // 자동수집 API 엔드포인트 (GitHub Actions에서 호출)
 app.post('/api/auto-collect', async (req, res) => {
   try {
