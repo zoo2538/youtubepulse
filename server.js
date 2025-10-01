@@ -500,7 +500,7 @@ app.get('/api/data/stats', async (req, res) => {
 });
 
 // YouTube API 프록시
-app.get('/api/youtube/*', async (req, res) => {
+app.get('/api/youtube/:path(*)', async (req, res) => {
   try {
     const apiKey = process.env.VITE_YOUTUBE_API_KEY;
     if (!apiKey) {
@@ -508,7 +508,11 @@ app.get('/api/youtube/*', async (req, res) => {
     }
     
     // YouTube API 요청 프록시
-    const response = await fetch(`https://www.googleapis.com/youtube/v3${req.path.replace('/api/youtube', '')}?key=${apiKey}&${req.query}`);
+    const youtubeApiPath = req.params.path || '';
+    const queryString = new URLSearchParams(req.query).toString();
+    const youtubeUrl = `https://www.googleapis.com/youtube/v3/${youtubeApiPath}?key=${apiKey}${queryString ? '&' + queryString : ''}`;
+    
+    const response = await fetch(youtubeUrl);
     const data = await response.json();
     res.json(data);
   } catch (error) {
