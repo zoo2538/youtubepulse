@@ -18,36 +18,22 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { 
   Settings, 
   Database, 
   Filter,
   Search,
-  Save,
   RefreshCw,
   CheckCircle,
   XCircle,
   Eye,
   LogOut,
   Users,
-  Edit,
   Trash2,
   Download,
   Upload,
   Play,
   Pause,
-  Plus,
-  Zap,
-  X,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -58,7 +44,6 @@ import {
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
-import { hybridService } from "@/lib/hybrid-service";
 import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -98,7 +83,8 @@ const DataClassification = () => {
   const { logout, userEmail, userRole } = useAuth();
   const [unclassifiedData, setUnclassifiedData] = useState<UnclassifiedData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
+  // 하드코딩된 세부카테고리 사용 (수정 불가)
+  const dynamicSubCategories = subCategories;
   const isAdmin = userRole === 'admin'; // 관리자 권한 확인
 
   const handleLogout = () => {
@@ -106,34 +92,9 @@ const DataClassification = () => {
     navigate('/');
   };
 
-  // 카테고리 데이터 로드 (하이브리드 방식)
+  // 카테고리는 하드코딩된 값 사용 (subcategories.ts에서 import)
   React.useEffect(() => {
-    const loadCategories = async () => {
-      try {
-        const savedCategories = await hybridService.loadCategories();
-        if (savedCategories) {
-          setDynamicSubCategories(savedCategories);
-          console.log('📊 하이브리드 카테고리 로드 성공:', savedCategories);
-        } else {
-          console.log('📊 저장된 카테고리가 없습니다. 기본 카테고리를 사용합니다.');
-        }
-      } catch (error) {
-        console.error('📊 카테고리 로드 실패:', error);
-      }
-    };
-
-    loadCategories();
-
-    // 카테고리 업데이트 이벤트 리스너 제거 - 페이지별 독립적 카테고리 관리
-    // const handleCategoriesUpdated = () => {
-    //   loadCategories();
-    // };
-
-    // window.addEventListener('categoriesUpdated', handleCategoriesUpdated);
-
-    // return () => {
-    //   window.removeEventListener('categoriesUpdated', handleCategoriesUpdated);
-    // };
+    console.log('📊 하드코딩된 카테고리 사용:', subCategories);
   }, []);
 
   // IndexedDB에서 데이터 로드 (전체 데이터 - 통계용)
@@ -260,16 +221,7 @@ const DataClassification = () => {
   });
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [dateStats, setDateStats] = useState<{ [date: string]: { total: number; classified: number; progress: number } }>({});
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<string | null>(null);
-  
-  // 모달 상태 관리
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [currentCategory, setCurrentCategory] = useState<string>('');
-  const [currentSubCategory, setCurrentSubCategory] = useState<string>('');
-  const [newSubCategoryName, setNewSubCategoryName] = useState<string>('');
+  // 카테고리 관리 관련 상태 제거 - 하드코딩 방식 사용
 
   // 한국어/영어 판별 함수
   const isKoreanText = (text: string): boolean => {
@@ -436,75 +388,8 @@ const DataClassification = () => {
   };
 
 
-  // 카테고리 관리 함수들 (하이브리드 방식)
-  const handleSaveCategories = async () => {
-    try {
-      console.log('💾 하이브리드 카테고리 저장 시작 - 동적 세부카테고리 사용:', dynamicSubCategories);
-      await hybridService.saveCategories(dynamicSubCategories);
-      console.log('📊 하이브리드 카테고리 저장 완료 (로컬 + 서버)');
-      
-      // 데이터 업데이트 이벤트 발생 제거 - 페이지별 독립적 카테고리 관리
-      // window.dispatchEvent(new CustomEvent('categoriesUpdated'));
-      // console.log('📊 categoriesUpdated 이벤트 발생');
-      
-      alert('✅ 세부카테고리가 하이브리드 저장되었습니다.\n\n📍 로컬 IndexedDB에 저장 완료\n📍 API 서버 저장 준비 완료 (향후 구현)');
-    } catch (error) {
-      console.error('카테고리 저장 실패:', error);
-      alert('❌ 카테고리 저장에 실패했습니다.');
-    }
-  };
-
-  const handleAddSubCategory = (category: string) => {
-    setCurrentCategory(category);
-    setNewSubCategoryName('');
-    setShowAddModal(true);
-  };
-
-  const handleConfirmAddSubCategory = () => {
-    if (newSubCategoryName.trim()) {
-      setDynamicSubCategories(prev => ({
-        ...prev,
-        [currentCategory]: [...(prev[currentCategory] || []), newSubCategoryName.trim()]
-      }));
-      console.log(`✅ ${currentCategory} 카테고리에 "${newSubCategoryName.trim()}" 세부카테고리 추가됨`);
-      setShowAddModal(false);
-      setNewSubCategoryName('');
-    }
-  };
-
-  const handleRemoveSubCategory = (category: string, subCategory: string) => {
-    setCurrentCategory(category);
-    setCurrentSubCategory(subCategory);
-    setShowDeleteModal(true);
-  };
-
-  const handleConfirmDeleteSubCategory = () => {
-    setDynamicSubCategories(prev => ({
-      ...prev,
-      [currentCategory]: prev[currentCategory].filter(sub => sub !== currentSubCategory)
-    }));
-    console.log(`✅ ${currentCategory} 카테고리에서 "${currentSubCategory}" 세부카테고리 삭제됨`);
-    setShowDeleteModal(false);
-  };
-
-  const handleEditSubCategory = (category: string, oldSubCategory: string) => {
-    setCurrentCategory(category);
-    setCurrentSubCategory(oldSubCategory);
-    setNewSubCategoryName(oldSubCategory);
-    setShowEditModal(true);
-  };
-
-  const handleConfirmEditSubCategory = () => {
-    if (newSubCategoryName.trim() && newSubCategoryName !== currentSubCategory) {
-      setDynamicSubCategories(prev => ({
-        ...prev,
-        [currentCategory]: prev[currentCategory].map(sub => sub === currentSubCategory ? newSubCategoryName.trim() : sub)
-      }));
-      console.log(`✅ ${currentCategory} 카테고리의 "${currentSubCategory}" → "${newSubCategoryName.trim()}"로 변경됨`);
-      setShowEditModal(false);
-      setNewSubCategoryName('');
-    }
-  };
+  // 카테고리 관리 함수들 제거 (하드코딩 방식 사용)
+  // 세부카테고리는 subcategories.ts에서 직접 수정해야 함
 
   // 데이터 관리 핸들러들
   const handleRetentionChange = (days: number) => {
@@ -1118,16 +1003,9 @@ const DataClassification = () => {
           <div>
             <h1 className="text-3xl font-bold text-foreground">데이터 분류 관리</h1>
             <p className="text-muted-foreground mt-2">YouTube 영상 데이터를 카테고리별로 분류하고 관리합니다.</p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowCategoryManager(!showCategoryManager)}
-              className="flex items-center space-x-2"
-            >
-              <Settings className="w-4 h-4" />
-              <span>카테고리 관리</span>
-            </Button>
+            <p className="text-xs text-muted-foreground mt-1">
+              💡 세부카테고리는 <code className="bg-muted px-1 rounded">src/lib/subcategories.ts</code> 파일에서 수정할 수 있습니다.
+            </p>
           </div>
         </div>
 
@@ -1189,74 +1067,8 @@ const DataClassification = () => {
           </Card>
         </div>
 
-        {/* 카테고리 관리 섹션 */}
-        {showCategoryManager && (
-          <Card className="p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
-                <Settings className="w-5 h-5 text-blue-600" />
-                <h2 className="text-xl font-semibold text-foreground">카테고리 관리</h2>
-              </div>
-              <Button onClick={handleSaveCategories} className="bg-blue-600 hover:bg-blue-700">
-                <Save className="w-4 h-4 mr-2" />
-                세부카테고리 저장
-              </Button>
-            </div>
-            
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                💡 <strong>사용법:</strong> 각 카테고리에서 <strong>추가</strong> 버튼으로 세부카테고리를 추가하고, 
-                <strong>수정</strong> 버튼으로 이름을 변경하며, <strong>삭제</strong> 버튼으로 제거할 수 있습니다.
-                변경사항을 저장하려면 상단의 <strong>세부카테고리 저장</strong> 버튼을 클릭하세요.
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(dynamicSubCategories).map(([category, subCategories]) => (
-                <div key={category} className="border rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-medium text-foreground">{category}</h3>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAddSubCategory(category)}
-                      className="text-xs"
-                    >
-                      <Plus className="w-3 h-3 mr-1" />
-                      추가
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {subCategories.map((subCategory, index) => (
-                      <div key={index} className="flex items-center justify-between bg-white border p-2 rounded">
-                        <span className="text-sm text-black">{subCategory}</span>
-                        <div className="flex items-center space-x-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleEditSubCategory(category, subCategory)}
-                            className="h-6 w-6 p-0"
-                          >
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleRemoveSubCategory(category, subCategory)}
-                            className="h-6 w-6 p-0 text-red-600 hover:text-red-700"
-                          >
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
+        {/* 카테고리 관리 섹션 제거 - 하드코딩 방식 사용 */}
+        {/* 세부카테고리는 src/lib/subcategories.ts 파일에서 직접 수정 */}
 
         {/* 일별 분류 진행률 */}
         <Card className="p-6">
@@ -1484,95 +1296,7 @@ const DataClassification = () => {
           </div>
         </Card>
 
-        {/* 모달들 */}
-        {/* 추가 모달 */}
-        <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>세부카테고리 추가</DialogTitle>
-              <DialogDescription>
-                {currentCategory} 카테고리에 추가할 세부카테고리 이름을 입력하세요.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Input
-                value={newSubCategoryName}
-                onChange={(e) => setNewSubCategoryName(e.target.value)}
-                placeholder="세부카테고리 이름을 입력하세요"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleConfirmAddSubCategory();
-                  }
-                }}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddModal(false)}>
-                취소
-              </Button>
-              <Button onClick={handleConfirmAddSubCategory} disabled={!newSubCategoryName.trim()}>
-                추가
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* 수정 모달 */}
-        <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>세부카테고리 수정</DialogTitle>
-              <DialogDescription>
-                {currentCategory} 카테고리의 "{currentSubCategory}"를 새로운 이름으로 변경하세요.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              <Input
-                value={newSubCategoryName}
-                onChange={(e) => setNewSubCategoryName(e.target.value)}
-                placeholder="새로운 세부카테고리 이름을 입력하세요"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleConfirmEditSubCategory();
-                  }
-                }}
-              />
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEditModal(false)}>
-                취소
-              </Button>
-              <Button 
-                onClick={handleConfirmEditSubCategory} 
-                disabled={!newSubCategoryName.trim() || newSubCategoryName === currentSubCategory}
-              >
-                수정
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* 삭제 확인 모달 */}
-        <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>세부카테고리 삭제</DialogTitle>
-              <DialogDescription>
-                {currentCategory} 카테고리의 "{currentSubCategory}" 세부카테고리를 삭제하시겠습니까?
-                <br />
-                <strong className="text-red-600">이 작업은 되돌릴 수 없습니다.</strong>
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
-                취소
-              </Button>
-              <Button variant="destructive" onClick={handleConfirmDeleteSubCategory}>
-                삭제
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* 모달들 제거 - 하드코딩 방식에서는 불필요 */}
 
               </div>
 
