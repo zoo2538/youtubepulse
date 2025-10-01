@@ -659,14 +659,7 @@ app.get('/api/data/stats', async (req, res) => {
 // 정적 파일 서빙 (SPA) - 반드시 먼저 배치
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// data 파일 요청 처리 (404 에러 방지)
-app.get('/data', (req, res) => {
-  console.log('📁 /data 요청됨:', req.url);
-  res.status(200).json({ 
-    message: 'Data endpoint reached',
-    timestamp: new Date().toISOString()
-  });
-});
+// /data 경로는 React Router에서 처리하므로 서버 엔드포인트 제거
 
 // 모든 정적 파일 요청 로깅
 app.use((req, res, next) => {

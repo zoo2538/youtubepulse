@@ -14,6 +14,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Skip React Router paths to prevent ServiceWorker interference
+  if (event.request.url.includes('/data') && !event.request.url.includes('/api/')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
