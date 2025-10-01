@@ -5,8 +5,8 @@
  * GitHub Actions에서 매일 자정에 실행
  */
 
-import { collectDailyData } from '../src/lib/youtube-api-service.js';
-import { initializeDatabase, saveToDatabase } from '../src/lib/database-schema.js';
+import { collectDailyData } from '../src/lib/youtube-api-service.ts';
+import { initializeDatabase, saveToDatabase } from '../src/lib/database-schema.ts';
 
 console.log('🚀 YouTube Pulse 자동 데이터 수집 시작...');
 console.log(`⏰ 실행 시간: ${new Date().toLocaleString('ko-KR')}`);
