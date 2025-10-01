@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import DataCollectionManager from "@/components/DataCollectionManager";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
 import { dataMigrationService } from "@/lib/data-migration-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
 import { useAuth } from "@/contexts/AuthContext";
@@ -570,7 +571,7 @@ const System = () => {
       // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 14일간)
       let existingClassifiedData: any[] = [];
       try {
-        const allData = await indexedDBService.loadUnclassifiedData();
+        const allData = await hybridService.loadUnclassifiedData();
         
         // 최근 14일간의 분류된 데이터만 필터링
         const fourteenDaysAgo = new Date();
@@ -618,15 +619,35 @@ const System = () => {
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
       console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
       
-      // 5. 데이터 변환 및 저장
+      // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       const { getKoreanDateString, getKoreanDateTimeString } = await import('@/lib/utils');
       const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD 형식)
       console.log('🔥 데이터 수집 날짜 (한국시간):', today);
       console.log('🔥 현재 시간 (한국시간):', new Date(getKoreanDateTimeString()).toLocaleString('ko-KR'));
       console.log('🔥 수집된 영상 개수:', uniqueVideos.length);
+      
+      // 기존 데이터 먼저 로드하여 videoId별 기존 날짜 매핑
+      const existingDataForDateCheck = await hybridService.loadUnclassifiedData();
+      const existingVideoDateMap = new Map();
+      existingDataForDateCheck.forEach((item: any) => {
+        // 각 videoId의 가장 오래된 collectionDate 저장 (최초 수집일)
+        if (!existingVideoDateMap.has(item.videoId)) {
+          existingVideoDateMap.set(item.videoId, item.collectionDate);
+        } else {
+          const existingDate = existingVideoDateMap.get(item.videoId);
+          if (item.collectionDate < existingDate) {
+            existingVideoDateMap.set(item.videoId, item.collectionDate);
+          }
+        }
+      });
+      console.log(`📊 기존 영상 날짜 매핑: ${existingVideoDateMap.size}개 영상의 최초 수집일 확인`);
+      
       const newData = uniqueVideos.map((video: any, index: number) => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
         const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
+        
+        // 기존에 있던 영상이면 기존 날짜 유지, 새 영상이면 오늘 날짜
+        const collectionDate = existingVideoDateMap.get(video.id) || today;
         
         return {
           id: Date.now() + index,
@@ -638,8 +659,8 @@ const System = () => {
           videoDescription: video.snippet.description,
           viewCount: parseInt(video.statistics?.viewCount || '0'),
           uploadDate: video.snippet.publishedAt.split('T')[0],
-          collectionDate: today, // 🔥 수집일 추가
-          thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '', // 🔥 썸네일 URL 추가
+          collectionDate: collectionDate, // 🔥 기존 영상은 기존 날짜 유지, 새 영상은 오늘 날짜
+          thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
           category: existingClassification?.category || "",
           subCategory: existingClassification?.subCategory || "",
           status: existingClassification ? "classified" as const : "unclassified" as const
@@ -648,8 +669,8 @@ const System = () => {
 
       // 5. 기존 데이터와 새 데이터를 합쳐서 저장 (누적 저장)
       try {
-        // 기존 데이터 로드
-        const existingData = await indexedDBService.loadUnclassifiedData();
+        // 기존 데이터 로드 (하이브리드)
+        const existingData = await hybridService.loadUnclassifiedData();
         
         // 일별 데이터 보존을 위한 중복 제거 로직
         // Key: videoId + collectionDate (같은 영상이라도 날짜가 다르면 별도 보존)
@@ -751,8 +772,8 @@ const System = () => {
         console.log(`   - 같은 날짜 중복 업데이트: ${newData.length - (finalUniqueData.length - existingData.length)}개`);
         console.log(`   - 중복 ID 제거: ${dataWithUniqueIds.length - finalUniqueData.length}개`);
         
-        // IndexedDB에 저장
-        await indexedDBService.saveUnclassifiedData(finalUniqueData);
+        // 하이브리드 저장 (IndexedDB + PostgreSQL)
+        await hybridService.saveUnclassifiedData(finalUniqueData);
       } catch (error) {
         console.error('IndexedDB 저장 오류:', error);
         alert('데이터 저장 중 오류가 발생했습니다.');
