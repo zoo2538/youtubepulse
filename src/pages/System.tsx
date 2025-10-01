@@ -349,28 +349,64 @@ const System = () => {
         return;
       }
 
-      // 🔥 설정 파일에서 조회수 기준 로드
       const collectionConfig = loadCollectionConfig();
-      const minViewCount = collectionConfig.minViewCount || 10000; // 50,000 → 10,000으로 낮춤
-
-      console.log('=== 트렌딩 기반 데이터 수집 설정 ===');
-      console.log(`조회수 기준: ${minViewCount.toLocaleString()}회 이상`);
-      console.log(`수집 방식: mostPopular API (트렌딩 기반)`);
-      console.log('=====================================');
-
-      console.log('트렌딩 기반 영상 수집 시작...');
-      
-      const maxVideos = 10000; // 최대 10,000개 영상 수집
-      let allVideos: any[] = [];
-      let pageToken = '';
-      let totalCollected = 0;
+      const maxVideos = 10000;
       let requestCount = 0;
       
-      // 🔥 키워드 기반 영상 수집 (search API 사용)
-      const keywords = collectionConfig.keywords || ['먹방', 'ASMR', '챌린지', '브이로그', '리뷰'];
+      console.log('=== 🔥 혼합 데이터 수집 시작 ===');
+      console.log('수집 방식: YouTube 트렌드 + 키워드 기반');
+      console.log('조회수 필터: 제거됨 (조회수 상위만 선택)');
+      console.log('=====================================');
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // 1단계: YouTube 공식 트렌드 수집 (상위 100개)
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      console.log('📺 1단계: YouTube 공식 트렌드 영상 수집 중...');
+      let trendingVideos: any[] = [];
+      
+      try {
+        // 첫 번째 요청: 1~50위
+        let nextPageToken = '';
+        for (let page = 0; page < 2; page++) {
+          const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiConfig.youtubeApiKey}`;
+          const trendingResponse = await fetch(trendingUrl);
+          
+          if (trendingResponse.ok) {
+            const trendingData = await trendingResponse.json();
+            requestCount++;
+            
+            if (trendingData.items) {
+              trendingVideos = [...trendingVideos, ...trendingData.items];
+              console.log(`✅ 트렌드 영상 ${(page + 1) * 50}개 수집 중... (현재: ${trendingVideos.length}개)`);
+              
+              nextPageToken = trendingData.nextPageToken;
+              if (!nextPageToken) break; // 더 이상 페이지 없음
+            }
+          } else {
+            console.warn('⚠️ 트렌드 영상 수집 실패, 키워드 수집만 진행');
+            break;
+          }
+          
+          // API 요청 간 지연
+          if (page < 1) await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        console.log(`✅ 트렌드 영상 총 ${trendingVideos.length}개 수집 완료`);
+      } catch (error) {
+        console.error('❌ 트렌드 영상 수집 오류:', error);
+        console.log('⚠️ 키워드 수집만 진행합니다.');
+      }
+
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // 2단계: 키워드 기반 영상 수집
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      console.log('🔍 2단계: 키워드 기반 영상 수집 중...');
+      const keywords = collectionConfig.keywords || EXPANDED_KEYWORDS;
+      let keywordVideos: any[] = [];
+      let totalCollected = 0;
       
       for (const keyword of keywords) {
-        if (allVideos.length >= maxVideos) {
+        if (keywordVideos.length >= maxVideos) {
           console.log(`최대 수집 수(${maxVideos}) 도달`);
           break;
         }
@@ -378,70 +414,59 @@ const System = () => {
         try {
           console.log(`키워드 "${keyword}" 수집 시작...`);
           
-        // 키워드로 검색
-        const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&key=${apiConfig.youtubeApiKey}`;
-        
-        const searchResponse = await fetch(searchUrl);
-        
-        if (!searchResponse.ok) {
-          console.error(`키워드 "${keyword}" 검색 오류:`, searchResponse.status);
-          continue;
-        }
-        
-        const searchData = await searchResponse.json();
-        requestCount++;
-        
-        if (searchData.error) {
-          console.error(`키워드 "${keyword}" API 오류:`, searchData.error);
-          continue;
-        }
-        
-        if (!searchData.items || searchData.items.length === 0) {
-          console.log(`키워드 "${keyword}" 검색 결과 없음`);
-          continue;
-        }
-        
-        // 비디오 ID 추출
-        const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-        
-        // 비디오 상세 정보 조회
-        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiConfig.youtubeApiKey}`;
-        
-        const videosResponse = await fetch(videosUrl);
-        
-        if (!videosResponse.ok) {
-          console.error(`키워드 "${keyword}" 비디오 정보 오류:`, videosResponse.status);
-          continue;
-        }
-        
-        const videosData = await videosResponse.json();
-        requestCount++;
+          // 키워드로 검색 (조회수 순 상위 50개)
+          const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiConfig.youtubeApiKey}`;
+          
+          const searchResponse = await fetch(searchUrl);
+          
+          if (!searchResponse.ok) {
+            console.error(`키워드 "${keyword}" 검색 오류:`, searchResponse.status);
+            continue;
+          }
+          
+          const searchData = await searchResponse.json();
+          requestCount++;
+          
+          if (searchData.error) {
+            console.error(`키워드 "${keyword}" API 오류:`, searchData.error);
+            continue;
+          }
+          
+          if (!searchData.items || searchData.items.length === 0) {
+            console.log(`키워드 "${keyword}" 검색 결과 없음`);
+            continue;
+          }
+          
+          // 비디오 ID 추출
+          const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+          
+          // 비디오 상세 정보 조회
+          const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiConfig.youtubeApiKey}`;
+          
+          const videosResponse = await fetch(videosUrl);
+          
+          if (!videosResponse.ok) {
+            console.error(`키워드 "${keyword}" 비디오 정보 오류:`, videosResponse.status);
+            continue;
+          }
+          
+          const videosData = await videosResponse.json();
+          requestCount++;
           
           if (videosData.error) {
             console.error(`키워드 "${keyword}" 비디오 API 오류:`, videosData.error);
             continue;
           }
           
-          // 조회수 필터링
-          const filteredVideos = videosData.items.filter((video: any) => {
-            const viewCount = parseInt(video.statistics?.viewCount || '0');
-            return viewCount >= minViewCount;
-          });
+          // 조회수 필터링 제거 - 모든 결과 추가
+          const videos = videosData.items || [];
+          keywordVideos = [...keywordVideos, ...videos];
+          totalCollected += videos.length;
           
-          console.log(`키워드 "${keyword}" 조회수 필터링: ${videosData.items.length}개 → ${filteredVideos.length}개 (${minViewCount.toLocaleString()}회 이상)`);
-          
-          if (filteredVideos.length === 0) {
-            console.log(`키워드 "${keyword}" 조회수 필터링 후 결과 없음 (${minViewCount.toLocaleString()}회 이상)`);
-            continue;
-          }
-          
-          allVideos = [...allVideos, ...filteredVideos];
-          totalCollected += videosData.items.length;
-          
-          console.log(`키워드 "${keyword}" 수집: ${filteredVideos.length}개 영상 추가 (총 ${allVideos.length}개)`);
+          console.log(`키워드 "${keyword}" 수집: ${videos.length}개 영상 추가 (총 ${keywordVideos.length}개)`);
           
           // 요청 간 지연
-          await new Promise(resolve => setTimeout(resolve, 500)); // API 할당량 보호를 위해 지연 시간 증가
+          await new Promise(resolve => setTimeout(resolve, 500));
           
         } catch (error) {
           console.error(`키워드 "${keyword}" 수집 오류:`, error);
@@ -449,32 +474,55 @@ const System = () => {
         }
       }
       
-      console.log(`키워드 수집 완료: 총 ${allVideos.length}개 영상 수집 (조회수 ${minViewCount.toLocaleString()}회 이상)`);
+      console.log(`✅ 키워드 수집 완료: 총 ${keywordVideos.length}개 영상`);
       
-      // 중복 제거 적용 (videoId 기준으로 고유성 보장)
-      const seen = new Set<string>();
-      const uniqueVideos = [];
-      const duplicates = [];
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // 3단계: 트렌드 + 키워드 영상 합치기
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      console.log('🔄 3단계: 트렌드 + 키워드 영상 합치기 및 중복 제거...');
+      
+      const allVideos = [...trendingVideos, ...keywordVideos];
+      
+      // 중복 제거 (videoId 기준, 조회수 높은 것 우선)
+      const videoMap = new Map();
       
       allVideos.forEach(video => {
         const videoId = video.id;
-        if (videoId && !seen.has(videoId)) {
-          seen.add(videoId);
-          uniqueVideos.push(video);
-        } else {
-          duplicates.push(video);
+        if (videoId) {
+          const existingVideo = videoMap.get(videoId);
+          const currentViewCount = parseInt(video.statistics?.viewCount || '0');
+          const existingViewCount = existingVideo ? parseInt(existingVideo.statistics?.viewCount || '0') : 0;
+          
+          // 조회수가 더 높거나 처음 추가하는 경우
+          if (!existingVideo || currentViewCount > existingViewCount) {
+            videoMap.set(videoId, video);
+          }
         }
       });
       
-      console.log(`🔄 키워드 수집 중복 제거: ${allVideos.length}개 → ${uniqueVideos.length}개 (${duplicates.length}개 중복 제거됨)`);
+      const uniqueVideos = Array.from(videoMap.values());
+      const duplicates = allVideos.length - uniqueVideos.length;
       
-      // 키워드 수집 통계 출력
-      console.log('=== 키워드 수집 통계 ===');
-      console.log(`전체 수집: ${totalCollected}개 영상`);
-      console.log(`조회수 ${minViewCount.toLocaleString()}회 이상: ${allVideos.length}개 영상`);
-      console.log(`중복 제거 후: ${uniqueVideos.length}개 영상`);
-      console.log(`필터링 비율: ${((allVideos.length / totalCollected) * 100).toFixed(1)}%`);
-      console.log(`중복 제거 비율: ${((duplicates.length / allVideos.length) * 100).toFixed(1)}%`);
+      console.log(`🔄 중복 제거: ${allVideos.length}개 → ${uniqueVideos.length}개 (${duplicates}개 중복 제거, 조회수 높은 것 유지)`);
+      
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // 4단계: 조회수 순 정렬
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      uniqueVideos.sort((a, b) => {
+        const viewsA = parseInt(a.statistics?.viewCount || '0');
+        const viewsB = parseInt(b.statistics?.viewCount || '0');
+        return viewsB - viewsA; // 내림차순 (높은 조회수가 앞으로)
+      });
+      
+      console.log(`📊 조회수 정렬 완료 (최고: ${parseInt(uniqueVideos[0]?.statistics?.viewCount || '0').toLocaleString()}회, 최저: ${parseInt(uniqueVideos[uniqueVideos.length - 1]?.statistics?.viewCount || '0').toLocaleString()}회)`);
+      
+      // 혼합 수집 통계 출력
+      console.log('=== 🔥 혼합 수집 통계 ===');
+      console.log(`트렌드 영상: ${trendingVideos.length}개`);
+      console.log(`키워드 영상: ${keywordVideos.length}개 (${keywords.length}개 키워드)`);
+      console.log(`전체 수집: ${allVideos.length}개`);
+      console.log(`중복 제거 후: ${uniqueVideos.length}개`);
+      console.log(`중복률: ${((duplicates / allVideos.length) * 100).toFixed(1)}%`);
       console.log(`API 요청: ${requestCount}번`);
       console.log('========================');
 
@@ -713,12 +761,28 @@ const System = () => {
       const newChannels = newData.filter(item => !classifiedChannelMap.has(item.channelId)).length;
       const autoClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
 
-      // 키워드 수집 통계를 알림 메시지에 포함
+      // 혼합 수집 통계를 알림 메시지에 포함
       const totalApiRequests = requestCount;
-      const estimatedUnits = totalApiRequests * 100; // search API는 100 units
-      const filterRatio = totalCollected > 0 ? ((allVideos.length / totalCollected) * 100).toFixed(1) : '0';
+      const estimatedUnits = totalApiRequests * 100;
+      const avgViews = uniqueVideos.length > 0 ? 
+        Math.round(uniqueVideos.reduce((sum, v) => sum + parseInt(v.statistics?.viewCount || '0'), 0) / uniqueVideos.length) : 0;
       
-      alert(`키워드 기반 데이터 수집이 완료되었습니다!\n\n수집 방식: search API (키워드 기반)\n전체 수집: ${totalCollected}개 영상\n조회수 ${minViewCount.toLocaleString()}회 이상: ${allVideos.length}개 영상\n필터링 비율: ${filterRatio}%\n중복 제거 후: ${uniqueVideos.length}개\n총 수집된 채널: ${newData.length}개\n새로운 채널: ${newChannels}개 (분류 필요)\n자동 분류된 채널: ${autoClassified}개 (이미 분류된 채널)\n\n=== 키워드 수집 통계 ===\nAPI 요청: ${totalApiRequests}번\n할당량 사용: 약 ${estimatedUnits} units\n\n데이터 분류 관리 페이지에서 분류 작업을 진행하세요.`);
+      alert(`🔥 혼합 데이터 수집이 완료되었습니다!\n\n` +
+            `📺 YouTube 트렌드: ${trendingVideos.length}개\n` +
+            `🔍 키워드 수집: ${keywordVideos.length}개 (${keywords.length}개 키워드)\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📊 전체 수집: ${allVideos.length}개\n` +
+            `✅ 중복 제거 후: ${uniqueVideos.length}개\n` +
+            `📈 조회수 정렬: 상위부터 저장됨\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🎬 총 채널: ${newData.length}개\n` +
+            `🆕 새 채널: ${newChannels}개 (분류 필요)\n` +
+            `♻️ 자동 분류: ${autoClassified}개\n` +
+            `📊 평균 조회수: ${avgViews.toLocaleString()}회\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🔧 API 요청: ${totalApiRequests}번\n` +
+            `💰 할당량: 약 ${estimatedUnits} units\n\n` +
+            `데이터 분류 관리 페이지에서 분류 작업을 진행하세요.`);
     } catch (error) {
       console.error('데이터 수집 오류:', error);
       alert('데이터 수집 중 오류가 발생했습니다: ' + (error instanceof Error ? error.message : error));
@@ -818,7 +882,7 @@ const System = () => {
               <h1 className="text-3xl font-bold text-foreground">시스템 설정</h1>
               <p className="text-muted-foreground">데이터 연동 및 시스템 설정을 관리합니다</p>
               <p className="text-xs text-muted-foreground mt-1">
-                저장 기준: IndexedDB · 조회수 조건: 50,000회 이상 · 보관 기간: 14일 · 자동 정리: 활성화
+                저장 기준: IndexedDB + PostgreSQL (하이브리드) · 수집: 트렌드 + 키워드 혼합 · 정렬: 조회수 상위
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -1080,61 +1144,51 @@ const System = () => {
                       </div>
                       
                       <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="min-view-count">최소 조회수 기준</Label>
-                          <Input
-                            id="min-view-count"
-                            type="number"
-                            min="1000"
-                            max="1000000"
-                            value={(() => {
-                              try {
-                                const config = loadCollectionConfig();
-                                return config.minViewCount || 50000;
-                              } catch {
-                                return 50000;
-                              }
-                            })()}
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value);
-                              if (!isNaN(value)) {
-                                const config = loadCollectionConfig();
-                                config.minViewCount = value;
-                                localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
-                              }
-                            }}
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            이 조회수 이상인 영상만 수집합니다
-                          </p>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label className="text-sm font-medium">한국어 영상만 수집</Label>
-                            <p className="text-xs text-muted-foreground">
-                              한국어가 아닌 영상을 자동으로 제외합니다
-                            </p>
+                        {/* 혼합 수집 방식 안내 */}
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg">
+                          <h4 className="text-sm font-bold text-blue-900 mb-3 flex items-center">
+                            <Filter className="w-4 h-4 mr-2" />
+                            🔥 혼합 수집 방식
+                          </h4>
+                          <div className="grid grid-cols-2 gap-3 mb-3">
+                            <div className="bg-white p-2 rounded border border-blue-200">
+                              <p className="text-xs text-blue-600 font-medium">📺 트렌드 영상</p>
+                              <p className="text-sm font-bold text-blue-900">상위 100개</p>
+                              <p className="text-xs text-muted-foreground">YouTube 공식</p>
+                            </div>
+                            <div className="bg-white p-2 rounded border border-blue-200">
+                              <p className="text-xs text-blue-600 font-medium">🔍 키워드 영상</p>
+                              <p className="text-sm font-bold text-blue-900">{EXPANDED_KEYWORDS.length}개 × 50개</p>
+                              <p className="text-xs text-muted-foreground">조회수 상위</p>
+                            </div>
                           </div>
-                          <Switch
-                            checked={(() => {
-                              try {
-                                const config = loadCollectionConfig();
-                                return config.koreanOnly ?? true;
-                              } catch {
-                                return true;
-                              }
-                            })()}
-                            onCheckedChange={(checked) => {
-                              const config = loadCollectionConfig();
-                              config.koreanOnly = checked;
-                              localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
-                            }}
-                          />
+                          <div className="text-xs text-blue-700 space-y-1 bg-blue-100/50 p-2 rounded">
+                            <p>✓ 조회수 높은 순 자동 정렬</p>
+                            <p>✓ 중복 시 조회수 높은 것 유지</p>
+                            <p>✓ 예상 수집: <strong>약 2,000~2,500개</strong></p>
+                          </div>
                         </div>
 
-                        <div>
-                          <Label htmlFor="language-filter">언어 필터링 강도</Label>
+                        {/* 언어 필터 설정 */}
+                        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <Label className="text-sm font-medium text-yellow-900">🇰🇷 한국어 영상만 수집</Label>
+                            <Switch
+                              checked={(() => {
+                                try {
+                                  const config = loadCollectionConfig();
+                                  return config.koreanOnly ?? true;
+                                } catch {
+                                  return true;
+                                }
+                              })()}
+                              onCheckedChange={(checked) => {
+                                const config = loadCollectionConfig();
+                                config.koreanOnly = checked;
+                                localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
+                              }}
+                            />
+                          </div>
                           <Select
                             value={(() => {
                               try {
@@ -1150,7 +1204,7 @@ const System = () => {
                               localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
                             }}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className="text-xs">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1159,20 +1213,6 @@ const System = () => {
                               <SelectItem value="loose">느슨 (하나라도 한국어 포함)</SelectItem>
                             </SelectContent>
                           </Select>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            한국어 감지 기준을 설정합니다
-                          </p>
-                        </div>
-
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                          <h4 className="text-sm font-medium text-blue-800 mb-2">현재 수집 키워드</h4>
-                          <div className="text-xs text-blue-700 mb-2">
-                            총 <strong>{EXPANDED_KEYWORDS.length}개</strong> 키워드로 수집 중
-                          </div>
-                          <div className="text-xs text-blue-600 mb-2">
-                            <strong>카테고리별 분류:</strong><br/>
-                            인기콘텐츠(4개), 엔터테인먼트(3개), 게임(2개), 라이프스타일(3개), 여행라이프(3개), 교육(3개), 투자경제(4개), 뉴스이슈(4개), 음악예술(2개), 영화드라마(4개), 기술개발(3개), 스포츠(3개), 쇼핑리뷰(4개), 창작취미(3개), 애니웹툰(3개), 시니어(9개), 트렌드밈(5개)
-                          </div>
                         </div>
                       </div>
                     </Card>

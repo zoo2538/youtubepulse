@@ -49,8 +49,8 @@ export const EXPANDED_KEYWORDS = [
   
   // 건강 & 웰빙 (0개)
   
-  // 음악 & 예술 (2개)
-  '연예인', '아이돌',
+  // 음악 & 예술 (6개)
+  '연예인', '아이돌', '가수', '스타 소식',
   
   // 영화 & 드라마 (4개)
   '영화', '드라마', '영화리뷰', '드라마리뷰',
@@ -80,12 +80,12 @@ export const EXPANDED_KEYWORDS = [
 // 기본 데이터 수집 설정
 export const DEFAULT_COLLECTION_CONFIG: DataCollectionConfig = {
   keywords: EXPANDED_KEYWORDS,
-  maxResults: 10000, // 최대 수집 영상 수 (트렌딩 기반)
+  maxResults: 10000, // 최대 수집 영상 수
   maxRequests: 140, // 최대 API 요청 수 (할당량 고려)
   regionCode: 'KR', // 한국 지역
-  requestDelay: 100, // 요청 간 지연 시간 (ms)
+  requestDelay: 500, // 요청 간 지연 시간 (ms)
   collectionInterval: 300, // 수집 간격 (초)
-  minViewCount: 50000, // 기본 5만 조회 이상만 수집
+  minViewCount: undefined, // 조회수 필터 제거 (조회수 정렬로 대체)
   koreanOnly: true, // 한국어 영상만 수집 (기본값: true)
   languageFilterLevel: 'moderate', // 언어 필터링 강도 (기본값: moderate)
 };
@@ -117,7 +117,7 @@ export const KEYWORD_CATEGORIES = {
   '투자 & 경제': ['부동산 이슈', '경제 이슈', '경제 요약', '재테크'],
   '뉴스 & 이슈': ['뉴스 요약', '사회 이슈', '정치 이슈', '정치 요약'],
   '건강 & 웰빙': [],
-  '음악 & 예술': ['연예인', '아이돌'],
+  '음악 & 예술': ['연예인', '아이돌', '가수', '스타 소식'],
   '영화 & 드라마': ['영화', '드라마', '영화리뷰', '드라마리뷰'],
   '기술 & 개발': ['인공지능', 'ai 이슈', '기술 트렌드'],
   '스포츠': ['스포츠 요약', '스포츠 이슈', '운동'],
