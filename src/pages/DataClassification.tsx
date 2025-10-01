@@ -596,6 +596,94 @@ const DataClassification = () => {
     }
   };
 
+  // 중복 제거 기능
+  const handleRemoveDuplicates = async () => {
+    if (!confirm('⚠️ 중복된 데이터를 제거하시겠습니까?\n\n같은 videoId + collectionDate 조합에서:\n- 분류된 것 우선 유지\n- 조회수 높은 것 유지\n- 나머지 자동 삭제')) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // 전체 데이터 로드
+      const allData = await hybridService.loadUnclassifiedData();
+      
+      // videoId + collectionDate 조합으로 그룹화
+      const videoDateMap = new Map<string, UnclassifiedData>();
+      let duplicateCount = 0;
+      
+      allData.forEach((item: UnclassifiedData) => {
+        const key = `${item.videoId}_${item.collectionDate}`;
+        
+        if (!videoDateMap.has(key)) {
+          // 첫 번째 발견
+          videoDateMap.set(key, item);
+        } else {
+          // 중복 발견
+          const existing = videoDateMap.get(key)!;
+          let shouldReplace = false;
+          
+          // 우선순위 판단
+          if (item.status === 'classified' && existing.status !== 'classified') {
+            // 분류된 것 우선
+            shouldReplace = true;
+          } else if (item.status === existing.status) {
+            // 같은 상태라면 조회수 비교
+            if (item.viewCount > existing.viewCount) {
+              shouldReplace = true;
+            }
+          }
+          
+          if (shouldReplace) {
+            videoDateMap.set(key, item);
+          }
+          
+          duplicateCount++;
+        }
+      });
+      
+      const uniqueData = Array.from(videoDateMap.values());
+      
+      // 저장
+      await hybridService.saveUnclassifiedData(uniqueData);
+      setUnclassifiedData(uniqueData);
+      
+      // 날짜별 통계 재계산
+      const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+      uniqueData.forEach(item => {
+        const date = item.collectionDate || item.uploadDate;
+        if (date) {
+          if (!newDateStats[date]) {
+            newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+          }
+          newDateStats[date].total++;
+          if (item.status === 'classified') {
+            newDateStats[date].classified++;
+          }
+        }
+      });
+      
+      Object.keys(newDateStats).forEach(date => {
+        const stats = newDateStats[date];
+        stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+      });
+      
+      setDateStats(newDateStats);
+      
+      alert(`✅ 중복 제거 완료!\n\n` +
+            `🗑️ 제거된 중복: ${duplicateCount}개\n` +
+            `✅ 남은 데이터: ${uniqueData.length}개\n\n` +
+            `페이지를 새로고침합니다.`);
+      
+      window.location.reload();
+    } catch (error) {
+      console.error('중복 제거 실패:', error);
+      alert('❌ 중복 제거에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 백업 복원
   const handleRestoreBackup = () => {
     const input = document.createElement('input');
@@ -1096,6 +1184,16 @@ const DataClassification = () => {
               >
                 <Upload className="w-4 h-4" />
                 <span>백업 복원하기</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRemoveDuplicates}
+                className="flex items-center space-x-1 border-orange-500 text-orange-600 hover:bg-orange-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>중복 제거</span>
               </Button>
               
               <DropdownMenu>
