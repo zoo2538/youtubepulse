@@ -687,6 +687,73 @@ const DataClassification = () => {
     }
   };
 
+  // 조회수 기준 삭제 기능
+  const handleDeleteByViewCount = async (threshold: number) => {
+    const thresholdText = threshold >= 10000 ? `${(threshold / 10000).toFixed(0)}만` : `${threshold}`;
+    
+    if (!confirm(`⚠️ 조회수 ${thresholdText} 미만 영상을 삭제하시겠습니까?\n\n삭제 후 복구할 수 없습니다!`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // 전체 데이터 로드
+      const allData = await hybridService.loadUnclassifiedData();
+      
+      // 조회수 필터링
+      const filteredData = allData.filter((item: UnclassifiedData) => item.viewCount >= threshold);
+      const deletedCount = allData.length - filteredData.length;
+      
+      if (deletedCount === 0) {
+        alert(`조회수 ${thresholdText} 미만 영상이 없습니다.`);
+        setIsLoading(false);
+        return;
+      }
+      
+      // 전체 교체 저장
+      const { indexedDBService } = await import('@/lib/indexeddb-service');
+      await indexedDBService.replaceAllUnclassifiedData(filteredData);
+      console.log(`✅ 조회수 ${thresholdText} 미만 ${deletedCount}개 영상 삭제 완료`);
+      
+      setUnclassifiedData(filteredData);
+      
+      // 날짜별 통계 재계산
+      const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+      filteredData.forEach(item => {
+        const date = item.collectionDate || item.uploadDate;
+        if (date) {
+          if (!newDateStats[date]) {
+            newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+          }
+          newDateStats[date].total++;
+          if (item.status === 'classified') {
+            newDateStats[date].classified++;
+          }
+        }
+      });
+      
+      Object.keys(newDateStats).forEach(date => {
+        const stats = newDateStats[date];
+        stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+      });
+      
+      setDateStats(newDateStats);
+      
+      alert(`✅ 조회수 기준 삭제 완료!\n\n` +
+            `🗑️ 삭제된 영상: ${deletedCount}개\n` +
+            `✅ 남은 영상: ${filteredData.length}개\n\n` +
+            `페이지를 새로고침합니다.`);
+      
+      window.location.reload();
+    } catch (error) {
+      console.error('조회수 기준 삭제 실패:', error);
+      alert('❌ 조회수 기준 삭제에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 백업 복원
   const handleRestoreBackup = () => {
     const input = document.createElement('input');
@@ -1198,6 +1265,25 @@ const DataClassification = () => {
                 <Trash2 className="w-4 h-4" />
                 <span>중복 제거</span>
               </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex items-center space-x-1 border-red-500 text-red-600 hover:bg-red-50">
+                    <Trash2 className="w-4 h-4" />
+                    <span>조회수 필터</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleDeleteByViewCount(50000)}>
+                    <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                    조회수 5만 미만 삭제
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDeleteByViewCount(100000)}>
+                    <XCircle className="w-4 h-4 mr-2 text-red-500" />
+                    조회수 10만 미만 삭제
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
