@@ -34,8 +34,9 @@ app.use(cors({
   credentials: true
 }));
 
-// JSON 파싱
-app.use(express.json());
+// JSON 파싱 (크기 제한 증가: 50MB)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // PostgreSQL 테이블 생성
 async function createTables() {
