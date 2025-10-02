@@ -41,14 +41,16 @@ if (process.env.DATABASE_URL) {
   console.error('❌ DATABASE_URL 환경 변수가 설정되지 않음');
 }
 
-// CORS 설정
+// CORS 설정 (GitHub Pages 도메인 추가)
 app.use(cors({
   origin: [
     'http://localhost:8080', 
     'http://localhost:5173', 
     'https://youthbepulse.com',
     'https://www.youthbepulse.com',
-    'https://api.youthbepulse.com'
+    'https://api.youthbepulse.com',
+    'https://zoo2538.github.io',  // GitHub Pages 도메인
+    'https://zoo2538.github.io/youtubepulse'  // GitHub Pages 서브경로
   ],
   credentials: true
 }));
