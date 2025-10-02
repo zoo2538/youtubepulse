@@ -19,6 +19,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Skip all /data requests to let React Router handle them
+  if (event.request.url.includes('/data')) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
