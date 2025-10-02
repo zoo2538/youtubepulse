@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     strictPort: true,
     force: true,
+    // SPA 라우팅을 위한 히스토리 API 폴백
+    historyApiFallback: true,
   },
   build: {
     rollupOptions: {
