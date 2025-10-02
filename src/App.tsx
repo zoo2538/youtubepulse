@@ -1,3 +1,4 @@
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,9 +21,15 @@ import TrendingVideosDetail from "@/pages/TrendingVideosDetail";
 import SubcategorySettings from "@/pages/SubcategorySettings";
 import NotFound from "./pages/NotFound";
 
-const App = () => (
-  <BrowserRouter basename="/" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-    <AuthProvider>
+const App = () => {
+  // GitHub Pages 리다이렉트 플래그 초기화
+  React.useEffect(() => {
+    sessionStorage.removeItem('redirecting');
+  }, []);
+
+  return (
+    <BrowserRouter basename="/" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AuthProvider>
       <TooltipProvider>
         <Toaster />
         <Sonner />
@@ -50,6 +57,7 @@ const App = () => (
       </TooltipProvider>
     </AuthProvider>
   </BrowserRouter>
-);
+  );
+};
 
 export default App;

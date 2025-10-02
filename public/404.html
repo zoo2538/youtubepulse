@@ -8,13 +8,20 @@
         console.log('🔄 404.html 실행됨 - SPA 라우팅 처리');
         console.log('📍 현재 URL:', location.href);
         
+        // 무한 루프 방지: 이미 리다이렉트 중인지 확인
+        if (sessionStorage.getItem('redirecting') === 'true') {
+            console.log('⚠️ 이미 리다이렉트 중 - 무한 루프 방지');
+            return;
+        }
+        
         // GitHub Pages SPA 라우팅을 위한 리다이렉트
         sessionStorage.redirect = location.href;
+        sessionStorage.setItem('redirecting', 'true');
         console.log('💾 리다이렉트 URL 저장:', location.href);
         
-        // 즉시 리다이렉트
+        // index.html로 리다이렉트
         console.log('🔄 index.html로 리다이렉트 중...');
-        location.replace('/');
+        location.replace('/youtubepulse/');
     </script>
 </head>
 <body>
@@ -23,7 +30,7 @@
         // 3초 후 강제 리다이렉트 (백업)
         setTimeout(() => {
             console.log('⏰ 타임아웃 - 강제 리다이렉트');
-            location.replace('/');
+            location.replace('/youtubepulse/');
         }, 3000);
     </script>
 </body>
