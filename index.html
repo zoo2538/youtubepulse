@@ -66,7 +66,14 @@
         var redirectUrl = sessionStorage.redirect;
         console.log('🔄 404.html에서 리다이렉트된 URL:', redirectUrl);
         sessionStorage.removeItem('redirect');
-        window.location.replace(redirectUrl);
+        
+        // 무한 루프 방지: 같은 URL이면 리다이렉트하지 않음
+        if (redirectUrl !== location.href) {
+          console.log('🔄 다른 URL로 리다이렉트:', redirectUrl);
+          window.location.replace(redirectUrl);
+        } else {
+          console.log('⚠️ 같은 URL - 리다이렉트 건너뜀');
+        }
       } else {
         console.log('✅ 정상적인 index.html 로드');
       }
