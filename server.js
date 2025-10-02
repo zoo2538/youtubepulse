@@ -347,12 +347,26 @@ app.post('/api/unclassified', async (req, res) => {
   
   try {
     const data = req.body;
+    const dataSize = JSON.stringify(data).length;
+    console.log(`📊 미분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
+    
     const client = await pool.connect();
     
-    await client.query(`
-      INSERT INTO classification_data (data_type, data)
-      VALUES ($1, $2)
-    `, ['unclassified', JSON.stringify(data)]);
+    // 대용량 데이터 처리 (10MB 초과 시 청크 단위로 저장)
+    if (dataSize > 10 * 1024 * 1024) {
+      console.log('⚠️ 대용량 미분류 데이터 감지, 청크 단위로 저장');
+      const chunkSize = 1000;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        await client.query(`INSERT INTO classification_data (data_type, data) VALUES ($1, $2)`, ['unclassified', JSON.stringify(chunk)]);
+        console.log(`✅ 미분류 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
+      }
+    } else {
+      await client.query(`
+        INSERT INTO classification_data (data_type, data)
+        VALUES ($1, $2)
+      `, ['unclassified', JSON.stringify(data)]);
+    }
     
     client.release();
     res.json({ success: true, message: 'Unclassified data saved' });
