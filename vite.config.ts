@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import fs from "fs";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -22,6 +23,46 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
+    {
+      name: 'generate-404',
+      closeBundle() {
+        const distPath = path.resolve(__dirname, 'dist');
+        const indexHtml = path.join(distPath, 'index.html');
+        const notFoundHtml = path.join(distPath, '404.html');
+
+        // index.html에 redirect 보정 스크립트 삽입
+        let html = fs.readFileSync(indexHtml, 'utf-8');
+        if (!html.includes('sessionStorage.redirect')) {
+          html = html.replace(
+            '<head>',
+            `<head>
+<script>
+  if (sessionStorage.redirect) {
+    history.replaceState(null, null, sessionStorage.redirect);
+    delete sessionStorage.redirect;
+  }
+</script>`
+          );
+          fs.writeFileSync(indexHtml, html, 'utf-8');
+        }
+
+        // 404.html 자동 생성 (GitHub Pages SPA 라우팅)
+        const notFoundContent = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+  </head>
+  <body>
+    <script>
+      sessionStorage.redirect = location.href;
+      window.location.href = "/";
+    </script>
+  </body>
+</html>`;
+        fs.writeFileSync(notFoundHtml, notFoundContent, 'utf-8');
+      },
+    },
   ],
   resolve: {
     alias: {
