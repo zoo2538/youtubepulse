@@ -804,8 +804,8 @@ app.get('/api/data/stats', async (req, res) => {
 //   }
 // });
 
-// 정적 파일 서빙 (SPA) - 반드시 먼저 배치
-app.use(express.static(path.join(__dirname, 'dist')));
+// API 라우트가 먼저 처리되도록 정적 파일 서빙을 뒤로 이동
+// app.use(express.static(path.join(__dirname, 'dist'))); // 임시 주석 처리
 
 // SPA 라우팅은 파일 끝에 이미 정의됨 (중복 제거)
 // 중복된 SPA 라우팅 설정 제거 - API 엔드포인트가 먼저 처리되도록 함
@@ -1086,4 +1086,16 @@ app.listen(PORT, '0.0.0.0', () => {
   });
   
   console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 09:00 (한국시간)');
+});
+
+// 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
+app.get('*', (req, res) => {
+  // API 경로는 제외하고 SPA 라우팅 적용
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
