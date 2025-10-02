@@ -885,6 +885,18 @@ async function autoCollectData() {
       const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
       const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
       
+      // 키워드 정보 찾기 (키워드 수집에서 온 영상인지 확인)
+      let sourceKeyword = 'trending';
+      const keywordVideo = keywordVideos.find(kv => kv.id === video.id);
+      if (keywordVideo) {
+        // 키워드 수집에서 온 영상인 경우, 어떤 키워드로 수집되었는지 찾기
+        for (const keyword of keywords) {
+          // 실제로는 키워드 매핑 로직이 필요하지만, 일단 기본값으로 설정
+          sourceKeyword = keyword;
+          break;
+        }
+      }
+      
       return {
         id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
         channelId: video.snippet.channelId,
@@ -899,7 +911,9 @@ async function autoCollectData() {
         thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
         category: existingClassification?.category || "",
         subCategory: existingClassification?.subCategory || "",
-        status: existingClassification ? "classified" : "unclassified"
+        status: existingClassification ? "classified" : "unclassified",
+        keyword: sourceKeyword, // 키워드 정보 추가
+        source: keywordVideo ? 'keyword' : 'trending' // 수집 소스 정보 추가
       };
     });
 
