@@ -11,34 +11,47 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// PostgreSQL 연결 풀 생성
+// PostgreSQL 연결 풀 생성 (강화된 연결 관리)
 let pool = null;
+let isConnected = false;
+
 if (process.env.DATABASE_URL) {
+  console.log('🔍 DATABASE_URL 환경 변수 확인됨');
+  console.log('🔍 DATABASE_URL 길이:', process.env.DATABASE_URL.length);
+  
   try {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
-        rejectUnauthorized: false
-      }
-    });
-    console.log('✅ PostgreSQL 연결 풀 생성 완료');
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+      },
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+  });
+  console.log('✅ PostgreSQL 연결 풀 생성 완료');
     
-    // 연결 테스트
+    // 즉시 연결 테스트
     pool.connect()
       .then(client => {
         console.log('✅ PostgreSQL 데이터베이스 연결 성공');
+        isConnected = true;
         client.release();
       })
       .catch(err => {
         console.error('❌ PostgreSQL 데이터베이스 연결 실패:', err);
+        console.error('❌ 연결 에러 상세:', err.message);
         pool = null;
+        isConnected = false;
       });
   } catch (error) {
     console.error('❌ PostgreSQL 연결 풀 생성 실패:', error);
     pool = null;
+    isConnected = false;
   }
 } else {
   console.error('❌ DATABASE_URL 환경 변수가 설정되지 않음');
+  console.error('❌ 사용 가능한 환경 변수:', Object.keys(process.env).filter(key => key.includes('DATABASE')));
 }
 
 // CORS 설정 (GitHub Pages 도메인 추가)
@@ -130,7 +143,10 @@ app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     message: 'YouTube Pulse API Server',
-    database: pool ? 'Connected' : 'Not connected'
+    database: (pool && isConnected) ? 'Connected' : 'Not connected',
+    poolExists: !!pool,
+    isConnected: isConnected,
+    databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set'
   });
 });
 
