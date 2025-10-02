@@ -33,8 +33,11 @@ conflictingVars.forEach(varName => {
 // 0) ENV 강제 검증 + 로그
 // 부팅 초기에 추가
 const v = process.env.DATABASE_URL || '';
-console.log('ENV_KEYS', Object.keys(process.env).filter(k=>k.startsWith('PG')||k==='DATABASE_URL'));
-console.log('ENV_DATABASE_URL_LEN', v.length);
+// 어떤 키가 들어왔는지 다국어 혼선 방지 차원에서 유사 키까지 덤프
+const dump = Object.keys(process.env).filter(k =>
+  /DATABASE_URL|데이터베이스_URL|DB_URL|POSTGRES_URL|PGDATABASE_URL/i.test(k)
+);
+console.log('ENV_DB_KEYS', dump, 'LEN', v.length);
 if (!v.trim()) { 
   console.error('FATAL: DATABASE_URL empty or whitespace'); 
   process.exit(1); 
