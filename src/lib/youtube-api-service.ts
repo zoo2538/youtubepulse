@@ -396,6 +396,30 @@ const removeDuplicateVideos = (videos: any[]): any[] => {
   return uniqueVideos;
 };
 
+// 날짜별 중복 제거 함수 (같은 날짜 내에서만 중복 제거)
+const removeDuplicateVideosByDate = (videos: any[], targetDate: string): any[] => {
+  // 같은 날짜의 영상들만 필터링
+  const dateVideos = videos.filter(video => {
+    const videoDate = video.collectionDate || video.uploadDate || video.date;
+    return videoDate === targetDate;
+  });
+  
+  // 같은 날짜 내에서 videoId 기준 중복 제거
+  const seen = new Set<string>();
+  const uniqueVideos: any[] = [];
+  
+  for (const video of dateVideos) {
+    const videoId = video.id || video.snippet?.resourceId?.videoId;
+    if (videoId && !seen.has(videoId)) {
+      seen.add(videoId);
+      uniqueVideos.push(video);
+    }
+  }
+  
+  console.log(`🔄 날짜별 중복 제거 (${targetDate}): ${dateVideos.length}개 → ${uniqueVideos.length}개 (${dateVideos.length - uniqueVideos.length}개 중복 제거됨)`);
+  return uniqueVideos;
+};
+
 // 메인 수집 함수 (조회수 기준 10,000위)
 export const collectDailyData = async (db: any, maxVideos: number = 10000) => {
   const { getKoreanDateString } = await import('./utils');

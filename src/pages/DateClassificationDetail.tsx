@@ -93,10 +93,22 @@ const DateClassificationDetail = () => {
         // IndexedDB에서 전체 데이터 로드
         const allData = await indexedDBService.loadUnclassifiedData();
         
-        // 선택된 날짜의 데이터만 필터링
+        // 선택된 날짜의 데이터만 필터링 (ID 타임스탬프도 고려)
         const dateData = allData.filter(item => {
+          // 1. collectionDate 또는 uploadDate 확인
           const itemDate = item.collectionDate || item.uploadDate;
-          return itemDate === selectedDate;
+          if (itemDate === selectedDate) return true;
+          
+          // 2. ID 타임스탬프 확인 (실제 수집 시간)
+          if (item.id && typeof item.id === 'string') {
+            const timestamp = parseInt(item.id.split('_')[0]);
+            if (!isNaN(timestamp)) {
+              const actualDate = new Date(timestamp).toISOString().split('T')[0];
+              if (actualDate === selectedDate) return true;
+            }
+          }
+          
+          return false;
         }).map(item => ({
           ...item,
           channelName: item.channelName || 'N/A',

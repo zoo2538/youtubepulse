@@ -429,42 +429,42 @@ const System = () => {
           
           // 키워드로 검색 (조회수 순 상위 50개)
           const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiConfig.youtubeApiKey}`;
-          
-          const searchResponse = await fetch(searchUrl);
-          
-          if (!searchResponse.ok) {
-            console.error(`키워드 "${keyword}" 검색 오류:`, searchResponse.status);
-            continue;
-          }
-          
-          const searchData = await searchResponse.json();
-          requestCount++;
-          
-          if (searchData.error) {
-            console.error(`키워드 "${keyword}" API 오류:`, searchData.error);
-            continue;
-          }
-          
-          if (!searchData.items || searchData.items.length === 0) {
-            console.log(`키워드 "${keyword}" 검색 결과 없음`);
-            continue;
-          }
-          
-          // 비디오 ID 추출
-          const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-          
-          // 비디오 상세 정보 조회
-          const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiConfig.youtubeApiKey}`;
-          
-          const videosResponse = await fetch(videosUrl);
-          
-          if (!videosResponse.ok) {
-            console.error(`키워드 "${keyword}" 비디오 정보 오류:`, videosResponse.status);
-            continue;
-          }
-          
-          const videosData = await videosResponse.json();
-          requestCount++;
+        
+        const searchResponse = await fetch(searchUrl);
+        
+        if (!searchResponse.ok) {
+          console.error(`키워드 "${keyword}" 검색 오류:`, searchResponse.status);
+          continue;
+        }
+        
+        const searchData = await searchResponse.json();
+        requestCount++;
+        
+        if (searchData.error) {
+          console.error(`키워드 "${keyword}" API 오류:`, searchData.error);
+          continue;
+        }
+        
+        if (!searchData.items || searchData.items.length === 0) {
+          console.log(`키워드 "${keyword}" 검색 결과 없음`);
+          continue;
+        }
+        
+        // 비디오 ID 추출
+        const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+        
+        // 비디오 상세 정보 조회
+        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiConfig.youtubeApiKey}`;
+        
+        const videosResponse = await fetch(videosUrl);
+        
+        if (!videosResponse.ok) {
+          console.error(`키워드 "${keyword}" 비디오 정보 오류:`, videosResponse.status);
+          continue;
+        }
+        
+        const videosData = await videosResponse.json();
+        requestCount++;
           
           if (videosData.error) {
             console.error(`키워드 "${keyword}" 비디오 API 오류:`, videosData.error);
@@ -1186,15 +1186,39 @@ const System = () => {
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <div className="bg-white p-2 rounded border border-blue-200">
                               <p className="text-xs text-blue-600 font-medium">📺 트렌드 영상</p>
-                              <p className="text-sm font-bold text-blue-900">상위 200개</p>
+                              <p className="text-sm font-bold text-blue-900">상위 100개</p>
                               <p className="text-xs text-muted-foreground">YouTube 공식 (한글만)</p>
-                            </div>
+                        </div>
                             <div className="bg-white p-2 rounded border border-blue-200">
                               <p className="text-xs text-blue-600 font-medium">🔍 키워드 영상</p>
                               <p className="text-sm font-bold text-blue-900">{EXPANDED_KEYWORDS.length}개 × 50개</p>
                               <p className="text-xs text-muted-foreground">조회수 상위</p>
+                          </div>
+                          </div>
+                          
+                          {/* 수집 설정 상세 정보 */}
+                          <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                            <h4 className="font-medium text-sm mb-2 text-green-800">수집 설정 상세</h4>
+                            <div className="space-y-1 text-xs text-green-700">
+                              <div className="flex justify-between">
+                                <span>트렌드 수집량:</span>
+                                <span className="font-medium">100개 (50개씩 2페이지)</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>키워드 수집량:</span>
+                                <span className="font-medium">{EXPANDED_KEYWORDS.length * 50}개 ({EXPANDED_KEYWORDS.length}개 키워드 × 50개)</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>예상 총 수집량:</span>
+                                <span className="font-medium text-green-600">{100 + (EXPANDED_KEYWORDS.length * 50)}~{100 + (EXPANDED_KEYWORDS.length * 50) + 100}개</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span>중복 제거:</span>
+                                <span className="font-medium text-green-600">조회수 높은 것 유지</span>
+                              </div>
                             </div>
                           </div>
+                          
                           <div className="text-xs text-blue-700 space-y-1 bg-blue-100/50 p-2 rounded">
                             <p>✓ 조회수 높은 순 자동 정렬</p>
                             <p>✓ 중복 시 조회수 높은 것 유지</p>
@@ -1206,22 +1230,22 @@ const System = () => {
                         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <div className="flex items-center justify-between mb-2">
                             <Label className="text-sm font-medium text-yellow-900">🇰🇷 한국어 영상만 수집</Label>
-                            <Switch
-                              checked={(() => {
-                                try {
-                                  const config = loadCollectionConfig();
-                                  return config.koreanOnly ?? true;
-                                } catch {
-                                  return true;
-                                }
-                              })()}
-                              onCheckedChange={(checked) => {
+                          <Switch
+                            checked={(() => {
+                              try {
                                 const config = loadCollectionConfig();
-                                config.koreanOnly = checked;
-                                localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
-                              }}
-                            />
-                          </div>
+                                return config.koreanOnly ?? true;
+                              } catch {
+                                return true;
+                              }
+                            })()}
+                            onCheckedChange={(checked) => {
+                              const config = loadCollectionConfig();
+                              config.koreanOnly = checked;
+                              localStorage.setItem('youtubepulse_collection_config', JSON.stringify(config));
+                            }}
+                          />
+                        </div>
                           <Select
                             value={(() => {
                               try {
@@ -1281,6 +1305,29 @@ const System = () => {
                             {apiConfig.customApiEnabled ? "연결됨" : "연결 안됨"}
                           </Badge>
                         </div>
+                        
+                        {/* API 상태 상세 정보 */}
+                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <h4 className="font-medium text-sm mb-2 text-blue-800">API 설정 상세</h4>
+                          <div className="space-y-1 text-xs text-blue-700">
+                            <div className="flex justify-between">
+                              <span>YouTube API 키:</span>
+                              <span className={apiConfig.youtubeApiKey ? "text-green-600 font-medium" : "text-red-600"}>
+                                {apiConfig.youtubeApiKey ? "설정됨" : "미설정"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>커스텀 API URL:</span>
+                              <span className="text-blue-600 font-mono text-xs">{apiConfig.customApiUrl}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>커스텀 API 키:</span>
+                              <span className={apiConfig.customApiKey ? "text-green-600 font-medium" : "text-red-600"}>
+                                {apiConfig.customApiKey ? "설정됨" : "미설정"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
 
                         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                           <div className="flex items-center space-x-2">
@@ -1314,12 +1361,35 @@ const System = () => {
                           </div>
                           <div className="text-xs space-y-1">
                             <div><strong>데이터베이스:</strong> {dbInfo?.name || 'YouTubePulseDB'}</div>
-                            <div><strong>버전:</strong> {dbInfo?.version || '1.0'}</div>
-                            <div><strong>저장소:</strong> {dbInfo?.objectStores?.join(', ') || 'unclassifiedData, classifiedData, channels, videos, categories, dailySummaries, dailyProgress'}</div>
+                            <div><strong>버전:</strong> {dbInfo?.version || '2'}</div>
+                            <div><strong>저장소:</strong> {dbInfo?.objectStores?.join(', ') || 'categories, channels, classifiedByDate, classifiedData, dailyProgress, dailySummary, subCategories, systemConfig, unclassifiedData, videos'}</div>
                             <div><strong>총 데이터:</strong> {dbInfo?.size || 0}개</div>
                             <div><strong>보존 기간:</strong> 14일 (자동 정리)</div>
                             <div><strong>용량:</strong> 브라우저별 제한 (일반적으로 수GB)</div>
                             <div><strong>상태:</strong> <span className="text-green-300">정상 운영</span></div>
+                          </div>
+                          
+                          {/* 실시간 데이터 통계 */}
+                          <div className="mt-3 p-2 bg-blue-500/20 rounded border border-blue-400/30">
+                            <h5 className="text-xs font-medium mb-1 text-blue-100">실시간 데이터 통계</h5>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-blue-200">채널:</span>
+                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.channels || 0}개</span>
+                              </div>
+                              <div>
+                                <span className="text-blue-200">영상:</span>
+                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.videos || 0}개</span>
+                              </div>
+                              <div>
+                                <span className="text-blue-200">분류 데이터:</span>
+                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.classifiedData || 0}개</span>
+                              </div>
+                              <div>
+                                <span className="text-blue-200">미분류:</span>
+                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.unclassifiedData || 0}개</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
 
@@ -1346,6 +1416,25 @@ const System = () => {
                               <span className="text-yellow-300">동기화 가능</span> : 
                               <span className="text-gray-300">동기화할 데이터 없음</span>
                             }</div>
+                          </div>
+                          
+                          {/* 동기화 상세 정보 */}
+                          <div className="mt-3 p-2 bg-green-500/20 rounded border border-green-400/30">
+                            <h5 className="text-xs font-medium mb-1 text-green-100">동기화 상세</h5>
+                            <div className="space-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-green-200">총 데이터:</span>
+                                <span className="font-medium">{(migrationStatus.indexeddbData.channels || 0) + (migrationStatus.indexeddbData.videos || 0) + (migrationStatus.indexeddbData.classificationData || 0)}개</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-green-200">동기화 대상:</span>
+                                <span className="font-medium text-green-300">PostgreSQL</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-green-200">마지막 동기화:</span>
+                                <span className="font-medium text-green-300">수동 실행</span>
+                              </div>
+                            </div>
                           </div>
                           
                           {/* 동기화 결과 표시 */}

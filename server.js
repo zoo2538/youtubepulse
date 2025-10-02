@@ -719,8 +719,8 @@ async function autoCollectData() {
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-  const apiKey = process.env.VITE_YOUTUBE_API_KEY;
-  if (!apiKey) {
+    const apiKey = process.env.VITE_YOUTUBE_API_KEY;
+    if (!apiKey) {
     console.error('❌ YouTube API Key가 설정되지 않았습니다.');
     return;
   }
@@ -754,7 +754,7 @@ async function autoCollectData() {
       const response = await fetch(trendingUrl);
       
       if (response.ok) {
-        const data = await response.json();
+    const data = await response.json();
         requestCount++;
         if (data.items) {
           trendingVideos = [...trendingVideos, ...data.items];

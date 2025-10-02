@@ -88,8 +88,7 @@ const DataClassification = () => {
   const isAdmin = userRole === 'admin'; // 관리자 권한 확인
 
   const handleLogout = () => {
-    logout();
-    navigate('/');
+    logout(); // AuthContext의 logout이 이미 navigate를 처리함
   };
 
   // 카테고리는 하드코딩된 값 사용 (subcategories.ts에서 import)
@@ -1044,8 +1043,20 @@ const DataClassification = () => {
       // 각 날짜별로 데이터 구성
       const exportData = datesWithData.map(date => {
         const dateData = unclassifiedData.filter(item => {
+          // 1. collectionDate 또는 uploadDate 확인
           const itemDate = item.collectionDate || item.uploadDate;
-          return itemDate === date;
+          if (itemDate === date) return true;
+          
+          // 2. ID 타임스탬프 확인 (실제 수집 시간)
+          if (item.id && typeof item.id === 'string') {
+            const timestamp = parseInt(item.id.split('_')[0]);
+            if (!isNaN(timestamp)) {
+              const actualDate = new Date(timestamp).toISOString().split('T')[0];
+              if (actualDate === date) return true;
+            }
+          }
+          
+          return false;
         });
         
         const total = dateData.length;
