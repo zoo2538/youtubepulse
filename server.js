@@ -14,13 +14,31 @@ const PORT = process.env.PORT || 3000;
 // PostgreSQL 연결 풀 생성
 let pool = null;
 if (process.env.DATABASE_URL) {
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
-  });
-  console.log('✅ PostgreSQL 연결 풀 생성 완료');
+  try {
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false
+      }
+    });
+    console.log('✅ PostgreSQL 연결 풀 생성 완료');
+    
+    // 연결 테스트
+    pool.connect()
+      .then(client => {
+        console.log('✅ PostgreSQL 데이터베이스 연결 성공');
+        client.release();
+      })
+      .catch(err => {
+        console.error('❌ PostgreSQL 데이터베이스 연결 실패:', err);
+        pool = null;
+      });
+  } catch (error) {
+    console.error('❌ PostgreSQL 연결 풀 생성 실패:', error);
+    pool = null;
+  }
+} else {
+  console.error('❌ DATABASE_URL 환경 변수가 설정되지 않음');
 }
 
 // CORS 설정
