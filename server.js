@@ -20,6 +20,13 @@ if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 길이:', process.env.DATABASE_URL.length);
   console.log('🔍 DATABASE_URL 값:', process.env.DATABASE_URL);
   
+  // DATABASE_URL 형식 검증
+  if (!process.env.DATABASE_URL.startsWith('postgresql://')) {
+    console.error('❌ DATABASE_URL 형식이 올바르지 않습니다:', process.env.DATABASE_URL);
+  } else {
+    console.log('✅ DATABASE_URL 형식 검증 통과');
+  }
+  
   try {
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
