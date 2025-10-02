@@ -29,7 +29,7 @@ if (process.env.DATABASE_URL) {
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
   });
-    console.log('✅ PostgreSQL 연결 풀 생성 완료 - 재배포 트리거');
+    console.log('✅ PostgreSQL 연결 풀 생성 완료 - 강제 재시작 트리거');
     
     // 즉시 연결 테스트
     pool.connect()
