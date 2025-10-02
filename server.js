@@ -18,6 +18,7 @@ let isConnected = false;
 if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 환경 변수 확인됨');
   console.log('🔍 DATABASE_URL 길이:', process.env.DATABASE_URL.length);
+  console.log('🔍 DATABASE_URL 값:', process.env.DATABASE_URL);
   
   try {
   pool = new Pool({
@@ -36,7 +37,23 @@ if (process.env.DATABASE_URL) {
       .then(client => {
         console.log('✅ PostgreSQL 데이터베이스 연결 성공');
         isConnected = true;
-        client.release();
+        
+        // 테스트 쿼리 실행
+        return client.query('SELECT version()');
+      })
+      .then(result => {
+        console.log('📊 PostgreSQL 버전:', result.rows[0].version);
+        
+        // 테이블 목록 확인
+        return pool.query(`
+          SELECT table_name 
+          FROM information_schema.tables 
+          WHERE table_schema = 'public'
+        `);
+      })
+      .then(tables => {
+        console.log('📋 테이블 목록:', tables.rows.map(row => row.table_name));
+        console.log('🎉 PostgreSQL 연결 및 쿼리 테스트 완료!');
       })
       .catch(err => {
         console.error('❌ PostgreSQL 데이터베이스 연결 실패:', err);
