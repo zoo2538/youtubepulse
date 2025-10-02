@@ -32,25 +32,21 @@ conflictingVars.forEach(varName => {
 
 // 0) ENV 강제 검증 + 로그
 // 부팅 초기에 추가
-const v = process.env.DATABASE_URL ?? null;
+const v = process.env.DATABASE_URL || '';
 console.log('ENV_KEYS', Object.keys(process.env).filter(k=>k.startsWith('PG')||k==='DATABASE_URL'));
-console.log('ENV_DATABASE_URL_LEN', v ? v.length : 0);
-
-const rawEnv = process.env.DATABASE_URL || '';
-const showPreview = (s) => s.length > 80 ? s.slice(0, 80) + '…' : s;
-if (!rawEnv || !rawEnv.trim()) {
-  console.error('FATAL: DATABASE_URL empty or whitespace'); // <- 로그로 확정
-  process.exit(1);
+console.log('ENV_DATABASE_URL_LEN', v.length);
+if (!v.trim()) { 
+  console.error('FATAL: DATABASE_URL empty or whitespace'); 
+  process.exit(1); 
 }
-let parsed;
-try {
-  parsed = new URL(rawEnv.trim());
-} catch (e) {
-  console.error('FATAL: DATABASE_URL parse failed:', e.message);
-  console.error('VALUE_PREVIEW:', showPreview(rawEnv.replace(/\s+/g, ' '))); // 공백 시각화
-  process.exit(1);
+try { 
+  const u = new URL(v.trim()); 
+  console.log('DB URL OK host=', u.hostname, 'sslmode=', u.searchParams.get('sslmode')); 
 }
-console.log('DB URL OK host=', parsed.hostname, 'sslmode=', parsed.searchParams.get('sslmode')); // <- 런타임 확정 로그
+catch(e){ 
+  console.error('FATAL: DATABASE_URL parse failed:', e.message); 
+  process.exit(1); 
+}
 
 if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 환경 변수 확인됨');
