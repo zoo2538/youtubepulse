@@ -29,9 +29,17 @@ if (process.env.DATABASE_URL) {
     console.log('✅ DATABASE_URL 형식 검증 통과');
   }
   
+  // SSL 설정 이중 정의 방지: sslmode=require를 sslmode=disable로 변경
+  let databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl.includes('sslmode=require')) {
+    databaseUrl = databaseUrl.replace('sslmode=require', 'sslmode=disable');
+    console.log('🔧 SSL 설정 변경: sslmode=require → sslmode=disable');
+    console.log('🔧 수정된 DATABASE_URL:', databaseUrl);
+  }
+  
   try {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
+  pool = new Pool({
+      connectionString: databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
@@ -162,12 +170,31 @@ async function createTables() {
 createTables();
 
 // API 라우트
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
+  let databaseStatus = 'Not connected';
+  let poolExists = !!pool;
+  let isConnected = false;
+  
+  // 실제 쿼리 실행으로 DB 연결 상태 확인
+  if (pool) {
+    try {
+      const client = await pool.connect();
+      await client.query('SELECT 1');
+      client.release();
+      databaseStatus = 'Connected';
+      isConnected = true;
+    } catch (error) {
+      console.error('❌ Health check DB query failed:', error.message);
+      databaseStatus = 'Not connected';
+      isConnected = false;
+    }
+  }
+  
   res.json({ 
     status: 'OK', 
     message: 'YouTube Pulse API Server',
-    database: (pool && isConnected) ? 'Connected' : 'Not connected',
-    poolExists: !!pool,
+    database: databaseStatus,
+    poolExists: poolExists,
     isConnected: isConnected,
     databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set'
   });
