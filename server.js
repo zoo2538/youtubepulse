@@ -11,6 +11,11 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// 실행 중인 엔트리 파일 경로 로그 출력
+console.log('🔍 ENTRY:', __filename);
+console.log('🔍 CWD:', process.cwd());
+console.log('🔍 NODE_ENV:', process.env.NODE_ENV);
+
 // PostgreSQL 연결 풀 생성 (강화된 연결 관리)
 let pool = null;
 let isConnected = false;
@@ -461,6 +466,7 @@ app.post('/api/classified', async (req, res) => {
           console.log(`⏭️ 영상 건너뛰기: ${item.videoId} (기존 조회수 ${existingViews.toLocaleString()} > 신규 ${newViews.toLocaleString()})`);
         }
       }
+    }
     }
     
     client.release();
@@ -1098,17 +1104,7 @@ async function autoCollectData() {
   }
 }
 
-// SPA 폴백 - 모든 React Router 경로를 index.html로 리다이렉트
-app.get('*', (req, res) => {
-  // API 경로는 제외
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
-  
-  // React Router 경로들을 index.html로 리다이렉트
-  console.log('🔄 SPA 라우팅:', req.path, '→ index.html');
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+// 중복 라우트 제거됨 - 아래에 SPA 라우팅이 있음
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
@@ -1131,7 +1127,7 @@ app.listen(PORT, '0.0.0.0', () => {
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
-app.get('*', (req, res) => {
+app.use((req, res) => {
   // API 경로는 제외하고 SPA 라우팅 적용
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API endpoint not found' });
