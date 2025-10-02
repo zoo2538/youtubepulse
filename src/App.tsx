@@ -28,7 +28,7 @@ const App = () => {
   }, []);
 
   return (
-    <BrowserRouter basename="/" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter basename="/youtubepulse/" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
       <TooltipProvider>
         <Toaster />
