@@ -30,6 +30,23 @@ conflictingVars.forEach(varName => {
   }
 });
 
+// 0) ENV 강제 검증 + 로그
+const rawEnv = process.env.DATABASE_URL || '';
+const showPreview = (s) => s.length > 80 ? s.slice(0, 80) + '…' : s;
+if (!rawEnv || !rawEnv.trim()) {
+  console.error('FATAL: DATABASE_URL empty or whitespace'); // <- 로그로 확정
+  process.exit(1);
+}
+let parsed;
+try {
+  parsed = new URL(rawEnv.trim());
+} catch (e) {
+  console.error('FATAL: DATABASE_URL parse failed:', e.message);
+  console.error('VALUE_PREVIEW:', showPreview(rawEnv.replace(/\s+/g, ' '))); // 공백 시각화
+  process.exit(1);
+}
+console.log('DB URL OK host=', parsed.hostname, 'sslmode=', parsed.searchParams.get('sslmode')); // <- 런타임 확정 로그
+
 if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 환경 변수 확인됨');
   console.log('🔍 DATABASE_URL 길이:', process.env.DATABASE_URL.length);
@@ -79,13 +96,17 @@ if (process.env.DATABASE_URL) {
   }
   
   try {
-  pool = new Pool({
-      connectionString: databaseUrl,
-      max: 20,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
-    });
+  // 1) Pool 생성은 ENV 검증 이후
+  pool = new Pool({ connectionString: rawEnv.trim() }); // 코드 ssl 옵션 제거, 문자열 한 곳만 사용
     console.log('✅ PostgreSQL 연결 풀 생성 완료 - 강제 재시작 트리거');
+    
+    // 2) 기동 확인용 쿼리
+    pool.query('select 1').then(r => {
+      console.log('PG select 1 OK:', r.rows);
+    }).catch(e => {
+      console.error('PG connect error:', e.message);
+      process.exit(1); // 초기 연결 실패 시 즉시 종료(재시작으로 빨리 드러냄)
+    });
     
     // 즉시 연결 테스트
     pool.connect()
@@ -219,33 +240,12 @@ console.log('🚀 API 서버 준비 완료 - v2.0.0');
 
 // API 라우트
 app.get('/api/health', async (req, res) => {
-  let databaseStatus = 'Not connected';
-  let poolExists = !!pool;
-  let isConnected = false;
-  
-  // 실제 쿼리 실행으로 DB 연결 상태 확인
-  if (pool) {
-    try {
-      const client = await pool.connect();
-      await client.query('SELECT 1');
-      client.release();
-      databaseStatus = 'Connected';
-      isConnected = true;
-    } catch (error) {
-      console.error('❌ Health check DB query failed:', error.message);
-      databaseStatus = 'Not connected';
-      isConnected = false;
-    }
+  try {
+    const r = await pool.query('select 1 as ok');
+    res.json({ status: 'OK', message: 'YouTube Pulse API Server', database: 'Connected', ok: r.rows?.[0]?.ok === 1 });
+  } catch (e) {
+    res.json({ status: 'OK', message: 'YouTube Pulse API Server', database: 'Not connected', error: e.message });
   }
-  
-  res.json({ 
-    status: 'OK', 
-    message: 'YouTube Pulse API Server',
-    database: databaseStatus,
-    poolExists: poolExists,
-    isConnected: isConnected,
-    databaseUrl: process.env.DATABASE_URL ? 'Set' : 'Not set'
-  });
 });
 
 // 임시 디버그 엔드포인트 - 실제 DATABASE_URL 확인
@@ -278,7 +278,7 @@ app.get('/api/health-sql', async (req, res) => {
       return res.status(500).json({ ok: false, error: 'Pool not initialized' });
     }
     const result = await pool.query('SELECT 1 as ok, NOW() as current_time');
-    res.json({ 
+  res.json({ 
       ok: true, 
       rows: result.rows.length, 
       sample: result.rows[0],
