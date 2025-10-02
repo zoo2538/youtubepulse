@@ -659,16 +659,8 @@ app.get('/api/data/stats', async (req, res) => {
 // 정적 파일 서빙 (SPA) - 반드시 먼저 배치
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// SPA 라우팅: 모든 React Router 경로를 index.html로 리다이렉트
-app.get('*', (req, res) => {
-  // API 경로는 제외
-  if (req.path.startsWith('/api/')) {
-    return res.status(404).json({ error: 'API endpoint not found' });
-  }
-  
-  // React Router 경로들을 index.html로 리다이렉트
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+// SPA 라우팅은 파일 끝에 이미 정의됨 (중복 제거)
+// 중복된 SPA 라우팅 설정 제거 - API 엔드포인트가 먼저 처리되도록 함
 
 // /data 경로는 React Router에서 처리하므로 서버 엔드포인트 제거
 
