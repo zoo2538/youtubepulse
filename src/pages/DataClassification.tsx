@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
+import {
   Settings, 
   Database, 
   Filter,
@@ -674,10 +674,10 @@ const DataClassification = () => {
       
       alert(`✅ 중복 제거 완료!\n\n` +
             `🗑️ 제거된 중복: ${duplicateCount}개\n` +
-            `✅ 남은 데이터: ${uniqueData.length}개\n\n` +
-            `페이지를 새로고침합니다.`);
+            `✅ 남은 데이터: ${uniqueData.length}개`);
       
-      window.location.reload();
+      // 페이지 새로고침 대신 상태만 업데이트
+      console.log('✅ 중복 제거 완료 - 상태 업데이트됨');
     } catch (error) {
       console.error('중복 제거 실패:', error);
       alert('❌ 중복 제거에 실패했습니다.');
@@ -742,9 +742,10 @@ const DataClassification = () => {
       alert(`✅ 조회수 기준 삭제 완료!\n\n` +
             `🗑️ 삭제된 영상: ${deletedCount}개\n` +
             `✅ 남은 영상: ${filteredData.length}개\n\n` +
-            `페이지를 새로고침합니다.`);
+            `완료되었습니다.`);
       
-      window.location.reload();
+      // 페이지 새로고침 대신 상태만 업데이트
+      console.log('✅ 조회수 기준 삭제 완료 - 상태 업데이트됨');
     } catch (error) {
       console.error('조회수 기준 삭제 실패:', error);
       alert('❌ 조회수 기준 삭제에 실패했습니다.');
@@ -855,9 +856,10 @@ const DataClassification = () => {
               `➕ 추가된 데이터: ${addedCount}개\n` +
               `🔄 업데이트된 데이터: ${updatedCount}개\n` +
               `📊 전체 데이터: ${mergedData.length}개\n\n` +
-              `페이지를 새로고침합니다.`);
+              `완료되었습니다.`);
         
-        window.location.reload();
+        // 페이지 새로고침 대신 상태만 업데이트
+        console.log('✅ 자동 수집 데이터 병합 완료 - 상태 업데이트됨');
       }
     } catch (error) {
       console.error('자동 수집 데이터 가져오기 실패:', error);
