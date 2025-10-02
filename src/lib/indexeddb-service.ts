@@ -6,6 +6,18 @@ class IndexedDBService {
   private version = 2;
   private db: IDBDatabase | null = null;
 
+  // 연결 재시작
+  async restartConnection(): Promise<void> {
+    console.log('🔄 IndexedDB 연결 재시작 중...');
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+    }
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await this.init();
+    console.log('✅ IndexedDB 연결 재시작 완료');
+  }
+
   // 데이터베이스 초기화
   async init(): Promise<void> {
     // 기존 연결이 있으면 닫기
@@ -15,7 +27,7 @@ class IndexedDBService {
     }
     
     // 연결 안정화를 위한 대기
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
@@ -373,7 +385,14 @@ class IndexedDBService {
       };
       } catch (error) {
         console.error('❌ getAvailableDates 트랜잭션 실패:', error);
-        reject(error);
+        // 연결 재시작 시도
+        this.restartConnection().then(() => {
+          console.log('🔄 연결 재시작 후 다시 시도');
+          // 재시도는 하지 않고 빈 배열 반환
+          resolve([]);
+        }).catch(() => {
+          reject(error);
+        });
       }
     });
   }
