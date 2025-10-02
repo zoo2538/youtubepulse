@@ -8,6 +8,12 @@ class IndexedDBService {
 
   // 데이터베이스 초기화
   async init(): Promise<void> {
+    // 기존 연결이 있으면 닫기
+    if (this.db) {
+      this.db.close();
+      this.db = null;
+    }
+    
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
 
@@ -226,12 +232,24 @@ class IndexedDBService {
     if (!this.db) await this.init();
     
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction(['unclassifiedData'], 'readonly');
-      const store = transaction.objectStore('unclassifiedData');
-      const request = store.getAll();
-      
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
+      try {
+        const transaction = this.db!.transaction(['unclassifiedData'], 'readonly');
+        const store = transaction.objectStore('unclassifiedData');
+        const request = store.getAll();
+        
+        request.onsuccess = () => {
+          console.log('✅ IndexedDB에서 미분류 데이터 로드:', request.result.length, '개');
+          resolve(request.result);
+        };
+        
+        request.onerror = () => {
+          console.error('❌ 미분류 데이터 로드 실패:', request.error);
+          reject(request.error);
+        };
+      } catch (error) {
+        console.error('❌ IndexedDB 트랜잭션 실패:', error);
+        reject(error);
+      }
     });
   }
 
