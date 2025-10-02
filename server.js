@@ -21,15 +21,17 @@ if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 값:', process.env.DATABASE_URL);
   
   try {
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: {
+        rejectUnauthorized: false,
+        require: true,
+        sslmode: 'require'
       },
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 2000,
-  });
+    });
     console.log('✅ PostgreSQL 연결 풀 생성 완료 - 강제 재시작 트리거');
     
     // 즉시 연결 테스트
