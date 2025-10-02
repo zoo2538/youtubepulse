@@ -19,6 +19,8 @@ if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 환경 변수 확인됨');
   console.log('🔍 DATABASE_URL 길이:', process.env.DATABASE_URL.length);
   console.log('🔍 DATABASE_URL 값:', process.env.DATABASE_URL);
+  console.log('🔍 DATABASE_URL 시작:', process.env.DATABASE_URL.substring(0, 20));
+  console.log('🔍 DATABASE_URL 끝:', process.env.DATABASE_URL.substring(process.env.DATABASE_URL.length - 20));
   
   // DATABASE_URL 형식 검증
   if (!process.env.DATABASE_URL.startsWith('postgresql://')) {
@@ -28,9 +30,9 @@ if (process.env.DATABASE_URL) {
   }
   
   try {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
         rejectUnauthorized: false,
         require: true,
         sslmode: 'require'
