@@ -41,6 +41,9 @@ jobs:
         # Railway CLI 설치
         npm install -g @railway/cli
         
+        # Railway 토큰으로 로그인
+        echo "$RAILWAY_TOKEN" | railway login --token
+        
         # Railway 로그인 확인
         railway whoami
         
