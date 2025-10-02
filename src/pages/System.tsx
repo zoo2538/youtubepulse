@@ -360,15 +360,15 @@ const System = () => {
       console.log('=====================================');
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // 1단계: YouTube 공식 트렌드 수집 (상위 200개)
+      // 1단계: YouTube 공식 트렌드 수집 (상위 100개)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       console.log('📺 1단계: YouTube 공식 트렌드 영상 수집 중...');
       let trendingVideos: any[] = [];
       
       try {
-        // 상위 200개 수집 (50개씩 4페이지)
+        // 상위 100개 수집 (50개씩 2페이지)
         let nextPageToken = '';
-        for (let page = 0; page < 4; page++) {
+        for (let page = 0; page < 2; page++) {
           const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiConfig.youtubeApiKey}`;
           const trendingResponse = await fetch(trendingUrl);
           
