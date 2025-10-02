@@ -14,6 +14,9 @@ class IndexedDBService {
       this.db = null;
     }
     
+    // 연결 안정화를 위한 대기
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.version);
 
@@ -279,13 +282,14 @@ class IndexedDBService {
     if (!this.db) await this.init();
     
     return new Promise((resolve, reject) => {
-      const dates = new Set<string>();
-      let completedRequests = 0;
-      const totalRequests = 3; // unclassifiedData, classifiedData, dailyProgress
-      
-      const checkCompletion = () => {
-        completedRequests++;
-        if (completedRequests === totalRequests) {
+      try {
+        const dates = new Set<string>();
+        let completedRequests = 0;
+        const totalRequests = 3; // unclassifiedData, classifiedData, dailyProgress
+        
+        const checkCompletion = () => {
+          completedRequests++;
+          if (completedRequests === totalRequests) {
           // 7일 범위의 날짜 자동 생성 (한국 시간 기준)
           // 한국 시간으로 오늘 날짜 계산
           const now = new Date();
@@ -325,7 +329,7 @@ class IndexedDBService {
         checkCompletion();
       };
       unclassifiedRequest.onerror = () => {
-        console.error('unclassifiedData 조회 실패:', unclassifiedRequest.error);
+        console.error('❌ unclassifiedData 조회 실패:', unclassifiedRequest.error);
         checkCompletion();
       };
       
@@ -364,9 +368,13 @@ class IndexedDBService {
         checkCompletion();
       };
       progressRequest.onerror = () => {
-        console.error('dailyProgress 조회 실패:', progressRequest.error);
+        console.error('❌ dailyProgress 조회 실패:', progressRequest.error);
         checkCompletion();
       };
+      } catch (error) {
+        console.error('❌ getAvailableDates 트랜잭션 실패:', error);
+        reject(error);
+      }
     });
   }
 
