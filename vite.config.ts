@@ -4,8 +4,9 @@ import path from "path";
 import fs from "fs";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  base: mode === 'production' ? '/' : './',
+export default defineConfig({
+  // GitHub Pages 리포지토리 서브경로
+  base: '/youtubepulse/',
   server: {
     host: "::",
     port: 8080,
@@ -13,6 +14,13 @@ export default defineConfig(({ mode }) => ({
     force: true,
     // SPA 라우팅을 위한 히스토리 API 폴백
     historyApiFallback: true,
+    proxy: {
+      '/api': {
+        target: 'https://api.youthbepulse.com',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   build: {
     rollupOptions: {
@@ -56,7 +64,7 @@ export default defineConfig(({ mode }) => ({
   <body>
     <script>
       sessionStorage.redirect = location.href;
-      window.location.href = "/";
+      window.location.href = "/youtubepulse/";
     </script>
   </body>
 </html>`;
