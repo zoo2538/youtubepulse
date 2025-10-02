@@ -82,5 +82,5 @@ export default defineConfig({
     __REACT_ROUTER_FUTURE_FLAGS__: JSON.stringify({
       v7_relativeSplatPath: true
     })
-  },
-}));
+  }
+});
