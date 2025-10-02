@@ -200,6 +200,42 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// 임시 디버그 엔드포인트 - 실제 DATABASE_URL 확인
+app.get('/api/debug-db', (req, res) => {
+  const url = new URL(process.env.DATABASE_URL || '');
+  res.json({
+    rawUrl: process.env.DATABASE_URL,
+    hostname: url.hostname,
+    port: url.port,
+    database: url.pathname,
+    sslmode: url.searchParams.get('sslmode'),
+    username: url.username,
+    protocol: url.protocol
+  });
+});
+
+// 임시 health-sql 엔드포인트 - 실제 쿼리 실행
+app.get('/api/health-sql', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(500).json({ ok: false, error: 'Pool not initialized' });
+    }
+    const result = await pool.query('SELECT 1 as ok, NOW() as current_time');
+    res.json({ 
+      ok: true, 
+      rows: result.rows.length, 
+      sample: result.rows[0],
+      poolExists: !!pool
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      ok: false, 
+      error: error.message,
+      poolExists: !!pool
+    });
+  }
+});
+
 // 데이터 동기화 API
 app.post('/api/sync/channels', async (req, res) => {
   if (!pool) {
