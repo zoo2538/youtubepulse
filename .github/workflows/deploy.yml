@@ -42,7 +42,7 @@ jobs:
         npm install -g @railway/cli
         
         # Railway 토큰으로 로그인
-        echo "$RAILWAY_TOKEN" | railway login --token
+        echo "$RAILWAY_TOKEN" | railway login
         
         # Railway 로그인 확인
         railway whoami
