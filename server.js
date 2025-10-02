@@ -35,6 +35,11 @@ if (process.env.DATABASE_URL) {
     databaseUrl = databaseUrl.replace('sslmode=require', 'sslmode=disable');
     console.log('🔧 SSL 설정 변경: sslmode=require → sslmode=disable');
     console.log('🔧 수정된 DATABASE_URL:', databaseUrl);
+  } else if (!databaseUrl.includes('sslmode=')) {
+    // sslmode 파라미터가 없으면 disable 추가
+    databaseUrl = databaseUrl + '?sslmode=disable';
+    console.log('🔧 SSL 설정 추가: sslmode=disable');
+    console.log('🔧 수정된 DATABASE_URL:', databaseUrl);
   }
   
   try {
@@ -169,6 +174,12 @@ async function createTables() {
 // 서버 시작 시 테이블 생성
 createTables();
 
+// 라우트 등록 로그
+console.log('🔍 API 라우트 등록 완료:');
+console.log('  - /api/health');
+console.log('  - /api/debug-db');
+console.log('  - /api/health-sql');
+
 // API 라우트
 app.get('/api/health', async (req, res) => {
   let databaseStatus = 'Not connected';
@@ -202,16 +213,25 @@ app.get('/api/health', async (req, res) => {
 
 // 임시 디버그 엔드포인트 - 실제 DATABASE_URL 확인
 app.get('/api/debug-db', (req, res) => {
-  const url = new URL(process.env.DATABASE_URL || '');
-  res.json({
-    rawUrl: process.env.DATABASE_URL,
-    hostname: url.hostname,
-    port: url.port,
-    database: url.pathname,
-    sslmode: url.searchParams.get('sslmode'),
-    username: url.username,
-    protocol: url.protocol
-  });
+  console.log('🔍 /api/debug-db 라우트 호출됨');
+  try {
+    const url = new URL(process.env.DATABASE_URL || '');
+    const result = {
+      rawUrl: process.env.DATABASE_URL,
+      hostname: url.hostname,
+      port: url.port,
+      database: url.pathname,
+      sslmode: url.searchParams.get('sslmode'),
+      username: url.username,
+      protocol: url.protocol,
+      timestamp: new Date().toISOString()
+    };
+    console.log('🔍 DATABASE_URL 파싱 결과:', result);
+    res.json(result);
+  } catch (error) {
+    console.error('❌ DATABASE_URL 파싱 오류:', error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // 임시 health-sql 엔드포인트 - 실제 쿼리 실행
