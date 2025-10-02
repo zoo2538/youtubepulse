@@ -268,12 +268,13 @@ app.post('/api/classified', async (req, res) => {
     } else {
       // 수동수집 데이터 저장 (중복 체크 및 업데이트)
       for (const item of data) {
-      // 기존 데이터 확인 (videoId 기준)
+      // 기존 데이터 확인 (videoId + collectionDate 기준)
       const existing = await client.query(`
-        SELECT id, data_type FROM classification_data 
+        SELECT id, data_type, data->>'collectionDate' as collectionDate FROM classification_data 
         WHERE data_type IN ('auto_classified', 'manual_classified')
         AND data->>'videoId' = $1
-      `, [item.videoId]);
+        AND data->>'collectionDate' = $2
+      `, [item.videoId, item.collectionDate]);
       
       if (existing.rows.length === 0) {
         // 중복이 없으면 새로 저장
@@ -460,12 +461,13 @@ app.post('/api/auto-classified', async (req, res) => {
     
     // 자동수집 데이터 저장 (중복 체크)
     for (const item of data) {
-      // 기존 데이터 확인 (videoId 기준)
+      // 기존 데이터 확인 (videoId + collectionDate 기준)
       const existing = await client.query(`
-        SELECT id FROM classification_data 
+        SELECT id, data->>'collectionDate' as collectionDate FROM classification_data 
         WHERE data_type IN ('auto_classified', 'manual_classified')
         AND data->>'videoId' = $1
-      `, [item.videoId]);
+        AND data->>'collectionDate' = $2
+      `, [item.videoId, item.collectionDate]);
       
       if (existing.rows.length === 0) {
         // 중복이 없으면 저장
