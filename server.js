@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3000;
 console.log('🔍 ENTRY:', __filename);
 console.log('🔍 CWD:', process.cwd());
 console.log('🔍 NODE_ENV:', process.env.NODE_ENV);
+console.log('🚀 FORCE RESTART TRIGGER - v2.0.0 -', new Date().toISOString());
 
 // PostgreSQL 연결 풀 생성 (강화된 연결 관리)
 let pool = null;
@@ -65,6 +66,8 @@ if (process.env.DATABASE_URL) {
     databaseUrl = databaseUrl + '?sslmode=disable';
   }
   console.log('🔧 최종 강제 적용된 DATABASE_URL:', databaseUrl);
+  console.log('🔧 DATABASE_URL 길이:', databaseUrl?.length || 0);
+  console.log('🔧 DATABASE_URL 호스트:', new URL(databaseUrl || '').hostname);
   
   try {
   pool = new Pool({
@@ -203,6 +206,7 @@ console.log('🔍 API 라우트 등록 완료:');
 console.log('  - /api/health');
 console.log('  - /api/debug-db');
 console.log('  - /api/health-sql');
+console.log('🚀 API 서버 준비 완료 - v2.0.0');
 
 // API 라우트
 app.get('/api/health', async (req, res) => {
