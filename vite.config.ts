@@ -5,8 +5,8 @@ import fs from "fs";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // GitHub Pages 리포지토리 서브경로
-  base: '/youtubepulse/',
+  // GitHub Pages 루트 도메인 (임시 테스트)
+  base: '/',
   server: {
     host: "::",
     port: 8080,
@@ -64,7 +64,7 @@ export default defineConfig({
   <body>
     <script>
       sessionStorage.redirect = location.href;
-      window.location.href = "/youtubepulse/";
+      window.location.href = "/";
     </script>
   </body>
 </html>`;
