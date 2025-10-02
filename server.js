@@ -249,6 +249,12 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Railway 변수 주입 전용 점검용 엔드포인트
+app.get('/api/env-len', (req, res) => {
+  const v = process.env.DATABASE_URL || '';
+  res.status(v.trim()?200:500).json({ len: v.length, empty: !v.trim() });
+});
+
 // 임시 디버그 엔드포인트 - 실제 DATABASE_URL 확인
 app.get('/api/debug-db', (req, res) => {
   console.log('🔍 /api/debug-db 라우트 호출됨');
