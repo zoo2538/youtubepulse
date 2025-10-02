@@ -15,6 +15,15 @@ const PORT = process.env.PORT || 3000;
 let pool = null;
 let isConnected = false;
 
+// 환경 변수 충돌 방지 - PG* 변수 제거
+const conflictingVars = ['PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD', 'PGSSLMODE'];
+conflictingVars.forEach(varName => {
+  if (process.env[varName]) {
+    console.log(`🔧 충돌 변수 제거: ${varName}=${process.env[varName]}`);
+    delete process.env[varName];
+  }
+});
+
 if (process.env.DATABASE_URL) {
   console.log('🔍 DATABASE_URL 환경 변수 확인됨');
   console.log('🔍 DATABASE_URL 길이:', process.env.DATABASE_URL.length);
