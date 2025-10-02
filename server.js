@@ -31,6 +31,8 @@ if (process.env.DATABASE_URL) {
   
   // SSL 설정 이중 정의 방지: sslmode=require를 sslmode=disable로 변경
   let databaseUrl = process.env.DATABASE_URL;
+  console.log('🔍 원본 DATABASE_URL:', databaseUrl);
+  
   if (databaseUrl.includes('sslmode=require')) {
     databaseUrl = databaseUrl.replace('sslmode=require', 'sslmode=disable');
     console.log('🔧 SSL 설정 변경: sslmode=require → sslmode=disable');
@@ -41,6 +43,14 @@ if (process.env.DATABASE_URL) {
     console.log('🔧 SSL 설정 추가: sslmode=disable');
     console.log('🔧 수정된 DATABASE_URL:', databaseUrl);
   }
+  
+  // 강제로 sslmode=disable 적용 (최종 보장)
+  if (databaseUrl.includes('sslmode=')) {
+    databaseUrl = databaseUrl.replace(/sslmode=[^&]*/, 'sslmode=disable');
+  } else {
+    databaseUrl = databaseUrl + '?sslmode=disable';
+  }
+  console.log('🔧 최종 강제 적용된 DATABASE_URL:', databaseUrl);
   
   try {
   pool = new Pool({
