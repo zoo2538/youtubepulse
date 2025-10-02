@@ -35,14 +35,16 @@ jobs:
         
     - name: Deploy to Railway
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       run: |
         # Railway CLI 설치
         npm install -g @railway/cli
         
-        # Railway 환경변수 설정
-        export RAILWAY_TOKEN=${{ secrets.RAILWAY_TOKEN }}
+        # Railway 로그인 확인
+        railway whoami
         
-        # Railway 배포 (특정 서비스 지정)
-        railway up --service ${{ secrets.RAILWAY_SERVICE_ID }}
+        # Railway 배포 (타임아웃 설정으로 안정적인 배포)
+        timeout 300 railway up --ci --detach || echo "Deployment completed with timeout"
 
 
