@@ -31,6 +31,11 @@ conflictingVars.forEach(varName => {
 });
 
 // 0) ENV 강제 검증 + 로그
+// 부팅 초기에 추가
+const v = process.env.DATABASE_URL ?? null;
+console.log('ENV_KEYS', Object.keys(process.env).filter(k=>k.startsWith('PG')||k==='DATABASE_URL'));
+console.log('ENV_DATABASE_URL_LEN', v ? v.length : 0);
+
 const rawEnv = process.env.DATABASE_URL || '';
 const showPreview = (s) => s.length > 80 ? s.slice(0, 80) + '…' : s;
 if (!rawEnv || !rawEnv.trim()) {
