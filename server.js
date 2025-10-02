@@ -256,8 +256,18 @@ app.post('/api/classified', async (req, res) => {
     
     const client = await pool.connect();
     
-    // 수동수집 데이터 저장 (중복 체크 및 업데이트)
-    for (const item of data) {
+    // 대용량 데이터 처리 (10MB 초과 시 청크 단위로 저장)
+    if (dataSize > 10 * 1024 * 1024) {
+      console.log('⚠️ 대용량 데이터 감지, 청크 단위로 저장');
+      const chunkSize = 1000;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        await client.query(`INSERT INTO classification_data (data_type, data) VALUES ($1, $2)`, ['manual_classified', JSON.stringify(chunk)]);
+        console.log(`✅ 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
+      }
+    } else {
+      // 수동수집 데이터 저장 (중복 체크 및 업데이트)
+      for (const item of data) {
       // 기존 데이터 확인 (videoId 기준)
       const existing = await client.query(`
         SELECT id, data_type FROM classification_data 
@@ -897,8 +907,14 @@ async function autoCollectData() {
   }
 }
 
-// SPA 폴백 - 루트 포함 모든 경로 (Express 5 호환, 명명된 와일드카드)
-app.get('/*splat', (req, res) => {
+// SPA 폴백 - 모든 React Router 경로를 index.html로 리다이렉트
+app.get('*', (req, res) => {
+  // API 경로는 제외
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  
+  // React Router 경로들을 index.html로 리다이렉트
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 

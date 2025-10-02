@@ -12,7 +12,8 @@
     "production": {
       "variables": {
         "NODE_VERSION": "20",
-        "NIXPACKS_CACHE": "false"
+        "NIXPACKS_CACHE": "false",
+        "NIXPACKS_NO_CACHE": "true"
       }
     }
   }
