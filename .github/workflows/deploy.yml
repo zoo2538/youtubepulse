@@ -2,52 +2,27 @@ name: Deploy to Railway
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-        cache: 'npm'
-        cache-dependency-path: 'package-lock.json'
-        
-    - name: Install dependencies
-      run: npm ci
-      
-    - name: Build
-      run: npm run build
-      env:
-        VITE_APP_URL: ${{ secrets.VITE_APP_URL }}
-        VITE_YOUTUBE_API_KEY: ${{ secrets.VITE_YOUTUBE_API_KEY }}
-        VITE_EMAILJS_SERVICE_ID: ${{ secrets.VITE_EMAILJS_SERVICE_ID }}
-        VITE_EMAILJS_TEMPLATE_ID: ${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}
-        VITE_EMAILJS_PUBLIC_KEY: ${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}
-        
-    - name: Deploy to Railway
-      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-      env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      run: |
-        # Railway CLI 설치
-        npm install -g @railway/cli
-        
-        # Railway 토큰으로 로그인
-        echo "$RAILWAY_TOKEN" | railway login
-        
-        # Railway 로그인 확인
-        railway whoami
-        
-        # Railway 배포 (타임아웃 설정으로 안정적인 배포)
-        timeout 300 railway up --ci --detach || echo "Deployment completed with timeout"
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
+      - name: Install dependencies
+        run: npm ci
 
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway up --ci --detach
