@@ -67,7 +67,16 @@ if (process.env.DATABASE_URL) {
   }
   console.log('🔧 최종 강제 적용된 DATABASE_URL:', databaseUrl);
   console.log('🔧 DATABASE_URL 길이:', databaseUrl?.length || 0);
-  console.log('🔧 DATABASE_URL 호스트:', new URL(databaseUrl || '').hostname);
+  if (databaseUrl) {
+    try {
+      const url = new URL(databaseUrl);
+      console.log('🔧 DATABASE_URL 호스트:', url.hostname);
+      console.log('🔧 DATABASE_URL 포트:', url.port);
+      console.log('🔧 DATABASE_URL sslmode:', url.searchParams.get('sslmode'));
+    } catch (error) {
+      console.log('❌ DATABASE_URL 파싱 오류:', error.message);
+    }
+  }
   
   try {
   pool = new Pool({
