@@ -915,6 +915,7 @@ app.get('*', (req, res) => {
   }
   
   // React Router 경로들을 index.html로 리다이렉트
+  console.log('🔄 SPA 라우팅:', req.path, '→ index.html');
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
