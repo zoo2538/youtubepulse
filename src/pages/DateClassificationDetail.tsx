@@ -721,20 +721,55 @@ const DateClassificationDetail = () => {
                   분류
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     if (selectedItems.size === 0) {
                       alert('삭제할 항목을 선택해주세요.');
                       return;
                     }
                     const confirmMessage = `선택된 ${selectedItems.size}개 항목을 삭제하시겠습니까?`;
                     if (confirm(confirmMessage)) {
-                      setUnclassifiedData(prev => 
-                        prev.filter(item => !selectedItems.has(item.id))
-                      );
-                      setSelectedItems(new Set());
-                      setShowBulkActions(false);
-                      console.log(`✅ 대량 삭제 완료: ${selectedItems.size}개 항목 삭제`);
-                      alert(`✅ ${selectedItems.size}개 항목이 성공적으로 삭제되었습니다!`);
+                      try {
+                        // 1. 로컬 상태 업데이트
+                        const updatedData = unclassifiedData.filter(item => !selectedItems.has(item.id));
+                        setUnclassifiedData(updatedData);
+                        
+                        // 2. IndexedDB에서 삭제
+                        const selectedIds = Array.from(selectedItems);
+                        await indexedDBService.deleteUnclassifiedDataByIds(selectedIds);
+                        
+                        // 3. 서버 동기화 (API 서버가 연결된 경우)
+                        try {
+                          const response = await fetch('/api/sync/delete-unclassified', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ 
+                              ids: selectedIds,
+                              date: selectedDate 
+                            })
+                          });
+                          
+                          if (response.ok) {
+                            console.log('✅ 서버 동기화 완료');
+                          } else {
+                            console.log('⚠️ 서버 동기화 실패, 로컬에서만 삭제됨');
+                          }
+                        } catch (serverError) {
+                          console.log('⚠️ 서버 연결 실패, 로컬에서만 삭제됨');
+                        }
+                        
+                        // 4. UI 상태 초기화
+                        setSelectedItems(new Set());
+                        setShowBulkActions(false);
+                        
+                        console.log(`✅ 대량 삭제 완료: ${selectedItems.size}개 항목 삭제`);
+                        alert(`✅ ${selectedItems.size}개 항목이 성공적으로 삭제되었습니다!`);
+                        
+                      } catch (error) {
+                        console.error('❌ 삭제 실패:', error);
+                        alert('❌ 삭제 중 오류가 발생했습니다.');
+                      }
                     }
                   }}
                   variant="destructive"

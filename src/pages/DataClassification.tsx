@@ -122,8 +122,9 @@ const DataClassification = () => {
           console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
           setUnclassifiedData(sanitized);
           
-          // 날짜별 통계 계산 (초기 로드 시)
+          // 날짜별 통계 계산 (초기 로드 시) - 각 날짜별로 독립적으로 계산
           const initialDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+          
           sanitized.forEach(item => {
             const date = item.collectionDate || item.uploadDate;
             if (date) {

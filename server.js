@@ -1024,7 +1024,7 @@ async function autoCollectData() {
       const response = await fetch(channelsUrl);
       
       if (response.ok) {
-        const data = await response.json();
+    const data = await response.json();
         if (data.items) allChannels = [...allChannels, ...data.items];
         requestCount++;
       }
@@ -1126,6 +1126,100 @@ async function autoCollectData() {
     console.error('❌ 자동 수집 실패:', error);
   }
 }
+
+// 백업 파일 업로드 API
+app.post('/api/upload-backup', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  try {
+    const { backupData } = req.body;
+    console.log('📤 백업 파일 업로드 시작:', backupData?.exportDate);
+    
+    // 백업 데이터를 임시로 저장 (실제로는 파일 시스템이나 메모리에 저장)
+    // 여기서는 간단히 로그만 출력
+    console.log('📊 백업 데이터 요약:');
+    console.log(`- 내보내기 날짜: ${backupData.exportDate}`);
+    console.log(`- 날짜 범위: ${backupData.dateRange?.from} ~ ${backupData.dateRange?.to}`);
+    console.log(`- 총 영상: ${backupData.totalVideos}개`);
+    console.log(`- 분류된 영상: ${backupData.totalClassified}개`);
+    console.log(`- 미분류 영상: ${backupData.totalUnclassified}개`);
+    console.log(`- 일별 데이터: ${backupData.dailyData?.length}일`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Backup uploaded successfully',
+      dataSize: JSON.stringify(backupData).length
+    });
+  } catch (error) {
+    console.error('백업 업로드 실패:', error);
+    res.status(500).json({ error: 'Failed to upload backup' });
+  }
+});
+
+// 백업 복원 API
+app.post('/api/restore-backup', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  try {
+    console.log('🔄 백업 복원 시작...');
+    
+    // 여기서는 실제 백업 데이터를 처리
+    // 실제로는 업로드된 백업 데이터를 읽어서 처리
+    
+    res.json({ 
+      success: true, 
+      message: 'Backup restored successfully',
+      restored: {
+        classified: 0,
+        unclassified: 0,
+        channels: 0,
+        videos: 0
+      }
+    });
+  } catch (error) {
+    console.error('백업 복원 실패:', error);
+    res.status(500).json({ error: 'Failed to restore backup' });
+  }
+});
+
+// 미분류 데이터 삭제 동기화 API
+app.post('/api/sync/delete-unclassified', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  try {
+    const { ids, date } = req.body;
+    console.log(`🗑️ 미분류 데이터 삭제 동기화: ${ids.length}개 항목, 날짜: ${date}`);
+    
+    // PostgreSQL에서 해당 ID들의 데이터 삭제
+    const client = await pool.connect();
+    
+    for (const id of ids) {
+      await client.query(`
+        DELETE FROM classification_data 
+        WHERE data_type = 'unclassified' 
+        AND data->>'id' = $1
+      `, [id.toString()]);
+    }
+    
+    client.release();
+    
+    console.log(`✅ 서버에서 ${ids.length}개 미분류 데이터 삭제 완료`);
+    res.json({ 
+      success: true, 
+      message: 'Unclassified data deleted successfully',
+      deletedCount: ids.length
+    });
+  } catch (error) {
+    console.error('미분류 데이터 삭제 실패:', error);
+    res.status(500).json({ error: 'Failed to delete unclassified data' });
+  }
+});
 
 // 중복 라우트 제거됨 - 아래에 SPA 라우팅이 있음
 

@@ -136,14 +136,14 @@ const System = () => {
       localStorage_userRole: localStorage.getItem('userRole')
     });
     
-    // 임시로 권한 체크 완전 비활성화 - 로그인만 확인
+    // 로그인만 확인하고 모든 사용자 허용
     if (!isLoggedIn) {
-      console.log('❌ 로그인되지 않음 - 대시보드로 리다이렉트');
-      navigate('/dashboard');
+      console.log('❌ 로그인되지 않음 - 로그인 페이지로 리다이렉트');
+      navigate('/login');
       return;
     }
     
-    console.log('✅ 로그인 확인됨 - System 페이지 접근 허용 (권한 체크 임시 비활성화)');
+    console.log('✅ 로그인 확인됨 - System 페이지 접근 허용 (모든 로그인 사용자 허용)');
     
     // 원래 코드 (주석 처리)
     // if (userRole !== 'admin') {
@@ -496,27 +496,10 @@ const System = () => {
       
       const allVideos = [...trendingVideos, ...keywordVideos];
       
-      // 중복 제거 (videoId 기준, 조회수 높은 것 우선)
-      const videoMap = new Map();
+      // 중복 제거 로직 제거 - 모든 영상을 독립적으로 처리
+      const uniqueVideos = allVideos;
       
-      allVideos.forEach(video => {
-        const videoId = video.id;
-        if (videoId) {
-          const existingVideo = videoMap.get(videoId);
-          const currentViewCount = parseInt(video.statistics?.viewCount || '0');
-          const existingViewCount = existingVideo ? parseInt(existingVideo.statistics?.viewCount || '0') : 0;
-          
-          // 조회수가 더 높거나 처음 추가하는 경우
-          if (!existingVideo || currentViewCount > existingViewCount) {
-            videoMap.set(videoId, video);
-          }
-        }
-      });
-      
-      const uniqueVideos = Array.from(videoMap.values());
-      const duplicates = allVideos.length - uniqueVideos.length;
-      
-      console.log(`🔄 중복 제거: ${allVideos.length}개 → ${uniqueVideos.length}개 (${duplicates}개 중복 제거, 조회수 높은 것 유지)`);
+      console.log(`🔄 모든 영상 유지: ${allVideos.length}개 영상 (중복 제거 없음, 각 영상 독립 처리)`);
       
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // 4단계: 조회수 순 정렬
@@ -534,8 +517,7 @@ const System = () => {
       console.log(`트렌드 영상: ${trendingVideos.length}개`);
       console.log(`키워드 영상: ${keywordVideos.length}개 (${keywords.length}개 키워드)`);
       console.log(`전체 수집: ${allVideos.length}개`);
-      console.log(`중복 제거 후: ${uniqueVideos.length}개`);
-      console.log(`중복률: ${((duplicates / allVideos.length) * 100).toFixed(1)}%`);
+      console.log(`최종 영상: ${uniqueVideos.length}개`);
       console.log(`API 요청: ${requestCount}번`);
       console.log('========================');
 
@@ -658,8 +640,8 @@ const System = () => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
         const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
         
-        // 기존에 있던 영상이면 기존 날짜 유지, 새 영상이면 오늘 날짜
-        const collectionDate = existingVideoDateMap.get(video.id) || today;
+        // 오늘 수집된 모든 영상은 오늘 날짜로 설정 (기존 날짜 유지하지 않음)
+        const collectionDate = today;
         
         return {
           id: Date.now() + index,
@@ -671,7 +653,7 @@ const System = () => {
           videoDescription: video.snippet.description,
           viewCount: parseInt(video.statistics?.viewCount || '0'),
           uploadDate: video.snippet.publishedAt.split('T')[0],
-          collectionDate: collectionDate, // 🔥 기존 영상은 기존 날짜 유지, 새 영상은 오늘 날짜
+          collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
           category: existingClassification?.category || "",
           subCategory: existingClassification?.subCategory || "",
@@ -694,54 +676,35 @@ const System = () => {
           videoDateMap.set(key, item);
         });
         
-        // 2단계: 새 데이터 추가 (같은 날짜의 같은 영상만 업데이트)
+        // 2단계: 새 데이터 추가 (오늘 날짜의 영상만 처리, 다른 날짜는 절대 건드리지 않음)
         newData.forEach(item => {
           const key = `${item.videoId}_${item.collectionDate}`;
           
           if (!videoDateMap.has(key)) {
-            // 새로운 영상 또는 새로운 날짜면 바로 추가
+            // 새로운 영상이면 바로 추가
             videoDateMap.set(key, item);
           } else {
-            // 같은 날짜의 같은 영상이면 업데이트 정책 적용
+            // 같은 날짜의 같은 영상이면 조회수 높은 것만 유지 (오늘 날짜만)
             const existing = videoDateMap.get(key);
             
-            // 업데이트 우선순위:
-            // 1. 분류 상태 (classified > unclassified)
-            // 2. 최신 조회수 (더 높은 조회수 우선)
-            // 3. 최신 수집 시간
-            let shouldUpdate = false;
-            
-            if (existing.status === 'unclassified' && item.status === 'classified') {
-              // 분류된 데이터로 업데이트
-              shouldUpdate = true;
-              console.log(`📊 영상 업데이트 (분류): ${item.videoTitle} - ${existing.status} → ${item.status}`);
-            } else if (existing.status === item.status) {
-              // 같은 상태라면 조회수나 수집 시간 비교
+            // 오늘 날짜의 영상만 처리 (다른 날짜는 절대 건드리지 않음)
+            if (item.collectionDate === today) {
+              // 조회수 비교: 더 높은 조회수 우선
               if (item.viewCount > existing.viewCount) {
-                shouldUpdate = true;
-                console.log(`📊 영상 업데이트 (조회수): ${item.videoTitle} - ${existing.viewCount?.toLocaleString()} → ${item.viewCount?.toLocaleString()}`);
-              } else if (item.viewCount === existing.viewCount && item.collectionDate > existing.collectionDate) {
-                shouldUpdate = true;
-                console.log(`📊 영상 업데이트 (시간): ${item.videoTitle} - ${existing.collectionDate} → ${item.collectionDate}`);
+                console.log(`📊 오늘 영상 교체 (조회수 높음): ${item.videoTitle} - ${existing.viewCount?.toLocaleString()} → ${item.viewCount?.toLocaleString()}`);
+                videoDateMap.set(key, item);
+              } else if (item.viewCount === existing.viewCount) {
+                // 조회수가 같으면 분류 상태 우선 (classified > unclassified)
+                if (existing.status === 'unclassified' && item.status === 'classified') {
+                  console.log(`📊 오늘 영상 교체 (분류됨): ${item.videoTitle} - ${existing.status} → ${item.status}`);
+                  videoDateMap.set(key, item);
+                }
+                // 같은 상태면 기존 데이터 유지
               }
-            }
-            
-            if (shouldUpdate) {
-              // 기존 데이터의 분류 정보 보존하면서 통계 업데이트
-              const updatedItem = {
-                ...item,
-                // 분류 정보는 기존 데이터 우선 (분류 작업 보존)
-                category: existing.category || item.category,
-                subCategory: existing.subCategory || item.subCategory,
-                status: existing.status || item.status,
-                // 통계 정보는 최신 데이터로 업데이트
-                viewCount: Math.max(item.viewCount || 0, existing.viewCount || 0),
-                likeCount: Math.max(item.likeCount || 0, existing.likeCount || 0),
-                commentCount: Math.max(item.commentCount || 0, existing.commentCount || 0),
-                // 수집 시간은 최신 것으로
-                collectionDate: item.collectionDate > existing.collectionDate ? item.collectionDate : existing.collectionDate
-              };
-              videoDateMap.set(key, updatedItem);
+              // 조회수가 낮으면 기존 데이터 유지
+            } else {
+              // 다른 날짜의 영상은 절대 건드리지 않음 (이미 지난 날짜의 데이터 보존)
+              console.log(`📊 다른 날짜 영상 보존: ${item.videoTitle} (${item.collectionDate}) - 이미 지난 날짜, 건드리지 않음`);
             }
           }
         });

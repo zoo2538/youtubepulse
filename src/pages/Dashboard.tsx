@@ -71,17 +71,15 @@ const Dashboard = () => {
                   📊 데이터
                 </Button>
               </Link>
-              {isAdmin && (
-                <Link to="/system">
-                  <Button 
-                    size="sm"
-                    className="bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    시스템
-                  </Button>
-                </Link>
-              )}
+              <Link to="/system">
+                <Button 
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  시스템
+                </Button>
+              </Link>
               {isAdmin && (
                 <Link to="/user-management">
                   <Button 

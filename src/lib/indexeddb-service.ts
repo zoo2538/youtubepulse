@@ -1211,6 +1211,39 @@ class IndexedDBService {
     return info;
   }
 
+  // ID로 미분류 데이터 삭제
+  async deleteUnclassifiedDataByIds(ids: number[]): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      
+      let completedCount = 0;
+      const totalCount = ids.length;
+      
+      if (totalCount === 0) {
+        resolve();
+        return;
+      }
+      
+      ids.forEach(id => {
+        const deleteRequest = store.delete(id);
+        deleteRequest.onsuccess = () => {
+          completedCount++;
+          if (completedCount === totalCount) {
+            console.log(`✅ IndexedDB에서 ${totalCount}개 데이터 삭제 완료`);
+            resolve();
+          }
+        };
+        deleteRequest.onerror = () => {
+          console.error(`❌ ID ${id} 삭제 실패:`, deleteRequest.error);
+          reject(deleteRequest.error);
+        };
+      });
+    });
+  }
+
   // 특정 날짜의 데이터 삭제 (수집일 기준)
   async deleteDataByDate(collectionDate: string): Promise<void> {
     if (!this.db) await this.init();
