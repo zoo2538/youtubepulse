@@ -101,7 +101,7 @@ if (process.env.DATABASE_URL) {
   
   try {
   // 1) Pool 생성은 ENV 검증 이후
-  pool = new Pool({ connectionString: rawEnv.trim() }); // 코드 ssl 옵션 제거, 문자열 한 곳만 사용
+  pool = new Pool({ connectionString: databaseUrl }); // 코드 ssl 옵션 제거, 문자열 한 곳만 사용
     console.log('✅ PostgreSQL 연결 풀 생성 완료 - 강제 재시작 트리거');
     
     // 2) 기동 확인용 쿼리
