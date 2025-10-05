@@ -1319,7 +1319,7 @@ app.post('/api/sync/delete-unclassified', async (req, res) => {
   }
 });
 
-// 백업 복원 API
+// 안전한 백업 복원 API (중복 방지)
 app.post('/api/backup/import', async (req, res) => {
   try {
     const { data, date } = req.body;
@@ -1330,35 +1330,68 @@ app.post('/api/backup/import', async (req, res) => {
     
     const client = await pool.connect();
     
-    // 기존 데이터 삭제 (해당 날짜)
-    await client.query(`
-      DELETE FROM unclassified_data 
-      WHERE collection_date = $1
-    `, [date]);
+    console.log(`🔄 안전한 백업 복원 시작: ${data.length}개 레코드, 날짜: ${date}`);
     
-    // 새 데이터 삽입
+    // 안전한 업서트로 중복 방지
+    let successCount = 0;
+    let duplicateCount = 0;
+    
     for (const item of data) {
-      await client.query(`
-        INSERT INTO unclassified_data (
-          video_id, channel_id, channel_name, video_title, 
-          video_description, view_count, upload_date, collection_date,
-          thumbnail_url, category, sub_category, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      `, [
-        item.videoId, item.channelId, item.channelName, item.videoTitle,
-        item.videoDescription, item.viewCount, item.uploadDate, item.collectionDate,
-        item.thumbnailUrl, item.category, item.subCategory, item.status
-      ]);
+      try {
+        // day_key_local 계산
+        const dayKeyLocal = item.dayKeyLocal || 
+          (item.collectionDate ? new Date(item.collectionDate).toISOString().split('T')[0] : 
+           new Date().toISOString().split('T')[0]);
+        
+        // 안전한 업서트 (중복 시 최대값 보존)
+        await client.query(`
+          INSERT INTO unclassified_data (
+            video_id, channel_id, channel_name, video_title, 
+            video_description, view_count, upload_date, collection_date,
+            thumbnail_url, category, sub_category, status, day_key_local
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ON CONFLICT (video_id, day_key_local) 
+          DO UPDATE SET
+            channel_id = EXCLUDED.channel_id,
+            channel_name = EXCLUDED.channel_name,
+            video_title = EXCLUDED.video_title,
+            video_description = EXCLUDED.video_description,
+            view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
+            upload_date = EXCLUDED.upload_date,
+            thumbnail_url = EXCLUDED.thumbnail_url,
+            category = EXCLUDED.category,
+            sub_category = EXCLUDED.sub_category,
+            status = EXCLUDED.status,
+            updated_at = NOW()
+        `, [
+          item.videoId, item.channelId, item.channelName, item.videoTitle,
+          item.videoDescription, item.viewCount, item.uploadDate, item.collectionDate,
+          item.thumbnailUrl, item.category, item.subCategory, item.status, dayKeyLocal
+        ]);
+        
+        successCount++;
+      } catch (error) {
+        if (error.code === '23505') { // 유니크 제약 위반
+          duplicateCount++;
+          console.log(`⚠️  중복 감지: ${item.videoId} (${dayKeyLocal})`);
+        } else {
+          console.error(`❌ 레코드 처리 실패 ${item.videoId}:`, error.message);
+        }
+      }
     }
     
     client.release();
     
-    console.log(`✅ 백업 복원 완료: ${data.length}개 데이터, 날짜: ${date}`);
+    console.log(`✅ 안전한 백업 복원 완료: 성공 ${successCount}개, 중복 ${duplicateCount}개`);
     res.json({ 
       success: true, 
-      message: 'Backup restored successfully',
-      restoredCount: data.length,
-      date: date
+      message: 'Backup restored safely with duplicate prevention',
+      stats: {
+        total: data.length,
+        success: successCount,
+        duplicates: duplicateCount,
+        date: date
+      }
     });
   } catch (error) {
     console.error('백업 복원 실패:', error);
