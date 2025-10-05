@@ -171,26 +171,26 @@ class HybridSyncService {
 
       for (const record of data.records) {
         try {
-          // 로컬 데이터와 충돌 확인
-          const localData = await indexedDBService.getUnclassifiedDataById(record.id);
+          // 키 단일화: dayKeyLocal 우선 사용
+          const dayKey = record.dayKeyLocal || 
+                        (record.collectionDate ? new Date(record.collectionDate).toISOString().split('T')[0] : null) ||
+                        (record.uploadDate ? new Date(record.uploadDate).toISOString().split('T')[0] : null);
           
-          if (localData) {
-            // 충돌 해결: Last-Write-Wins
-            if (record.updatedAt > localData.updatedAt) {
-              await indexedDBService.updateUnclassifiedData(record);
-              conflicts++;
-              console.log(`🔄 충돌 해결: ${record.id} (서버 우선)`);
-            } else {
-              console.log(`📝 로컬 데이터 유지: ${record.id}`);
-            }
-          } else {
-            // 최대값 보존 upsert 사용
-            await indexedDBService.upsertUnclassifiedDataWithMaxValues([record]);
-            downloaded++;
+          if (!dayKey) {
+            console.warn(`⚠️ 날짜 키가 없는 레코드 스킵: ${record.videoId}`);
+            continue;
           }
+          
+          const key = `${record.videoId}|${dayKey}`;
+          console.log(`🔍 키 기반 조회: ${key}`);
+          
+          // 최대값 보존 upsert 사용 (기존 데이터와 자동 병합)
+          await indexedDBService.upsertUnclassifiedDataWithMaxValues([record]);
+          downloaded++;
+          console.log(`✅ 데이터 upsert: ${record.videoId} (${record.dayKeyLocal})`);
 
         } catch (error) {
-          console.error(`❌ 레코드 처리 실패 ${record.id}:`, error);
+          console.error(`❌ 레코드 처리 실패 ${record.videoId}:`, error);
         }
       }
 
