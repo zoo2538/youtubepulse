@@ -67,6 +67,7 @@ interface UnclassifiedData {
   viewCount: number;
   uploadDate: string;
   collectionDate?: string;
+  dayKeyLocal?: string; // KST 기준 일자 키
   category: string;
   subCategory: string;
   status: 'unclassified' | 'classified' | 'pending';
@@ -252,7 +253,7 @@ const DataClassification = () => {
           // 3. 날짜별 통계 계산
           const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
           savedData?.forEach(item => {
-            const date = item.collectionDate || item.uploadDate;
+            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
             if (date) {
               if (!newDateStats[date]) {
                 newDateStats[date] = { total: 0, classified: 0, progress: 0 };
@@ -405,7 +406,7 @@ const DataClassification = () => {
     const cutoffString = cutoffDate.toISOString().split('T')[0];
     
     const filteredData = unclassifiedData.filter(item => {
-      const itemDate = item.collectionDate || item.uploadDate;
+      const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
       return itemDate >= cutoffString;
     });
     
@@ -444,7 +445,7 @@ const DataClassification = () => {
       console.log('📊 일괄저장 - 분류된 데이터:', classifiedData.length);
       console.log('📊 일괄저장 - 분류된 데이터 날짜 분포:', 
         classifiedData.reduce((acc, item) => {
-          const date = item.collectionDate || item.uploadDate;
+          const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           acc[date] = (acc[date] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
@@ -454,7 +455,7 @@ const DataClassification = () => {
       const allClassifiedData = [];
       sevenDays.forEach(date => {
         const dateClassifiedData = classifiedData.filter(item => {
-          const itemDate = item.collectionDate || item.uploadDate;
+          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
         });
         allClassifiedData.push(...dateClassifiedData);
@@ -466,7 +467,7 @@ const DataClassification = () => {
       // 진행률 데이터 생성 (14일간 모든 날짜)
       const progressData = sevenDays.map(date => {
         const dateData = unclassifiedData.filter(item => {
-          const itemDate = item.collectionDate || item.uploadDate;
+          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
         });
         
@@ -508,7 +509,7 @@ const DataClassification = () => {
   const handleDownloadBackup = async (date: string) => {
     try {
       const dateData = unclassifiedData.filter(item => {
-        const itemDate = item.collectionDate || item.uploadDate;
+        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
         return itemDate === date;
       });
 
@@ -555,10 +556,10 @@ const DataClassification = () => {
         classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
         unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
         dailyProgress: availableDates.slice(0, 7).map(date => {
-          const dateData = unclassifiedData.filter(item => {
-            const itemDate = item.collectionDate || item.uploadDate;
-            return itemDate === date;
-          });
+      const dateData = unclassifiedData.filter(item => {
+        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+        return itemDate === date;
+      });
           
           const total = dateData.length;
           const classified = dateData.filter(item => item.status === 'classified').length;
@@ -701,7 +702,7 @@ const DataClassification = () => {
       // 날짜별 통계 재계산
       const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
       filteredData.forEach(item => {
-        const date = item.collectionDate || item.uploadDate;
+        const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
         if (date) {
           if (!newDateStats[date]) {
             newDateStats[date] = { total: 0, classified: 0, progress: 0 };
@@ -989,7 +990,7 @@ const DataClassification = () => {
                 // dateStats 상태 강제 업데이트 (원본 데이터 사용)
                 const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
                 allData.forEach((item: any) => {
-                  const date = item.collectionDate || item.uploadDate;
+                  const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
                   if (date) {
                     if (!newDateStats[date]) {
                       newDateStats[date] = { total: 0, classified: 0, progress: 0 };
@@ -1034,7 +1035,7 @@ const DataClassification = () => {
                 // dateStats 상태 강제 업데이트
                 const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
                 dataToRestore.forEach((item: any) => {
-                  const date = item.collectionDate || item.uploadDate;
+                  const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
                   if (date) {
                     if (!newDateStats[date]) {
                       newDateStats[date] = { total: 0, classified: 0, progress: 0 };
@@ -1078,7 +1079,7 @@ const DataClassification = () => {
       // 데이터가 있는 날짜들만 필터링
       const datesWithData = availableDates.slice(0, 7).filter(date => {
         const dateData = unclassifiedData.filter(item => {
-          const itemDate = item.collectionDate || item.uploadDate;
+          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
         });
         return dateData.length > 0;
@@ -1093,7 +1094,7 @@ const DataClassification = () => {
       const exportData = datesWithData.map(date => {
         const dateData = unclassifiedData.filter(item => {
           // 1. collectionDate 또는 uploadDate 확인
-          const itemDate = item.collectionDate || item.uploadDate;
+          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           if (itemDate === date) return true;
           
           // 2. ID 타임스탬프 확인 (실제 수집 시간)
@@ -1169,7 +1170,7 @@ const DataClassification = () => {
     try {
       // 날짜 범위 내의 데이터 필터링
       const rangeData = unclassifiedData.filter(item => {
-        const itemDate = item.collectionDate || item.uploadDate;
+        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
         return itemDate >= startDate && itemDate <= endDate;
       });
 
@@ -1180,7 +1181,7 @@ const DataClassification = () => {
 
       // 날짜별로 그룹화
       const groupedData = rangeData.reduce((acc, item) => {
-        const date = item.collectionDate || item.uploadDate;
+        const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
         if (!acc[date]) {
           acc[date] = [];
         }
@@ -1251,7 +1252,7 @@ const DataClassification = () => {
 
   const dateRange = getDateRange(selectedDate);
   const filteredData = unclassifiedData.filter(item => {
-    const itemDate = item.collectionDate || item.uploadDate;
+    const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
     return itemDate && dateRange.includes(itemDate.split('T')[0]);
   });
 

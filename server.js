@@ -245,10 +245,33 @@ console.log('🚀 API 서버 준비 완료 - v2.0.0');
 // API 라우트
 app.get('/api/health', async (req, res) => {
   try {
-    const r = await pool.query('select 1 as ok');
-    res.json({ status: 'OK', message: 'YouTube Pulse API Server', database: 'Connected', ok: r.rows?.[0]?.ok === 1 });
+    // 실제 연결 시도로 DB 상태 판정
+    const client = await pool.connect();
+    try {
+      // 경량 쿼리로 ping
+      const result = await client.query('SELECT 1 as ok');
+      res.json({ 
+        status: 'OK', 
+        message: 'YouTube Pulse API Server', 
+        database: 'Connected', 
+        poolExists: !!pool,
+        isConnected: true,
+        ok: result.rows?.[0]?.ok === 1,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      client.release();
+    }
   } catch (e) {
-    res.json({ status: 'OK', message: 'YouTube Pulse API Server', database: 'Not connected', error: e.message });
+    res.status(500).json({ 
+      status: 'ERROR', 
+      message: 'YouTube Pulse API Server', 
+      database: 'Not connected', 
+      poolExists: !!pool,
+      isConnected: false,
+      error: e.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
@@ -281,24 +304,40 @@ app.get('/api/debug-db', (req, res) => {
   }
 });
 
-// 임시 health-sql 엔드포인트 - 실제 쿼리 실행
+// 개선된 health-sql 엔드포인트 - 실제 연결 시도로 판정
 app.get('/api/health-sql', async (req, res) => {
   try {
     if (!pool) {
-      return res.status(500).json({ ok: false, error: 'Pool not initialized' });
+      return res.status(500).json({ 
+        ok: false, 
+        error: 'Pool not initialized',
+        poolExists: false,
+        isConnected: false
+      });
     }
-    const result = await pool.query('SELECT 1 as ok, NOW() as current_time');
-  res.json({ 
-      ok: true, 
-      rows: result.rows.length, 
-      sample: result.rows[0],
-      poolExists: !!pool
-    });
+    
+    // 실제 연결 시도로 DB 상태 판정
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT 1 as ok, NOW() as current_time');
+      res.json({ 
+        ok: true, 
+        rows: result.rows.length, 
+        sample: result.rows[0],
+        poolExists: !!pool,
+        isConnected: true,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      client.release();
+    }
   } catch (error) {
     res.status(500).json({ 
       ok: false, 
       error: error.message,
-      poolExists: !!pool
+      poolExists: !!pool,
+      isConnected: false,
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -605,21 +644,32 @@ app.get('/api/unclassified', async (req, res) => {
     
     if (date) {
       // 날짜별 조회 결과를 API 형식으로 변환
-      const data = result.rows.map(row => ({
-        id: row.id,
-        videoId: row.video_id,
-        channelId: row.channel_id,
-        channelName: row.channel_name,
-        videoTitle: row.video_title,
-        videoDescription: row.video_description,
-        viewCount: row.view_count,
-        uploadDate: row.upload_date,
-        collectionDate: row.collection_date,
-        thumbnailUrl: row.thumbnail_url,
-        category: row.category || '',
-        subCategory: row.sub_category || '',
-        status: row.status || 'unclassified'
-      }));
+      const data = result.rows.map(row => {
+        // KST 기준 day_key_local 생성
+        const dayKeyLocal = new Date(row.collection_date).toLocaleDateString('ko-KR', {
+          timeZone: 'Asia/Seoul',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).replace(/\./g, '-').replace(/\s/g, '');
+        
+        return {
+          id: row.id,
+          videoId: row.video_id,
+          channelId: row.channel_id,
+          channelName: row.channel_name,
+          videoTitle: row.video_title,
+          videoDescription: row.video_description,
+          viewCount: row.view_count,
+          uploadDate: row.upload_date,
+          collectionDate: row.collection_date,
+          dayKeyLocal: dayKeyLocal, // KST 기준 일자 키 추가
+          thumbnailUrl: row.thumbnail_url,
+          category: row.category || '',
+          subCategory: row.sub_category || '',
+          status: row.status || 'unclassified'
+        };
+      });
       res.json({ success: true, data });
     } else {
       // 기존 방식
@@ -1112,7 +1162,13 @@ async function autoCollectData() {
     console.log(`✅ 자동 분류 참조: ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
     // 6단계: 데이터 변환 및 저장
-    const today = new Date().toISOString().split('T')[0];
+    // KST 기준으로 오늘 날짜 생성
+    const today = new Date().toLocaleDateString('ko-KR', { 
+      timeZone: 'Asia/Seoul',
+      year: 'numeric',
+      month: '2-digit', 
+      day: '2-digit'
+    }).replace(/\./g, '-').replace(/\s/g, '');
     const newData = uniqueVideos.map((video, index) => {
       const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
       const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
