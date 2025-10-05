@@ -1,0 +1,47 @@
+# YouTube Pulse 하이브리드 시스템 개발 규칙
+
+## 핵심 원칙
+- Use Asia/Seoul to compute dayKeyLocal on server responses; frontend must only group by dayKeyLocal.
+- Enforce unique (videoId, dayKeyLocal) on server and local.
+- On conflict, keep max view/like counters; manual classification fields take precedence.
+- Implement idempotent restore: load into temp table, then merge with ON CONFLICT + GREATEST.
+- Sync: server->local via since, local->server via idempotent upsert queue.
+
+## 서버 개발 규칙
+- Always use ON CONFLICT (video_id, day_key_local) DO UPDATE with GREATEST() for view_count/like_count
+- Generate dayKeyLocal using Asia/Seoul timezone in all API responses
+- Use temp tables for bulk imports to ensure idempotent operations
+- Implement since-based incremental sync for server->local downloads
+- Use idempotent upsert for local->server uploads
+
+## 클라이언트 개발 규칙
+- Always use dayKeyLocal as primary grouping key, fallback to collectionDate then uploadDate
+- Implement Math.max() merging for viewCount/likeCount in IndexedDB
+- Use composite key ['videoId', 'dayKeyLocal'] with unique constraint in IndexedDB
+- Implement idempotent restore for backup/restore operations
+- Use hybrid sync service for bidirectional synchronization
+
+## 데이터 모델 규칙
+- Server: (video_id, day_key_local) unique constraint
+- Local: ['videoId', 'dayKeyLocal'] unique index
+- Timezone: Always Asia/Seoul for dayKeyLocal generation
+- Merge: GREATEST() on server, Math.max() on client
+- Classification: Manual fields take precedence over automatic
+
+## API 엔드포인트 규칙
+- /api/sync/download?since=timestamp for incremental server->local sync
+- /api/sync/upload for idempotent local->server sync
+- /api/restore/idempotent for safe backup restoration
+- All endpoints must handle dayKeyLocal consistently
+
+## 테스트 규칙
+- Test idempotency: same backup restored twice should produce identical results
+- Test timezone consistency: dayKeyLocal must be same on server and client
+- Test merge behavior: max values preserved, manual classification takes precedence
+- Test sync behavior: bidirectional sync maintains data consistency
+
+## 배포 규칙
+- Apply unique constraints before deployment
+- Use temp table merge for all bulk operations
+- Implement proper error handling for sync operations
+- Maintain backward compatibility for existing data

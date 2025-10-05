@@ -1347,7 +1347,113 @@ class IndexedDBService {
       classifiedRequest.onerror = () => reject(classifiedRequest.error);
     });
   }
-  // 최대값 보존 upsert (videoId, dayKeyLocal 기준)
+  // 멱등 복원을 위한 강화된 upsert (videoId, dayKeyLocal 기준)
+  async idempotentUpsertUnclassifiedData(data: any[]): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      const videoDayIndex = store.index('videoDay');
+      
+      let completed = 0;
+      let merged = 0;
+      let newRecords = 0;
+      const total = data.length;
+      
+      if (total === 0) {
+        resolve();
+        return;
+      }
+      
+      console.log(`🔄 IndexedDB 멱등 복원 시작: ${total}개 레코드`);
+      
+      data.forEach((item) => {
+        // dayKeyLocal이 없으면 생성
+        if (!item.dayKeyLocal && item.collectionDate) {
+          const date = new Date(item.collectionDate);
+          item.dayKeyLocal = date.toISOString().split('T')[0];
+        }
+        
+        const key = [item.videoId, item.dayKeyLocal];
+        const getRequest = videoDayIndex.get(key);
+        
+        getRequest.onsuccess = () => {
+          if (getRequest.result) {
+            // 기존 레코드가 있으면 최대값으로 병합 (멱등)
+            const existing = getRequest.result;
+            const updated = {
+              ...existing,
+              viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+              likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
+              channelName: item.channelName || existing.channelName,
+              videoTitle: item.videoTitle || existing.videoTitle,
+              videoDescription: item.videoDescription || existing.videoDescription,
+              thumbnailUrl: item.thumbnailUrl || existing.thumbnailUrl,
+              category: item.category || existing.category,
+              subCategory: item.subCategory || existing.subCategory,
+              status: item.status || existing.status,
+              updatedAt: new Date().toISOString()
+            };
+            
+            const putRequest = store.put(updated);
+            putRequest.onsuccess = () => {
+              merged++;
+              completed++;
+              if (completed === total) {
+                console.log(`✅ IndexedDB 멱등 복원 완료: 병합 ${merged}개, 신규 ${newRecords}개`);
+                resolve();
+              }
+            };
+            putRequest.onerror = () => {
+              console.error('IndexedDB 병합 실패:', putRequest.error);
+              completed++;
+              if (completed === total) {
+                resolve(); // 일부 실패해도 계속 진행
+              }
+            };
+          } else {
+            // 새 레코드 추가
+            const newItem = {
+              ...item,
+              id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              createdAt: item.createdAt || new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            
+            const addRequest = store.add(newItem);
+            addRequest.onsuccess = () => {
+              newRecords++;
+              completed++;
+              if (completed === total) {
+                console.log(`✅ IndexedDB 멱등 복원 완료: 병합 ${merged}개, 신규 ${newRecords}개`);
+                resolve();
+              }
+            };
+            addRequest.onerror = () => {
+              console.error('IndexedDB 추가 실패:', addRequest.error);
+              completed++;
+              if (completed === total) {
+                resolve(); // 일부 실패해도 계속 진행
+              }
+            };
+          }
+        };
+        
+        getRequest.onerror = () => {
+          console.error('IndexedDB 조회 실패:', getRequest.error);
+          completed++;
+          if (completed === total) {
+            resolve(); // 일부 실패해도 계속 진행
+          }
+        };
+      });
+    });
+  }
+
+  // 최대값 보존 upsert (videoId, dayKeyLocal 기준) - 기존 호환성 유지
   async upsertUnclassifiedDataWithMaxValues(data: any[]): Promise<void> {
     if (!this.db) {
       throw new Error('Database not initialized');

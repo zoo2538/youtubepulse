@@ -1612,6 +1612,153 @@ app.get('/api/sync/check', async (req, res) => {
   }
 });
 
+// 멱등 복원 API (근본적 해결)
+app.post('/api/restore/idempotent', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { data } = req.body;
+    const client = await pool.connect();
+    
+    console.log(`🔄 멱등 복원 시작: ${data.length}개 레코드`);
+    
+    // 임시 테이블 생성
+    await client.query(`
+      CREATE TEMP TABLE temp_video_import (
+        video_id VARCHAR(255),
+        day_key_local VARCHAR(10),
+        channel_id VARCHAR(255),
+        channel_name VARCHAR(255),
+        video_title TEXT,
+        video_description TEXT,
+        view_count BIGINT,
+        upload_date TIMESTAMP,
+        collection_date TIMESTAMP,
+        thumbnail_url TEXT,
+        category VARCHAR(100),
+        sub_category VARCHAR(100),
+        status VARCHAR(50)
+      )
+    `);
+    
+    // 임시 테이블에 데이터 적재
+    for (const item of data) {
+      const dayKeyLocal = item.dayKeyLocal || 
+        (item.collectionDate ? new Date(item.collectionDate).toISOString().split('T')[0] : 
+         new Date().toISOString().split('T')[0]);
+      
+      await client.query(`
+        INSERT INTO temp_video_import (
+          video_id, day_key_local, channel_id, channel_name, video_title,
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      `, [
+        item.videoId, dayKeyLocal, item.channelId, item.channelName, item.videoTitle,
+        item.videoDescription, item.viewCount, item.uploadDate, item.collectionDate,
+        item.thumbnailUrl, item.category, item.subCategory, item.status
+      ]);
+    }
+    
+    // 복원 전 데이터 개수
+    const beforeUnclassified = await client.query('SELECT COUNT(*) as count FROM unclassified_data');
+    const beforeDaily = await client.query('SELECT COUNT(*) as count FROM daily_video_stats');
+    
+    // 멱등 머지 실행
+    const mergeResult = await client.query(`
+      WITH merge_result AS (
+        INSERT INTO unclassified_data (
+          video_id, day_key_local, channel_id, channel_name, video_title,
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status, created_at, updated_at
+        )
+        SELECT 
+          video_id, day_key_local, channel_id, channel_name, video_title,
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status, NOW(), NOW()
+        FROM temp_video_import
+        ON CONFLICT (video_id, day_key_local)
+        DO UPDATE SET
+          channel_id = EXCLUDED.channel_id,
+          channel_name = EXCLUDED.channel_name,
+          video_title = EXCLUDED.video_title,
+          video_description = EXCLUDED.video_description,
+          view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
+          upload_date = EXCLUDED.upload_date,
+          thumbnail_url = EXCLUDED.thumbnail_url,
+          category = EXCLUDED.category,
+          sub_category = EXCLUDED.sub_category,
+          status = EXCLUDED.status,
+          updated_at = NOW()
+        RETURNING 
+          CASE WHEN xmax = 0 THEN 'new' ELSE 'merged' END as action
+      )
+      SELECT 
+        COUNT(*) FILTER (WHERE action = 'merged') as merged,
+        COUNT(*) FILTER (WHERE action = 'new') as new
+      FROM merge_result
+    `);
+    
+    // daily_video_stats도 동일하게 머지
+    await client.query(`
+      INSERT INTO daily_video_stats (
+        video_id, day_key_local, channel_id, channel_name, video_title,
+        video_description, view_count, upload_date, collection_date,
+        thumbnail_url, category, sub_category, status, created_at, updated_at
+      )
+      SELECT 
+        video_id, day_key_local, channel_id, channel_name, video_title,
+        video_description, view_count, upload_date, collection_date,
+        thumbnail_url, category, sub_category, status, NOW(), NOW()
+      FROM temp_video_import
+      ON CONFLICT (video_id, day_key_local)
+      DO UPDATE SET
+        channel_name = EXCLUDED.channel_name,
+        video_title = EXCLUDED.video_title,
+        video_description = EXCLUDED.video_description,
+        view_count = GREATEST(daily_video_stats.view_count, EXCLUDED.view_count),
+        like_count = GREATEST(daily_video_stats.like_count, EXCLUDED.like_count),
+        upload_date = EXCLUDED.upload_date,
+        thumbnail_url = EXCLUDED.thumbnail_url,
+        category = EXCLUDED.category,
+        sub_category = EXCLUDED.sub_category,
+        status = EXCLUDED.status,
+        updated_at = NOW()
+    `);
+    
+    // 복원 후 데이터 개수
+    const afterUnclassified = await client.query('SELECT COUNT(*) as count FROM unclassified_data');
+    const afterDaily = await client.query('SELECT COUNT(*) as count FROM daily_video_stats');
+    
+    client.release();
+    
+    console.log(`✅ 멱등 복원 완료: 병합 ${mergeResult.rows[0].merged}개, 신규 ${mergeResult.rows[0].new}개`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Idempotent restore completed',
+      stats: {
+        total: data.length,
+        merged: mergeResult.rows[0].merged,
+        new: mergeResult.rows[0].new,
+        before: {
+          unclassified: beforeUnclassified.rows[0].count,
+          daily: beforeDaily.rows[0].count
+        },
+        after: {
+          unclassified: afterUnclassified.rows[0].count,
+          daily: afterDaily.rows[0].count
+        }
+      }
+    });
+  } catch (error) {
+    console.error('멱등 복원 실패:', error);
+    res.status(500).json({ error: 'Failed to perform idempotent restore' });
+  }
+});
+
 // 중복 정리 API
 app.post('/api/cleanup-duplicates', async (req, res) => {
   if (!pool) {
