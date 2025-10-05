@@ -14,7 +14,8 @@ jobs:
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
-      RAILWAY_SERVICE_NAME: ${{ secrets.RAILWAY_SERVICE_NAME }}
+      RAILWAY_ENV_NAME: production
+      RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
     
     steps:
       - name: Checkout code
@@ -40,7 +41,7 @@ jobs:
       
       - name: Install Railway CLI
         run: |
-          npm install -g @railway/cli
+          npm install -g @railway/cli@4.8.0
           railway --version
       
       - name: Link Railway Context
@@ -49,15 +50,20 @@ jobs:
           railway login --token "$RAILWAY_TOKEN"
           railway link --project "$RAILWAY_PROJECT_ID"
           echo "🌍 환경 설정 중..."
-          railway environment "production"
+          railway environment "$RAILWAY_ENV_NAME"
           echo "⚙️ 서비스 설정 중..."
-          railway service "$RAILWAY_SERVICE_NAME"
+          railway service "$RAILWAY_SERVICE_ID"
           echo "📊 현재 상태 확인..."
           railway status
+          echo "🔍 서비스 목록 확인..."
+          railway services || true
       
       - name: Deploy to Railway
         run: |
           echo "🚀 Railway 배포 시작..."
+          echo "📊 링크 상태 재확인..."
+          railway status
+          echo "🚀 컨텍스트 기반 배포 실행..."
           railway up --verbose --detach
       
       - name: Verify deployment
