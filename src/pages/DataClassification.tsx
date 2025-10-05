@@ -341,6 +341,11 @@ const DataClassification = () => {
     
     // 페이지 포커스 시 데이터 새로고침
     const handlePageFocus = () => {
+      // 복원 중이면 동기화 차단
+      if (window.restoreLock || sessionStorage.getItem('restoreInProgress')) {
+        console.log('🔒 복원 중이므로 포커스 동기화 차단');
+        return;
+      }
       console.log('🔄 페이지 포커스 감지, 데이터 새로고침');
       handleDataUpdate(new CustomEvent('dataUpdated', { 
         detail: { type: 'pageFocus', timestamp: Date.now() } 
@@ -1221,6 +1226,7 @@ const DataClassification = () => {
           
           // 복원 락 설정 (동시 이벤트 차단)
           sessionStorage.setItem('restoreInProgress', 'true');
+          window.restoreLock = true; // 전역 락 설정
           
           const text = event.target?.result as string;
           let restoredData;
@@ -1378,6 +1384,7 @@ const DataClassification = () => {
         } finally {
           // 복원 락 해제
           sessionStorage.removeItem('restoreInProgress');
+          window.restoreLock = false; // 전역 락 해제
           setIsLoading(false);
           console.log('🔄 백업 복원 프로세스 종료');
         }

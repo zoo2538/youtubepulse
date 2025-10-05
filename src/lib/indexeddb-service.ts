@@ -187,64 +187,16 @@ class IndexedDBService {
     
     console.log(`✅ 날짜 키 단일화 완료: ${normalizedData.length}개 항목`);
     
-    // 2. 배치 크기 제한 (브라우저 부하 방지)
-    const BATCH_SIZE = 50;
-    const batches = [];
-    for (let i = 0; i < normalizedData.length; i += BATCH_SIZE) {
-      batches.push(normalizedData.slice(i, i + BATCH_SIZE));
-    }
-    
-    console.log(`📦 배치 처리: ${batches.length}개 배치 (${BATCH_SIZE}개씩)`);
-    
-    // 3. 배치별 순차 처리
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex];
-      console.log(`🔄 배치 ${batchIndex + 1}/${batches.length} 처리 중... (${batch.length}개 항목)`);
-      
-      await this.processBatch(batch, batchIndex);
-      
-      // 배치 간 짧은 지연 (브라우저 부하 방지)
-      if (batchIndex < batches.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 10));
-      }
-    }
-    
-    console.log(`🎉 백업 복원 완료: ${normalizedData.length}개 항목 처리됨`);
-  }
-  
-  // 날짜 키 단일화 (KST yyyy-MM-dd)
-  private normalizeDayKey(dateInput: any): string {
-    if (!dateInput) return new Date().toISOString().split('T')[0];
-    
-    try {
-      const date = new Date(dateInput);
-      if (isNaN(date.getTime())) {
-        return new Date().toISOString().split('T')[0];
-      }
-      
-      // KST 기준으로 yyyy-MM-dd 형식 변환
-      return date.toLocaleDateString('ko-KR', {
-        timeZone: 'Asia/Seoul',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\./g, '-').replace(/\s/g, '');
-    } catch (error) {
-      console.warn('날짜 키 변환 실패:', dateInput, error);
-      return new Date().toISOString().split('T')[0];
-    }
-  }
-  
-  // 배치 처리 헬퍼
-  private async processBatch(batch: any[], batchIndex: number): Promise<void> {
+    // 2. 단일 트랜잭션으로 완전 직렬 처리
     return new Promise((resolve, reject) => {
-      // 단일 트랜잭션으로 배치 처리
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
       let completed = 0;
       let errors = 0;
-      const total = batch.length;
+      const total = normalizedData.length;
+      
+      console.log(`🔄 단일 트랜잭션 시작: ${total}개 항목 직렬 처리`);
       
       // 3. 순차적 upsert 처리 (get→병합→put)
       const processItem = (item: any, index: number) => {
@@ -278,7 +230,7 @@ class IndexedDBService {
             putRequest.onsuccess = () => {
               completed++;
               if (completed + errors === total) {
-                console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
+                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
                 resolve();
               }
             };
@@ -286,7 +238,7 @@ class IndexedDBService {
               console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
               errors++;
               if (completed + errors === total) {
-                console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
+                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
                 resolve();
               }
             };
@@ -296,7 +248,7 @@ class IndexedDBService {
             console.warn(`항목 ${index} 조회 실패:`, existingRequest.error);
             errors++;
             if (completed + errors === total) {
-              console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
+              console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
               resolve();
             }
           };
@@ -304,27 +256,50 @@ class IndexedDBService {
           console.warn(`항목 ${index} 처리 실패:`, error);
           errors++;
           if (completed + errors === total) {
-            console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
+            console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
             resolve();
           }
         }
       };
       
-      // 4. 배치 처리 시작
-      batch.forEach((item, index) => {
+      // 4. 순차 처리 (동시 요청 제한)
+      normalizedData.forEach((item, index) => {
         processItem(item, index);
       });
       
       // 5. 트랜잭션 완료 감시
       transaction.oncomplete = () => {
-        console.log(`🎉 배치 ${batchIndex + 1} 트랜잭션 완료`);
+        console.log('🎉 백업 복원 트랜잭션 완료');
       };
       
       transaction.onerror = () => {
-        console.error(`❌ 배치 ${batchIndex + 1} 트랜잭션 실패:`, transaction.error);
+        console.error('❌ 백업 복원 트랜잭션 실패:', transaction.error);
         reject(transaction.error);
       };
     });
+  }
+  
+  // 날짜 키 단일화 (KST yyyy-MM-dd)
+  private normalizeDayKey(dateInput: any): string {
+    if (!dateInput) return new Date().toISOString().split('T')[0];
+    
+    try {
+      const date = new Date(dateInput);
+      if (isNaN(date.getTime())) {
+        return new Date().toISOString().split('T')[0];
+      }
+      
+      // KST 기준으로 yyyy-MM-dd 형식 변환
+      return date.toLocaleDateString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).replace(/\./g, '-').replace(/\s/g, '');
+    } catch (error) {
+      console.warn('날짜 키 변환 실패:', dateInput, error);
+      return new Date().toISOString().split('T')[0];
+    }
   }
 
   // unclassifiedData 로드
