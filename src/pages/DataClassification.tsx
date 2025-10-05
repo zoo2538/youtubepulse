@@ -1030,6 +1030,32 @@ const DataClassification = () => {
       
       alert(resultMessage);
       
+      // 서버(PostgreSQL) 중복 정리도 실행
+      try {
+        console.log('🔄 서버 중복 정리 시작...');
+        const serverResponse = await fetch('https://api.youthbepulse.com/api/cleanup-duplicates', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (serverResponse.ok) {
+          const serverResult = await serverResponse.json();
+          console.log('✅ 서버 중복 정리 완료:', serverResult);
+          
+          // 서버 결과도 알림에 추가
+          const serverMessage = `\n🔄 서버 중복 정리 결과:\n`;
+          const serverStats = `📊 서버: ${serverResult.stats?.removed || 0}개 제거, ${serverResult.stats?.remaining || 0}개 유지\n`;
+          
+          alert(resultMessage + serverMessage + serverStats);
+        } else {
+          console.log('⚠️ 서버 중복 정리 실패 (계속 진행)');
+          alert(resultMessage + '\n\n⚠️ 서버 중복 정리는 실패했지만 로컬 정리는 완료되었습니다.');
+        }
+      } catch (serverError) {
+        console.log('⚠️ 서버 중복 정리 오류:', serverError);
+        alert(resultMessage + '\n\n⚠️ 서버 중복 정리는 실패했지만 로컬 정리는 완료되었습니다.');
+      }
+      
       // 데이터 새로고침
       await loadData();
       
