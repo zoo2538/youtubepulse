@@ -121,7 +121,7 @@ class HybridSyncService {
         op.status = 'processing';
         await this.saveSyncQueue();
 
-        const response = await fetch('/api/sync/upload', {
+        const response = await fetch('https://api.youthbepulse.com/api/sync/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -157,7 +157,7 @@ class HybridSyncService {
   private async downloadFromServer(): Promise<{ downloaded: number; conflicts: number }> {
     try {
       const lastSync = this.metadata?.lastSyncAt || 0;
-      const response = await fetch(`/api/sync/download?since=${lastSync}`);
+      const response = await fetch(`https://api.youthbepulse.com/api/sync/download?since=${lastSync}`);
       
       if (!response.ok) {
         throw new Error(`다운로드 실패: ${response.status}`);
@@ -241,7 +241,7 @@ class HybridSyncService {
         uploaded: 0,
         downloaded: 0,
         conflicts: 0,
-        errors: [error.message],
+        errors: [error instanceof Error ? error.message : String(error)],
         lastSyncAt: 0
       };
     }
