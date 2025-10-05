@@ -30,4 +30,4 @@ jobs:
         run: |
           echo "🚀 Railway 배포 시작..."
           railway --version
-          railway up --ci --detach
+          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }} --ci --detach

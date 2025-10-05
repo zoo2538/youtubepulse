@@ -81,7 +81,7 @@ jobs:
         run: |
           echo "🚀 Railway 배포 시작..."
           railway --version
-          railway up --ci --verbose --detach
+          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }} --ci --verbose --detach
       
       - name: Verify Railway deployment
         run: |
