@@ -1612,6 +1612,95 @@ app.get('/api/sync/check', async (req, res) => {
   }
 });
 
+// 중복 정리 API
+app.post('/api/cleanup-duplicates', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    
+    console.log('🧹 서버 중복 정리 시작...');
+    
+    // 1. 현재 중복 상황 분석
+    const duplicateAnalysis = await client.query(`
+      SELECT 
+        video_id,
+        day_key_local,
+        COUNT(*) as duplicate_count
+      FROM unclassified_data 
+      GROUP BY video_id, day_key_local
+      HAVING COUNT(*) > 1
+    `);
+    
+    console.log(`🔍 발견된 중복 그룹: ${duplicateAnalysis.rows.length}개`);
+    
+    if (duplicateAnalysis.rows.length === 0) {
+      client.release();
+      return res.json({ 
+        success: true, 
+        message: 'No duplicates found',
+        stats: { total: 0, removed: 0, remaining: 0 }
+      });
+    }
+    
+    // 2. 임시 테이블에 최적화된 데이터 저장
+    await client.query(`
+      CREATE TEMP TABLE temp_cleaned_data AS
+      SELECT DISTINCT ON (video_id, day_key_local)
+        *
+      FROM unclassified_data
+      ORDER BY video_id, day_key_local, view_count DESC, created_at DESC
+    `);
+    
+    // 3. 기존 데이터 개수 확인
+    const beforeCount = await client.query('SELECT COUNT(*) as count FROM unclassified_data');
+    
+    // 4. 기존 데이터 삭제 후 정리된 데이터 복원
+    await client.query('DELETE FROM unclassified_data');
+    await client.query('INSERT INTO unclassified_data SELECT * FROM temp_cleaned_data');
+    
+    // 5. 정리 후 데이터 개수 확인
+    const afterCount = await client.query('SELECT COUNT(*) as count FROM unclassified_data');
+    
+    // 6. daily_video_stats도 동일하게 정리
+    await client.query(`
+      CREATE TEMP TABLE temp_cleaned_daily AS
+      SELECT DISTINCT ON (video_id, day_key_local)
+        *
+      FROM daily_video_stats
+      ORDER BY video_id, day_key_local, view_count DESC, created_at DESC
+    `);
+    
+    await client.query('DELETE FROM daily_video_stats');
+    await client.query('INSERT INTO daily_video_stats SELECT * FROM temp_cleaned_daily');
+    
+    // 7. 임시 테이블 정리
+    await client.query('DROP TABLE temp_cleaned_data');
+    await client.query('DROP TABLE temp_cleaned_daily');
+    
+    const removed = beforeCount.rows[0].count - afterCount.rows[0].count;
+    
+    console.log(`✅ 서버 중복 정리 완료: ${removed}개 중복 제거`);
+    
+    client.release();
+    
+    res.json({ 
+      success: true, 
+      message: 'Duplicates cleaned successfully',
+      stats: {
+        total: beforeCount.rows[0].count,
+        removed: removed,
+        remaining: afterCount.rows[0].count
+      }
+    });
+  } catch (error) {
+    console.error('중복 정리 실패:', error);
+    res.status(500).json({ error: 'Failed to cleanup duplicates' });
+  }
+});
+
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
 app.use((req, res) => {
   // API 경로는 제외하고 SPA 라우팅 적용
