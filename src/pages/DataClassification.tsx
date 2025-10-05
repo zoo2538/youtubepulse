@@ -46,6 +46,8 @@ import { redisService } from "@/lib/redis-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
+import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/lib/day-merge-service";
+import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
 
 // localStorage 관련 함수들 제거 - IndexedDB만 사용
 
@@ -96,56 +98,53 @@ const DataClassification = () => {
     console.log('📊 하드코딩된 카테고리 사용:', subCategories);
   }, []);
 
-  // IndexedDB에서 데이터 로드 (전체 데이터 - 통계용)
+  // 하이브리드 데이터 로드 (서버 + 로컬 병합)
   React.useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true);
+        console.log('🔄 하이브리드 데이터 로드 시작...');
         
-        // 1. 하이브리드 서비스에서 전체 unclassifiedData 로드 (통계용)
+        // 1. 서버와 로컬 데이터 병합
+        const mergeResult = await loadAndMergeDays('overwrite');
+        console.log('📊 병합 결과:', mergeResult.stats);
+        
+        if (mergeResult.conflicts.length > 0) {
+          console.log('⚠️ 데이터 충돌 발견:', mergeResult.conflicts);
+        }
+        
+        // 2. 병합된 데이터를 기반으로 통계 계산
+        const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+        
+        mergeResult.mergedDays.forEach(dayRow => {
+          mergedDateStats[dayRow.dayKey] = {
+            total: dayRow.total,
+            classified: dayRow.done,
+            progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
+          };
+        });
+        
+        setDateStats(mergedDateStats);
+        console.log('📊 병합된 dateStats:', mergedDateStats);
+        
+        // 3. 기존 방식으로도 데이터 로드 (하위 호환성)
         const savedData = await hybridService.loadUnclassifiedData();
         if (savedData && savedData.length > 0) {
           const { getKoreanDateString } = await import('@/lib/utils');
-          const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜
-          // 해외채널 카테고리 제거/정리 및 collectionDate 추가
+          const today = getKoreanDateString();
           const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
             const baseItem = it.category === '해외채널'
               ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
               : it;
             
-            // collectionDate가 없는 경우 오늘 날짜로 설정
             return {
               ...baseItem,
               collectionDate: baseItem.collectionDate || today
             };
           });
-          console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
+          
           setUnclassifiedData(sanitized);
-          
-          // 날짜별 통계 계산 (초기 로드 시) - 각 날짜별로 독립적으로 계산
-          const initialDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-          
-          sanitized.forEach(item => {
-            const date = item.collectionDate || item.uploadDate;
-            if (date) {
-              if (!initialDateStats[date]) {
-                initialDateStats[date] = { total: 0, classified: 0, progress: 0 };
-              }
-              initialDateStats[date].total++;
-              if (item.status === 'classified') {
-                initialDateStats[date].classified++;
-              }
-            }
-          });
-          
-          // 진행률 계산
-          Object.keys(initialDateStats).forEach(date => {
-            const stats = initialDateStats[date];
-            stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-          });
-          
-          setDateStats(initialDateStats);
-          console.log('📊 초기 로드 시 dateStats 설정:', initialDateStats);
+          console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
         } else {
           // 2. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
         const channelsData = localStorage.getItem('youtubepulse_channels');
@@ -596,92 +595,73 @@ const DataClassification = () => {
     }
   };
 
-  // 중복 제거 기능
+  // 하이브리드 중복 제거 기능 (서버 + 로컬 병합)
   const handleRemoveDuplicates = async () => {
-    if (!confirm('⚠️ 중복된 데이터를 제거하시겠습니까?\n\n같은 videoId + collectionDate 조합에서:\n- 분류된 것 우선 유지\n- 조회수 높은 것 유지\n- 나머지 자동 삭제')) {
+    if (!confirm('⚠️ 중복된 데이터를 제거하시겠습니까?\n\n서버와 로컬 데이터를 병합하여:\n- 같은 dayKey의 중복 제거\n- 서버 데이터 우선, 로컬 진행률 보존\n- 일관된 단일 일자 표시')) {
       return;
     }
 
     try {
       setIsLoading(true);
+      console.log('🔄 하이브리드 중복 제거 시작...');
       
-      // 전체 데이터 로드
+      // 1. 서버와 로컬 데이터 병합
+      const mergeResult = await loadAndMergeDays('overwrite');
+      console.log('📊 병합 결과:', mergeResult.stats);
+      
+      // 2. 병합된 데이터를 기반으로 통계 재계산
+      const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+      
+      mergeResult.mergedDays.forEach(dayRow => {
+        mergedDateStats[dayRow.dayKey] = {
+          total: dayRow.total,
+          classified: dayRow.done,
+          progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
+        };
+      });
+      
+      setDateStats(mergedDateStats);
+      console.log('📊 병합된 dateStats 업데이트:', mergedDateStats);
+      
+      // 3. 기존 데이터도 업데이트 (하위 호환성)
       const allData = await hybridService.loadUnclassifiedData();
-      
-      // videoId + collectionDate 조합으로 그룹화
-      const videoDateMap = new Map<string, UnclassifiedData>();
-      let duplicateCount = 0;
-      
-      allData.forEach((item: UnclassifiedData) => {
-        const key = `${item.videoId}_${item.collectionDate}`;
+      if (allData && allData.length > 0) {
+        const { getKoreanDateString } = await import('@/lib/utils');
+        const today = getKoreanDateString();
+        const sanitized: UnclassifiedData[] = allData.map((it: UnclassifiedData) => {
+          const baseItem = it.category === '해외채널'
+            ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
+            : it;
+          
+          return {
+            ...baseItem,
+            collectionDate: baseItem.collectionDate || today
+          };
+        });
         
-        if (!videoDateMap.has(key)) {
-          // 첫 번째 발견
-          videoDateMap.set(key, item);
-        } else {
-          // 중복 발견
-          const existing = videoDateMap.get(key)!;
-          let shouldReplace = false;
-          
-          // 우선순위 판단
-          if (item.status === 'classified' && existing.status !== 'classified') {
-            // 분류된 것 우선
-            shouldReplace = true;
-          } else if (item.status === existing.status) {
-            // 같은 상태라면 조회수 비교
-            if (item.viewCount > existing.viewCount) {
-              shouldReplace = true;
-            }
-          }
-          
-          if (shouldReplace) {
-            videoDateMap.set(key, item);
-          }
-          
-          duplicateCount++;
-        }
-      });
+        setUnclassifiedData(sanitized);
+      }
       
-      const uniqueData = Array.from(videoDateMap.values());
+      // 4. 충돌 해결 결과 표시
+      let conflictMessage = '';
+      if (mergeResult.conflicts.length > 0) {
+        conflictMessage = `\n⚠️ 해결된 충돌: ${mergeResult.conflicts.length}개`;
+        mergeResult.conflicts.forEach(conflict => {
+          console.log(`충돌 해결: ${conflict.dayKey} → ${conflict.resolution}`);
+        });
+      }
       
-      // 저장 (전체 교체 방식 - 중복 방지)
-      const { indexedDBService } = await import('@/lib/indexeddb-service');
-      await indexedDBService.replaceAllUnclassifiedData(uniqueData);
-      console.log('✅ 중복 제거 후 전체 데이터 교체 완료');
+      alert(`✅ 하이브리드 중복 제거 완료!\n\n` +
+            `📊 총 일자: ${mergeResult.mergedDays.length}개\n` +
+            `🔄 병합된 일자: ${mergeResult.stats.mergedDays}개\n` +
+            `📈 서버 데이터: ${mergeResult.stats.serverDays}개\n` +
+            `💾 로컬 데이터: ${mergeResult.stats.localDays}개` +
+            conflictMessage);
       
-      setUnclassifiedData(uniqueData);
-      
-      // 날짜별 통계 재계산
-      const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-      uniqueData.forEach(item => {
-        const date = item.collectionDate || item.uploadDate;
-        if (date) {
-          if (!newDateStats[date]) {
-            newDateStats[date] = { total: 0, classified: 0, progress: 0 };
-          }
-          newDateStats[date].total++;
-          if (item.status === 'classified') {
-            newDateStats[date].classified++;
-          }
-        }
-      });
-      
-      Object.keys(newDateStats).forEach(date => {
-        const stats = newDateStats[date];
-        stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-      });
-      
-      setDateStats(newDateStats);
-      
-      alert(`✅ 중복 제거 완료!\n\n` +
-            `🗑️ 제거된 중복: ${duplicateCount}개\n` +
-            `✅ 남은 데이터: ${uniqueData.length}개`);
-      
-      // 페이지 새로고침 대신 상태만 업데이트
-      console.log('✅ 중복 제거 완료 - 상태 업데이트됨');
+      console.log('✅ 하이브리드 중복 제거 완료 - 일자별 중복 제거됨');
     } catch (error) {
-      console.error('중복 제거 실패:', error);
-      alert('❌ 중복 제거에 실패했습니다.');
+      console.error('하이브리드 중복 제거 실패:', error);
+      alert('❌ 하이브리드 중복 제거에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -755,29 +735,109 @@ const DataClassification = () => {
     }
   };
 
-  // 자동 수집 데이터 가져오기
-  const handleFetchAutoCollected = async (action: 'download' | 'merge') => {
+  // 하이브리드 동기화 기능
+  const handleSyncData = async () => {
     try {
       setIsLoading(true);
+      console.log('🔄 하이브리드 동기화 시작...');
       
-      // API에서 자동 수집 데이터 조회
-      const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
-      const result = await response.json();
-      
-      if (!result.success || !result.data || result.data.length === 0) {
-        alert('자동 수집된 데이터가 없습니다.');
-        setIsLoading(false);
+      // 동기화 필요 여부 확인
+      const syncCheck = await checkSyncNeeded();
+      if (!syncCheck.needed) {
+        alert(`✅ 동기화 불필요\n\n이유: ${syncCheck.reason}\n마지막 동기화: ${new Date(syncCheck.lastSync).toLocaleString('ko-KR')}`);
         return;
       }
       
-      // 가장 최신 자동 수집 데이터 사용
-      const latestCollection = result.data[0];
-      const autoCollectedData = latestCollection.data;
-      const collectedAt = new Date(latestCollection.collectedAt).toLocaleString('ko-KR');
+      // 전체 동기화 실행
+      const syncResult = await performFullSync('https://api.youthbepulse.com', 'overwrite');
       
-      console.log(`📥 자동 수집 데이터: ${autoCollectedData.length}개 (수집 시간: ${collectedAt})`);
+      if (!syncResult.success) {
+        throw new Error(syncResult.error || '동기화 실패');
+      }
+      
+      // 동기화 결과를 기반으로 통계 재계산
+      const syncedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+      
+      syncResult.mergedDays.forEach(dayRow => {
+        syncedDateStats[dayRow.dayKey] = {
+          total: dayRow.total,
+          classified: dayRow.done,
+          progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
+        };
+      });
+      
+      setDateStats(syncedDateStats);
+      console.log('📊 동기화된 dateStats:', syncedDateStats);
+      
+      // 기존 데이터도 업데이트 (하위 호환성)
+      const allData = await hybridService.loadUnclassifiedData();
+      if (allData && allData.length > 0) {
+        const { getKoreanDateString } = await import('@/lib/utils');
+        const today = getKoreanDateString();
+        const sanitized: UnclassifiedData[] = allData.map((it: UnclassifiedData) => {
+          const baseItem = it.category === '해외채널'
+            ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
+            : it;
+          
+          return {
+            ...baseItem,
+            collectionDate: baseItem.collectionDate || today
+          };
+        });
+        
+        setUnclassifiedData(sanitized);
+      }
+      
+      // 동기화 결과 표시
+      let conflictMessage = '';
+      if (syncResult.conflicts.length > 0) {
+        conflictMessage = `\n⚠️ 해결된 충돌: ${syncResult.conflicts.length}개`;
+        syncResult.conflicts.forEach(conflict => {
+          console.log(`동기화 충돌 해결: ${conflict.dayKey} → ${conflict.resolution}`);
+        });
+      }
+      
+      alert(`✅ 하이브리드 동기화 완료!\n\n` +
+            `📊 총 일자: ${syncResult.mergedDays.length}개\n` +
+            `📤 업로드: ${syncResult.stats.uploaded}개\n` +
+            `📥 다운로드: ${syncResult.stats.downloaded}개\n` +
+            `🔄 병합: ${syncResult.stats.conflicts}개\n` +
+            `⏰ 동기화 시간: ${new Date(syncResult.status.lastSync).toLocaleString('ko-KR')}` +
+            conflictMessage);
+      
+      console.log('✅ 하이브리드 동기화 완료 - 서버 ↔ 로컬 동기화됨');
+    } catch (error) {
+      console.error('하이브리드 동기화 실패:', error);
+      alert('❌ 하이브리드 동기화에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 하이브리드 자동 수집 데이터 가져오기 (서버 + 로컬 병합)
+  const handleFetchAutoCollected = async (action: 'download' | 'merge') => {
+    try {
+      setIsLoading(true);
+      console.log('🔄 하이브리드 자동 수집 데이터 처리 시작...');
       
       if (action === 'download') {
+        // API에서 자동 수집 데이터 조회
+        const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+        const result = await response.json();
+        
+        if (!result.success || !result.data || result.data.length === 0) {
+          alert('자동 수집된 데이터가 없습니다.');
+          setIsLoading(false);
+          return;
+        }
+        
+        // 가장 최신 자동 수집 데이터 사용
+        const latestCollection = result.data[0];
+        const autoCollectedData = latestCollection.data;
+        const collectedAt = new Date(latestCollection.collectedAt).toLocaleString('ko-KR');
+        
+        console.log(`📥 자동 수집 데이터: ${autoCollectedData.length}개 (수집 시간: ${collectedAt})`);
+        
         // JSON 다운로드
         const blob = new Blob([JSON.stringify(autoCollectedData, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -791,80 +851,66 @@ const DataClassification = () => {
         
         alert(`✅ 자동 수집 데이터 다운로드 완료!\n\n수집 시간: ${collectedAt}\n데이터: ${autoCollectedData.length}개`);
       } else if (action === 'merge') {
-        // IndexedDB에 병합
-        const existingData = await hybridService.loadUnclassifiedData();
+        // 하이브리드 병합 방식으로 자동 수집 데이터 통합
+        const mergeResult = await loadAndMergeDays('union'); // union 모드로 수동 + 자동 데이터 합산
         
-        // videoId + collectionDate 기반 중복 제거
-        const mergedMap = new Map();
+        console.log('📊 자동 수집 병합 결과:', mergeResult.stats);
         
-        // 기존 데이터 먼저
-        existingData.forEach(item => {
-          const key = `${item.videoId}_${item.collectionDate}`;
-          mergedMap.set(key, item);
+        // 병합된 데이터를 기반으로 통계 재계산
+        const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+        
+        mergeResult.mergedDays.forEach(dayRow => {
+          mergedDateStats[dayRow.dayKey] = {
+            total: dayRow.total,
+            classified: dayRow.done,
+            progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
+          };
         });
         
-        // 자동 수집 데이터 추가/업데이트
-        let addedCount = 0;
-        let updatedCount = 0;
+        setDateStats(mergedDateStats);
+        console.log('📊 자동 수집 병합된 dateStats:', mergedDateStats);
         
-        autoCollectedData.forEach(item => {
-          const key = `${item.videoId}_${item.collectionDate}`;
-          if (!mergedMap.has(key)) {
-            mergedMap.set(key, item);
-            addedCount++;
-          } else {
-            const existing = mergedMap.get(key);
-            // 조회수가 더 높거나 분류된 데이터로 업데이트
-            if (item.viewCount > existing.viewCount || (item.status === 'classified' && existing.status !== 'classified')) {
-              mergedMap.set(key, item);
-              updatedCount++;
-            }
-          }
-        });
+        // 기존 데이터도 업데이트 (하위 호환성)
+        const allData = await hybridService.loadUnclassifiedData();
+        if (allData && allData.length > 0) {
+          const { getKoreanDateString } = await import('@/lib/utils');
+          const today = getKoreanDateString();
+          const sanitized: UnclassifiedData[] = allData.map((it: UnclassifiedData) => {
+            const baseItem = it.category === '해외채널'
+              ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
+              : it;
+            
+            return {
+              ...baseItem,
+              collectionDate: baseItem.collectionDate || today
+            };
+          });
+          
+          setUnclassifiedData(sanitized);
+        }
         
-        const mergedData = Array.from(mergedMap.values());
+        // 충돌 해결 결과 표시
+        let conflictMessage = '';
+        if (mergeResult.conflicts.length > 0) {
+          conflictMessage = `\n⚠️ 해결된 충돌: ${mergeResult.conflicts.length}개`;
+          mergeResult.conflicts.forEach(conflict => {
+            console.log(`자동 수집 충돌 해결: ${conflict.dayKey} → ${conflict.resolution}`);
+          });
+        }
         
-        // IndexedDB에 저장
-        const { indexedDBService } = await import('@/lib/indexeddb-service');
-        await indexedDBService.replaceAllUnclassifiedData(mergedData);
+        alert(`✅ 하이브리드 자동 수집 데이터 병합 완료!\n\n` +
+              `📊 총 일자: ${mergeResult.mergedDays.length}개\n` +
+              `🔄 병합된 일자: ${mergeResult.stats.mergedDays}개\n` +
+              `📈 서버 데이터: ${mergeResult.stats.serverDays}개\n` +
+              `💾 로컬 데이터: ${mergeResult.stats.localDays}개\n` +
+              `🔗 수동 + 자동 데이터 통합 완료` +
+              conflictMessage);
         
-        setUnclassifiedData(mergedData);
-        
-        // 통계 재계산
-        const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-        mergedData.forEach(item => {
-          const date = item.collectionDate || item.uploadDate;
-          if (date) {
-            if (!newDateStats[date]) {
-              newDateStats[date] = { total: 0, classified: 0, progress: 0 };
-            }
-            newDateStats[date].total++;
-            if (item.status === 'classified') {
-              newDateStats[date].classified++;
-            }
-          }
-        });
-        
-        Object.keys(newDateStats).forEach(date => {
-          const stats = newDateStats[date];
-          stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-        });
-        
-        setDateStats(newDateStats);
-        
-        alert(`✅ 자동 수집 데이터 병합 완료!\n\n` +
-              `📥 수집 시간: ${collectedAt}\n` +
-              `➕ 추가된 데이터: ${addedCount}개\n` +
-              `🔄 업데이트된 데이터: ${updatedCount}개\n` +
-              `📊 전체 데이터: ${mergedData.length}개\n\n` +
-              `완료되었습니다.`);
-        
-        // 페이지 새로고침 대신 상태만 업데이트
-        console.log('✅ 자동 수집 데이터 병합 완료 - 상태 업데이트됨');
+        console.log('✅ 하이브리드 자동 수집 데이터 병합 완료 - 일자별 통합됨');
       }
     } catch (error) {
-      console.error('자동 수집 데이터 가져오기 실패:', error);
-      alert('❌ 자동 수집 데이터 가져오기에 실패했습니다.');
+      console.error('하이브리드 자동 수집 데이터 처리 실패:', error);
+      alert('❌ 하이브리드 자동 수집 데이터 처리에 실패했습니다.');
     } finally {
       setIsLoading(false);
     }
@@ -1392,6 +1438,16 @@ const DataClassification = () => {
               >
                 <Trash2 className="w-4 h-4" />
                 <span>중복 제거</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSyncData}
+                className="flex items-center space-x-1 border-blue-500 text-blue-600 hover:bg-blue-50"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>동기화</span>
               </Button>
               
               <DropdownMenu>
