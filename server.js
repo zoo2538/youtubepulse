@@ -1388,6 +1388,197 @@ app.listen(PORT, '0.0.0.0', () => {
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
 app.use(express.static(path.join(__dirname, 'dist')));
 
+// 동기화 API 엔드포인트
+app.post('/api/sync/upload', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { operation, tableName, recordId, payload, clientVersion } = req.body;
+    const client = await pool.connect();
+    
+    // 동기화 큐에 작업 추가
+    await client.query(`
+      INSERT INTO sync_queue (operation, table_name, record_id, payload, client_version, status)
+      VALUES ($1, $2, $3, $4, $5, 'processing')
+    `, [operation, tableName, recordId, JSON.stringify(payload), clientVersion]);
+    
+    // 실제 데이터 처리 - 최대값 보존 upsert
+    if (operation === 'create' || operation === 'update') {
+      if (tableName === 'unclassified_data') {
+        // day_key_local 계산 (KST 기준)
+        const dayKeyLocal = new Date(payload.collectionDate).toLocaleDateString('ko-KR', {
+          timeZone: 'Asia/Seoul',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        }).replace(/\./g, '-').replace(/\s/g, '');
+        
+        await client.query(`
+          INSERT INTO unclassified_data (
+            video_id, channel_id, channel_name, video_title, video_description,
+            view_count, upload_date, collection_date, thumbnail_url, category, sub_category, status, day_key_local
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ON CONFLICT (video_id, day_key_local) 
+          DO UPDATE SET
+            channel_id = EXCLUDED.channel_id,
+            channel_name = EXCLUDED.channel_name,
+            video_title = EXCLUDED.video_title,
+            video_description = EXCLUDED.video_description,
+            view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
+            upload_date = EXCLUDED.upload_date,
+            thumbnail_url = EXCLUDED.thumbnail_url,
+            category = EXCLUDED.category,
+            sub_category = EXCLUDED.sub_category,
+            status = EXCLUDED.status,
+            updated_at = NOW()
+        `, [
+          payload.videoId, payload.channelId, payload.channelName, payload.videoTitle,
+          payload.videoDescription, payload.viewCount, payload.uploadDate, payload.collectionDate,
+          payload.thumbnailUrl, payload.category, payload.subCategory, payload.status, dayKeyLocal
+        ]);
+        
+        // daily_video_stats 테이블에도 동일한 로직 적용
+        await client.query(`
+          INSERT INTO daily_video_stats (
+            video_id, day_key_local, channel_id, channel_name, video_title,
+            video_description, view_count, upload_date, collection_date,
+            thumbnail_url, category, sub_category, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          ON CONFLICT (video_id, day_key_local)
+          DO UPDATE SET
+            channel_name = EXCLUDED.channel_name,
+            video_title = EXCLUDED.video_title,
+            video_description = EXCLUDED.video_description,
+            view_count = GREATEST(daily_video_stats.view_count, EXCLUDED.view_count),
+            like_count = GREATEST(daily_video_stats.like_count, EXCLUDED.like_count),
+            upload_date = EXCLUDED.upload_date,
+            thumbnail_url = EXCLUDED.thumbnail_url,
+            category = EXCLUDED.category,
+            sub_category = EXCLUDED.sub_category,
+            status = EXCLUDED.status,
+            updated_at = NOW()
+        `, [
+          payload.videoId, dayKeyLocal, payload.channelId, payload.channelName, payload.videoTitle,
+          payload.videoDescription, payload.viewCount, payload.uploadDate, payload.collectionDate,
+          payload.thumbnailUrl, payload.category, payload.subCategory, payload.status
+        ]);
+      }
+    }
+    
+    // 동기화 큐 상태 업데이트
+    await client.query(`
+      UPDATE sync_queue 
+      SET status = 'completed', processed_at = NOW()
+      WHERE record_id = $1 AND operation = $2
+    `, [recordId, operation]);
+    
+    client.release();
+    res.json({ success: true, message: 'Upload completed' });
+    
+  } catch (error) {
+    console.error('동기화 업로드 실패:', error);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+app.get('/api/sync/download', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { since } = req.query;
+    const client = await pool.connect();
+    
+    let query, params;
+    if (since) {
+      query = `
+        SELECT 
+          id, video_id, channel_id, channel_name, video_title,
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status, created_at, updated_at
+        FROM unclassified_data 
+        WHERE updated_at > $1
+        ORDER BY updated_at ASC
+      `;
+      params = [new Date(parseInt(since))];
+    } else {
+      query = `
+        SELECT 
+          id, video_id, channel_id, channel_name, video_title,
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status, created_at, updated_at
+        FROM unclassified_data 
+        ORDER BY updated_at ASC
+      `;
+      params = [];
+    }
+    
+    const result = await client.query(query, params);
+    client.release();
+    
+    // API 형식으로 변환
+    const records = result.rows.map(row => ({
+      id: row.id,
+      videoId: row.video_id,
+      channelId: row.channel_id,
+      channelName: row.channel_name,
+      videoTitle: row.video_title,
+      videoDescription: row.video_description,
+      viewCount: row.view_count,
+      uploadDate: row.upload_date,
+      collectionDate: row.collection_date,
+      thumbnailUrl: row.thumbnail_url,
+      category: row.category || '',
+      subCategory: row.sub_category || '',
+      status: row.status || 'unclassified',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+    
+    res.json({ 
+      success: true, 
+      records,
+      totalRecords: records.length,
+      lastSync: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('동기화 다운로드 실패:', error);
+    res.status(500).json({ error: 'Download failed' });
+  }
+});
+
+app.get('/api/sync/check', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { since } = req.query;
+    const client = await pool.connect();
+    
+    const result = await client.query(`
+      SELECT COUNT(*) as count
+      FROM unclassified_data 
+      WHERE updated_at > $1
+    `, [new Date(parseInt(since))]);
+    
+    client.release();
+    
+    res.json({ 
+      hasChanges: parseInt(result.rows[0].count) > 0,
+      changeCount: parseInt(result.rows[0].count)
+    });
+    
+  } catch (error) {
+    console.error('동기화 확인 실패:', error);
+    res.status(500).json({ error: 'Check failed' });
+  }
+});
+
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
 app.use((req, res) => {
   // API 경로는 제외하고 SPA 라우팅 적용

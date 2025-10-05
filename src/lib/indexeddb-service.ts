@@ -52,6 +52,21 @@ class IndexedDBService {
           unclassifiedStore.createIndex('channelName', 'channelName', { unique: false });
           unclassifiedStore.createIndex('status', 'status', { unique: false });
           unclassifiedStore.createIndex('category', 'category', { unique: false });
+          // 복합 키 인덱스 추가: (videoId, dayKeyLocal)
+          unclassifiedStore.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          unclassifiedStore.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
+        } else {
+          // 기존 저장소에 새로운 인덱스 추가
+          const transaction = db.transaction(['unclassifiedData'], 'readwrite');
+          const store = transaction.objectStore('unclassifiedData');
+          
+          // 기존 인덱스 확인 및 추가
+          if (!store.indexNames.contains('videoDay')) {
+            store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          }
+          if (!store.indexNames.contains('dayKeyLocal')) {
+            store.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
+          }
         }
 
         // classifiedData 저장소
@@ -1330,6 +1345,79 @@ class IndexedDBService {
       
       unclassifiedRequest.onerror = () => reject(unclassifiedRequest.error);
       classifiedRequest.onerror = () => reject(classifiedRequest.error);
+    });
+  }
+  // 최대값 보존 upsert (videoId, dayKeyLocal 기준)
+  async upsertUnclassifiedDataWithMaxValues(data: any[]): Promise<void> {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      const videoDayIndex = store.index('videoDay');
+      
+      let completed = 0;
+      const total = data.length;
+      
+      if (total === 0) {
+        resolve();
+        return;
+      }
+
+      data.forEach((item) => {
+        // dayKeyLocal이 없으면 생성
+        if (!item.dayKeyLocal && item.collectionDate) {
+          const date = new Date(item.collectionDate);
+          item.dayKeyLocal = date.toISOString().split('T')[0];
+        }
+
+        // 복합 키로 기존 데이터 조회
+        const key = [item.videoId, item.dayKeyLocal];
+        const getRequest = videoDayIndex.get(key);
+        
+        getRequest.onsuccess = () => {
+          if (getRequest.result) {
+            // 기존 데이터가 있으면 최대값 보존 업데이트
+            const existing = getRequest.result;
+            const updated = {
+              ...existing,
+              viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+              likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
+              channelName: item.channelName || existing.channelName,
+              videoTitle: item.videoTitle || existing.videoTitle,
+              videoDescription: item.videoDescription || existing.videoDescription,
+              thumbnailUrl: item.thumbnailUrl || existing.thumbnailUrl,
+              category: item.category || existing.category,
+              subCategory: item.subCategory || existing.subCategory,
+              status: item.status || existing.status,
+              updatedAt: new Date().toISOString()
+            };
+            
+            const putRequest = store.put(updated);
+            putRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) resolve();
+            };
+            putRequest.onerror = () => reject(putRequest.error);
+          } else {
+            // 기존 데이터가 없으면 새로 추가
+            if (!item.id) {
+              item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            }
+            
+            const addRequest = store.add(item);
+            addRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) resolve();
+            };
+            addRequest.onerror = () => reject(addRequest.error);
+          }
+        };
+        
+        getRequest.onerror = () => reject(getRequest.error);
+      });
     });
   }
 }

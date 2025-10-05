@@ -1,0 +1,42 @@
+{
+  "timestamp": "2025-10-05T08:28:55.655Z",
+  "date": "2025-10-05",
+  "records": [
+    {
+      "id": "server_001",
+      "videoId": "dQw4w9WgXcQ",
+      "channelId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+      "channelName": "Rick Astley",
+      "videoTitle": "Never Gonna Give You Up",
+      "videoDescription": "The official video for \"Never Gonna Give You Up\" by Rick Astley",
+      "viewCount": 1000000000,
+      "uploadDate": "2009-10-25T00:00:00Z",
+      "collectionDate": "2025-10-05T00:00:00Z",
+      "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+      "category": "음악",
+      "subCategory": "팝",
+      "status": "unclassified",
+      "createdAt": "2025-10-05T00:00:00Z",
+      "updatedAt": "2025-10-05T00:00:00Z",
+      "source": "server"
+    },
+    {
+      "id": "server_002",
+      "videoId": "jNQXAC9IVRw",
+      "channelId": "UCBJycsmduvYEL83R_U4JriQ",
+      "channelName": "Marques Brownlee",
+      "videoTitle": "iPhone 15 Pro Review",
+      "videoDescription": "The iPhone 15 Pro is here with titanium, USB-C, and more",
+      "viewCount": 5000000,
+      "uploadDate": "2025-10-04T00:00:00Z",
+      "collectionDate": "2025-10-05T00:00:00Z",
+      "thumbnailUrl": "https://i.ytimg.com/vi/jNQXAC9IVRw/maxresdefault.jpg",
+      "category": "기술",
+      "subCategory": "스마트폰",
+      "status": "unclassified",
+      "createdAt": "2025-10-05T00:00:00Z",
+      "updatedAt": "2025-10-05T00:00:00Z",
+      "source": "server"
+    }
+  ]
+}

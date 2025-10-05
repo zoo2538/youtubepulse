@@ -48,6 +48,8 @@ import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/lib/day-merge-service";
 import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
+import { hybridSyncService } from "@/lib/hybrid-sync-service";
+import { indexedDBService } from "@/lib/indexeddb-service";
 
 // localStorage 관련 함수들 제거 - IndexedDB만 사용
 
@@ -421,6 +423,94 @@ const DataClassification = () => {
     
     await handleCleanupOldData();
     alert('✅ 자동 정리가 완료되었습니다.');
+  };
+
+  // 하이브리드 동기화 핸들러
+  const handleHybridSync = async () => {
+    try {
+      console.log('🔄 하이브리드 동기화 시작...');
+      setIsLoading(true);
+      
+      // 1. 동기화 상태 확인
+      const syncStatus = hybridSyncService.getSyncStatus();
+      console.log('📊 동기화 상태:', syncStatus);
+      
+      // 2. 서버와 로컬 데이터 병합 (최대값 보존)
+      const mergeResult = await loadAndMergeDays('overwrite');
+      console.log('📊 병합 결과:', mergeResult);
+      
+      // 2-1. IndexedDB에 최대값 보존 upsert 적용
+      if (mergeResult.mergedDays && mergeResult.mergedDays.length > 0) {
+        const allData = await hybridService.loadUnclassifiedData();
+        if (allData && allData.length > 0) {
+          await indexedDBService.upsertUnclassifiedDataWithMaxValues(allData);
+          console.log('✅ IndexedDB 최대값 보존 upsert 완료');
+        }
+      }
+      
+      // 3. 하이브리드 동기화 실행
+      const syncResult = await hybridSyncService.performFullSync();
+      console.log('✅ 동기화 결과:', syncResult);
+      
+      // 4. 데이터 새로고침
+      const loadData = async () => {
+        try {
+          const savedData = await hybridService.loadUnclassifiedData();
+          if (savedData && savedData.length > 0) {
+            const { getKoreanDateString } = await import('@/lib/utils');
+            const today = getKoreanDateString();
+            
+            const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
+              const baseItem = it.category === '해외채널'
+                ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
+                : it;
+              
+              return {
+                ...baseItem,
+                collectionDate: baseItem.collectionDate || baseItem.uploadDate || today
+              };
+            });
+            
+            setUnclassifiedData(sanitized);
+            
+            // 날짜별 통계 업데이트
+            const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+            sanitized.forEach(item => {
+              const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              if (date) {
+                if (!newDateStats[date]) {
+                  newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+                }
+                newDateStats[date].total++;
+                if (item.status === 'classified') {
+                  newDateStats[date].classified++;
+                }
+              }
+            });
+            
+            Object.keys(newDateStats).forEach(date => {
+              const stats = newDateStats[date];
+              stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+            });
+            
+            setDateStats(newDateStats);
+          }
+        } catch (error) {
+          console.error('❌ 데이터 새로고침 실패:', error);
+        }
+      };
+      
+      await loadData();
+      
+      // 5. 결과 표시
+      alert(`🔄 하이브리드 동기화 완료!\n업로드: ${syncResult.uploaded}개\n다운로드: ${syncResult.downloaded}개\n충돌 해결: ${syncResult.conflicts}개`);
+      
+    } catch (error) {
+      console.error('❌ 하이브리드 동기화 실패:', error);
+      alert('❌ 동기화 실패: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // 일별 분류 진행률 일괄 저장
@@ -1434,41 +1524,13 @@ const DataClassification = () => {
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={handleRemoveDuplicates}
-                className="flex items-center space-x-1 border-orange-500 text-orange-600 hover:bg-orange-50"
-              >
-                <Trash2 className="w-4 h-4" />
-                <span>중복 제거</span>
-              </Button>
-              
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleSyncData}
+                onClick={handleHybridSync}
                 className="flex items-center space-x-1 border-blue-500 text-blue-600 hover:bg-blue-50"
+                title="서버와 로컬 데이터 동기화 + 중복 제거 + 최대값 보존"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>동기화</span>
+                <span>하이브리드 동기화</span>
               </Button>
-              
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="flex items-center space-x-1 border-purple-500 text-purple-600 hover:bg-purple-50">
-                    <Download className="w-4 h-4" />
-                    <span>자동 수집 가져오기</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleFetchAutoCollected('download')}>
-                    <FileDown className="w-4 h-4 mr-2 text-purple-500" />
-                    JSON 다운로드
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFetchAutoCollected('merge')}>
-                    <Database className="w-4 h-4 mr-2 text-purple-500" />
-                    데이터 병합
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
               
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
