@@ -75,7 +75,7 @@ class DataExportImport {
             
             let added = 0;
             items.forEach((item: any) => {
-              const addRequest = store.add(item);
+              const addRequest = store.put(item);
               addRequest.onsuccess = () => {
                 added++;
                 if (added === items.length) {

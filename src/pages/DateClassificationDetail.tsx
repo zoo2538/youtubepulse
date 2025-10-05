@@ -28,6 +28,7 @@ import {
   Trash2
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { dedupeByDate, dedupeByVideoDay, type VideoItem } from "@/lib/dedupe-utils";
 import { subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -136,7 +137,14 @@ const DateClassificationDetail = () => {
         }));
         
         console.log(`📊 ${selectedDate} 날짜 데이터: ${dateData.length}개`);
-        setUnclassifiedData(dateData);
+        
+        // 중복 제거 적용
+        console.log('🔄 중복 제거 전:', dateData.length, '개 항목');
+        const dedupedData = dedupeByDate(dateData as VideoItem[], selectedDate);
+        console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
+        console.log('📊 제거된 중복:', dateData.length - dedupedData.length, '개');
+        
+        setUnclassifiedData(dedupedData as UnclassifiedData[]);
       } catch (error) {
         console.error('데이터 로드 실패:', error);
         setUnclassifiedData([]);

@@ -150,7 +150,7 @@ class IndexedDBService {
         }
 
         data.forEach((item) => {
-          const addRequest = store.add(item);
+          const addRequest = store.put(item);
           addRequest.onsuccess = () => {
             completed++;
             if (completed === total) {
@@ -230,7 +230,7 @@ class IndexedDBService {
               item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
             }
             
-            const addRequest = store.add(item);
+            const addRequest = store.put(item);
             addRequest.onsuccess = () => {
               completed++;
               if (completed === total) {
@@ -241,7 +241,7 @@ class IndexedDBService {
               console.warn(`ID 충돌 발생, 새 ID로 재시도: ${item.id}`);
               // ID 충돌 시 새로운 ID로 재시도
               item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}_retry`;
-              const retryRequest = store.add(item);
+              const retryRequest = store.put(item);
               retryRequest.onsuccess = () => {
                 completed++;
                 if (completed === total) {
@@ -674,7 +674,7 @@ class IndexedDBService {
         }
 
         channelEntries.forEach(([id, channel]: [string, any]) => {
-          const addRequest = store.add({ id, ...channel });
+          const addRequest = store.put({ id, ...channel });
           addRequest.onsuccess = () => {
             completed++;
             if (completed === total) {
@@ -712,7 +712,7 @@ class IndexedDBService {
         videoEntries.forEach(([channelId, channelVideos]: [string, any]) => {
           if (Array.isArray(channelVideos)) {
             channelVideos.forEach((video: any) => {
-              const addRequest = store.add({ ...video, channelId });
+              const addRequest = store.put({ ...video, channelId });
               addRequest.onsuccess = () => {
                 completed++;
                 if (completed === total) {
@@ -740,7 +740,7 @@ class IndexedDBService {
       const clearRequest = store.clear();
       clearRequest.onsuccess = () => {
         // 새 데이터 저장 (keyPath: 'id' 사용)
-        const addRequest = store.add({ 
+        const addRequest = store.put({ 
           id: 1, // 고정 ID 사용
           type: 'categories',
           data: categories,
@@ -829,7 +829,7 @@ class IndexedDBService {
             itemCopy.id = Date.now() + index;
           }
           
-          const addRequest = store.add(itemCopy);
+          const addRequest = store.put(itemCopy);
           addRequest.onsuccess = () => {
             completed++;
             if (completed === total) {
@@ -867,7 +867,7 @@ class IndexedDBService {
         subCategoryEntries.forEach(([category, subCats]: [string, any]) => {
           if (Array.isArray(subCats)) {
             subCats.forEach((subCat: string) => {
-              const addRequest = store.add({ category, subCategory: subCat });
+              const addRequest = store.put({ category, subCategory: subCat });
               addRequest.onsuccess = () => {
                 completed++;
                 if (completed === total) {
@@ -1423,7 +1423,7 @@ class IndexedDBService {
               updatedAt: new Date().toISOString()
             };
             
-            const addRequest = store.add(newItem);
+            const addRequest = store.put(newItem);
             addRequest.onsuccess = () => {
               newRecords++;
               completed++;
@@ -1513,7 +1513,7 @@ class IndexedDBService {
               item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             }
             
-            const addRequest = store.add(item);
+            const addRequest = store.put(item);
             addRequest.onsuccess = () => {
               completed++;
               if (completed === total) resolve();

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EMAILJS_CONFIG } from '@/config/emailjs';
+import { postLoginSync } from '@/lib/post-login-sync';
+import { indexedDBService } from '@/lib/indexeddb-service';
 
 interface AuthContextType {
   isLoggedIn: boolean;
@@ -135,9 +137,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setIsLoggedIn(true);
               setUserEmail(email);
               setUserRole('admin');
-              console.log('✅ 프로덕션 관리자 로그인 성공:', { email, role: 'admin' });
-              setIsLoading(false);
-              return true;
+            console.log('✅ 프로덕션 관리자 로그인 성공:', { email, role: 'admin' });
+            
+            // 로그인 후 하이브리드 동기화 실행
+            try {
+              console.log('🔄 로그인 후 동기화 시작...');
+              const syncResult = await postLoginSync({
+                api: {
+                  get: async (url: string) => {
+                    const response = await fetch(`https://api.youthbepulse.com${url}`);
+                    return response.json();
+                  },
+                  post: async (url: string, data: any) => {
+                    const response = await fetch(`https://api.youthbepulse.com${url}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(data)
+                    });
+                    return response.json();
+                  }
+                },
+                idb: indexedDBService,
+                lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
+              });
+              
+              if (syncResult.success) {
+                console.log('🎉 로그인 후 동기화 완료:', syncResult);
+              } else {
+                console.warn('⚠️ 로그인 후 동기화 실패:', syncResult.error);
+              }
+            } catch (syncError) {
+              console.error('❌ 로그인 후 동기화 오류:', syncError);
+            }
+            
+            setIsLoading(false);
+            return true;
             } else {
               throw new Error('저장된 데이터가 일치하지 않음');
             }
@@ -158,6 +192,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUserRole('admin');
             
             console.log('✅ 개발 관리자 로그인 성공:', { email, role: 'admin' });
+            
+            // 로그인 후 하이브리드 동기화 실행
+            try {
+              console.log('🔄 로그인 후 동기화 시작...');
+              const syncResult = await postLoginSync({
+                api: {
+                  get: async (url: string) => {
+                    const response = await fetch(`https://api.youthbepulse.com${url}`);
+                    return response.json();
+                  },
+                  post: async (url: string, data: any) => {
+                    const response = await fetch(`https://api.youthbepulse.com${url}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(data)
+                    });
+                    return response.json();
+                  }
+                },
+                idb: indexedDBService,
+                lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
+              });
+              
+              if (syncResult.success) {
+                console.log('🎉 로그인 후 동기화 완료:', syncResult);
+              } else {
+                console.warn('⚠️ 로그인 후 동기화 실패:', syncResult.error);
+              }
+            } catch (syncError) {
+              console.error('❌ 로그인 후 동기화 오류:', syncError);
+            }
+            
             setIsLoading(false);
             return true;
           } catch (storageError) {
@@ -183,6 +249,38 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUserRole(user.role || 'user');
           
           console.log('✅ 사용자 로그인 성공:', { email, role: user.role });
+          
+          // 로그인 후 하이브리드 동기화 실행
+          try {
+            console.log('🔄 로그인 후 동기화 시작...');
+            const syncResult = await postLoginSync({
+              api: {
+                get: async (url: string) => {
+                  const response = await fetch(`https://api.youthbepulse.com${url}`);
+                  return response.json();
+                },
+                post: async (url: string, data: any) => {
+                  const response = await fetch(`https://api.youthbepulse.com${url}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                  });
+                  return response.json();
+                }
+              },
+              idb: indexedDBService,
+              lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
+            });
+            
+            if (syncResult.success) {
+              console.log('🎉 로그인 후 동기화 완료:', syncResult);
+            } else {
+              console.warn('⚠️ 로그인 후 동기화 실패:', syncResult.error);
+            }
+          } catch (syncError) {
+            console.error('❌ 로그인 후 동기화 오류:', syncError);
+          }
+          
           setIsLoading(false);
           return true;
         }

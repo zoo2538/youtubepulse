@@ -48,6 +48,7 @@ import { categories, subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/lib/day-merge-service";
 import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
+import { dedupeComprehensive, dedupeByVideoDay, dedupeByDate, type VideoItem } from "@/lib/dedupe-utils";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
 
@@ -146,7 +147,13 @@ const DataClassification = () => {
             };
           });
           
-          setUnclassifiedData(sanitized);
+          // 4. 중복 제거 적용
+          console.log('🔄 중복 제거 전:', sanitized.length, '개 항목');
+          const dedupedData = dedupeComprehensive(sanitized as VideoItem[]);
+          console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
+          console.log('📊 제거된 중복:', sanitized.length - dedupedData.length, '개');
+          
+          setUnclassifiedData(dedupedData as UnclassifiedData[]);
           console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
         } else {
           // 2. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
