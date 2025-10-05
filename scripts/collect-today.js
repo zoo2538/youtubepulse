@@ -6,7 +6,6 @@
  */
 
 import { Pool } from 'pg';
-import fetch from 'node-fetch';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -177,12 +176,6 @@ async function processAndSaveData(allVideos, today) {
           video_description, view_count, upload_date, collection_date,
           thumbnail_url, category, sub_category, status
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        ON CONFLICT (video_id, collection_date) 
-        DO UPDATE SET 
-          view_count = GREATEST(unclassified_data.view_count, $6),
-          video_title = $4,
-          video_description = $5,
-          thumbnail_url = $9
       `, [
         item.videoId, item.channelId, item.channelName, item.videoTitle,
         item.videoDescription, item.viewCount, item.uploadDate, item.collectionDate,

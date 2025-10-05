@@ -90,8 +90,22 @@ const DateClassificationDetail = () => {
         setIsLoading(true);
         console.log('📅 날짜별 데이터 로드 시작:', selectedDate);
         
-        // IndexedDB에서 전체 데이터 로드
-        const allData = await indexedDBService.loadUnclassifiedData();
+        // 1. 먼저 API 서버에서 데이터 로드 시도
+        let allData = [];
+        try {
+          const response = await fetch(`/api/unclassified?date=${selectedDate}`);
+          if (response.ok) {
+            const serverData = await response.json();
+            allData = serverData.data || [];
+            console.log('✅ API 서버에서 데이터 로드:', allData.length, '개');
+          } else {
+            throw new Error('API 서버 응답 실패');
+          }
+        } catch (apiError) {
+          console.log('⚠️ API 서버 로드 실패, IndexedDB에서 로드:', apiError);
+          // API 실패시 IndexedDB에서 로드
+          allData = await indexedDBService.loadUnclassifiedData();
+        }
         
         // 선택된 날짜의 데이터만 필터링 (ID 타임스탬프도 고려)
         const dateData = allData.filter(item => {
@@ -416,7 +430,7 @@ const DateClassificationDetail = () => {
         // 카테고리 정보도 복원 (있는 경우)
         if (backupData.categories) {
           await indexedDBService.saveCategories(backupData.categories);
-          setDynamicSubCategories(backupData.categories);
+          // setDynamicSubCategories는 하드코딩된 카테고리를 사용하므로 제거
           window.dispatchEvent(new CustomEvent('categoriesUpdated'));
         }
         
@@ -475,6 +489,28 @@ const DateClassificationDetail = () => {
           progress: backupData.data.length > 0 ? Math.round((classifiedData.length / backupData.data.length) * 100) : 0
         };
         await indexedDBService.saveDailyProgress(dailyProgress);
+        
+        // 서버 동기화 (API 서버가 연결된 경우)
+        try {
+          const response = await fetch('/api/backup/import', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              data: backupData.data,
+              date: selectedDate 
+            })
+          });
+          
+          if (response.ok) {
+            console.log('✅ 서버 동기화 완료');
+          } else {
+            console.log('⚠️ 서버 동기화 실패, 로컬에서만 복원됨');
+          }
+        } catch (serverError) {
+          console.log('⚠️ 서버 연결 실패, 로컬에서만 복원됨');
+        }
         
         // 데이터 업데이트 이벤트 발생
         window.dispatchEvent(new CustomEvent('dataUpdated', { 

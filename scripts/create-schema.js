@@ -35,7 +35,8 @@ async function createSchema() {
         sub_category VARCHAR(100),
         status VARCHAR(20) DEFAULT 'unclassified',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(video_id, collection_date)
       )
     `);
     console.log('✅ unclassified_data 테이블 생성 완료');

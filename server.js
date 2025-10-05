@@ -573,17 +573,59 @@ app.get('/api/unclassified', async (req, res) => {
   }
   
   try {
+    const { date } = req.query;
     const client = await pool.connect();
-    const result = await client.query(`
-      SELECT data FROM classification_data 
-      WHERE data_type = 'unclassified' 
-      ORDER BY created_at DESC 
-      LIMIT 1
-    `);
     
+    let query, params;
+    if (date) {
+      // 날짜별 데이터 조회 (문자열 비교)
+      query = `
+        SELECT 
+          id, video_id, channel_id, channel_name, video_title, 
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status
+        FROM unclassified_data 
+        WHERE collection_date::text LIKE $1
+        ORDER BY view_count DESC
+      `;
+      params = [`${date}%`];
+    } else {
+      // 전체 데이터 조회 (기존 방식)
+      query = `
+        SELECT data FROM classification_data 
+        WHERE data_type = 'unclassified' 
+        ORDER BY created_at DESC 
+        LIMIT 1
+      `;
+      params = [];
+    }
+    
+    const result = await client.query(query, params);
     client.release();
-    const data = result.rows.length > 0 ? result.rows[0].data : [];
-    res.json({ success: true, data });
+    
+    if (date) {
+      // 날짜별 조회 결과를 API 형식으로 변환
+      const data = result.rows.map(row => ({
+        id: row.id,
+        videoId: row.video_id,
+        channelId: row.channel_id,
+        channelName: row.channel_name,
+        videoTitle: row.video_title,
+        videoDescription: row.video_description,
+        viewCount: row.view_count,
+        uploadDate: row.upload_date,
+        collectionDate: row.collection_date,
+        thumbnailUrl: row.thumbnail_url,
+        category: row.category || '',
+        subCategory: row.sub_category || '',
+        status: row.status || 'unclassified'
+      }));
+      res.json({ success: true, data });
+    } else {
+      // 기존 방식
+      const data = result.rows.length > 0 ? result.rows[0].data : [];
+      res.json({ success: true, data });
+    }
   } catch (error) {
     console.error('미분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get unclassified data' });
@@ -1218,6 +1260,53 @@ app.post('/api/sync/delete-unclassified', async (req, res) => {
   } catch (error) {
     console.error('미분류 데이터 삭제 실패:', error);
     res.status(500).json({ error: 'Failed to delete unclassified data' });
+  }
+});
+
+// 백업 복원 API
+app.post('/api/backup/import', async (req, res) => {
+  try {
+    const { data, date } = req.body;
+    
+    if (!data || !Array.isArray(data)) {
+      return res.status(400).json({ error: 'Invalid backup data' });
+    }
+    
+    const client = await pool.connect();
+    
+    // 기존 데이터 삭제 (해당 날짜)
+    await client.query(`
+      DELETE FROM unclassified_data 
+      WHERE collection_date = $1
+    `, [date]);
+    
+    // 새 데이터 삽입
+    for (const item of data) {
+      await client.query(`
+        INSERT INTO unclassified_data (
+          video_id, channel_id, channel_name, video_title, 
+          video_description, view_count, upload_date, collection_date,
+          thumbnail_url, category, sub_category, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      `, [
+        item.videoId, item.channelId, item.channelName, item.videoTitle,
+        item.videoDescription, item.viewCount, item.uploadDate, item.collectionDate,
+        item.thumbnailUrl, item.category, item.subCategory, item.status
+      ]);
+    }
+    
+    client.release();
+    
+    console.log(`✅ 백업 복원 완료: ${data.length}개 데이터, 날짜: ${date}`);
+    res.json({ 
+      success: true, 
+      message: 'Backup restored successfully',
+      restoredCount: data.length,
+      date: date
+    });
+  } catch (error) {
+    console.error('백업 복원 실패:', error);
+    res.status(500).json({ error: 'Failed to restore backup' });
   }
 });
 
