@@ -1176,7 +1176,7 @@ const DataClassification = () => {
     }
   };
 
-  // 백업 복원
+  // 백업 복원 - 안전한 패턴
   const handleRestoreBackup = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1188,13 +1188,18 @@ const DataClassification = () => {
       const reader = new FileReader();
       reader.onload = async (event) => {
         try {
+          setIsLoading(true);
+          console.log('🔄 백업 복원 시작...');
+          
           const text = event.target?.result as string;
           let restoredData;
 
-          // JSON 파싱 시도
+          // 1. 비동기 준비: JSON 파싱 및 검증
           try {
             restoredData = JSON.parse(text);
+            console.log('✅ JSON 파싱 완료');
           } catch (parseError) {
+            console.error('❌ JSON 파싱 실패:', parseError);
             alert('❌ 잘못된 JSON 파일입니다.');
             return;
           }
@@ -1224,9 +1229,21 @@ const DataClassification = () => {
               );
               
               if (confirmed) {
-                // 원본 날짜를 그대로 유지하여 하이브리드 저장
-                await hybridService.saveUnclassifiedData(allData);
-                setUnclassifiedData(allData);
+                console.log('🔄 2. 트랜잭션 시작 후 upsert 처리...');
+                
+                // 2. 단일 트랜잭션으로 안전한 upsert 처리
+                try {
+                  await hybridService.saveUnclassifiedData(allData);
+                  console.log('✅ IndexedDB upsert 완료');
+                  
+                  // 3. UI 상태 업데이트 (트랜잭션 완료 후)
+                  setUnclassifiedData(allData);
+                  console.log('✅ UI 상태 업데이트 완료');
+                } catch (dbError) {
+                  console.error('❌ IndexedDB 저장 실패:', dbError);
+                  alert('❌ 데이터 저장에 실패했습니다. 다시 시도해주세요.');
+                  return;
+                }
                 
                 // dailyData를 classifiedData와 dailyProgress로도 하이브리드 저장 (원본 데이터 사용)
                 const classifiedData = allData.filter((item: any) => item.status === 'classified');
@@ -1270,6 +1287,8 @@ const DataClassification = () => {
                 setDateStats(newDateStats);
                 console.log('📊 백업 복원 후 dateStats 업데이트:', newDateStats);
                 
+                // 4. 완료 신호: transaction.oncomplete 후에만 토스트 표시
+                console.log('🎉 백업 복원 완료 - transaction.oncomplete 감지');
                 alert(`✅ 백업 복원이 완료되었습니다!\n\n` +
                       `📅 ${restoredData.dailyData.length}일간의 데이터를 원본 날짜로 복원\n` +
                       `📊 총 ${allData.length}개 데이터 복원\n` +
@@ -1323,8 +1342,11 @@ const DataClassification = () => {
             }
           }
         } catch (error) {
-          console.error('백업 복원 실패:', error);
-          alert('❌ 백업 복원에 실패했습니다.');
+          console.error('❌ 백업 복원 실패:', error);
+          alert('❌ 백업 복원에 실패했습니다: ' + (error instanceof Error ? error.message : 'Unknown error'));
+        } finally {
+          setIsLoading(false);
+          console.log('🔄 백업 복원 프로세스 종료');
         }
       };
       reader.readAsText(file);

@@ -164,96 +164,113 @@ class IndexedDBService {
     });
   }
 
-  // unclassifiedData 저장
+  // unclassifiedData 저장 - 안전한 백업 복원 패턴
   async saveUnclassifiedData(data: any[]): Promise<void> {
     if (!this.db) await this.init();
     
+    if (data.length === 0) {
+      return Promise.resolve();
+    }
+
     return new Promise((resolve, reject) => {
+      console.log(`🔄 백업 복원 시작: ${data.length}개 항목`);
+      
+      // 1. 비동기 준비 완료 후 단일 트랜잭션 시작
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
-      // 오늘 날짜의 기존 데이터만 삭제하고 새 데이터 추가
-      const today = getKoreanDateString();
+      let completed = 0;
+      let errors = 0;
+      const total = data.length;
       
-      // 오늘 날짜 데이터 조회
-      const getAllRequest = store.getAll();
-      getAllRequest.onsuccess = () => {
-        const existingData = getAllRequest.result;
-        const todayData = existingData.filter(item => {
-          const itemDate = item.collectionDate || item.uploadDate;
-          return itemDate && itemDate.split('T')[0] === today;
-        });
-        
-        // 오늘 날짜 데이터만 삭제
-        let deleteCompleted = 0;
-        const deleteTotal = todayData.length;
-        
-        if (deleteTotal === 0) {
-          // 삭제할 데이터가 없으면 바로 새 데이터 추가
-          addNewData();
-        } else {
-          todayData.forEach(item => {
-            const deleteRequest = store.delete(item.id);
-            deleteRequest.onsuccess = () => {
-              deleteCompleted++;
-              if (deleteCompleted === deleteTotal) {
-                addNewData();
-              }
-            };
-            deleteRequest.onerror = () => reject(deleteRequest.error);
-          });
-        }
-      };
-      getAllRequest.onerror = () => reject(getAllRequest.error);
-      
-      // 새 데이터 추가 함수
-      const addNewData = () => {
-        let completed = 0;
-        const total = data.length;
-        
-        if (total === 0) {
-          resolve();
-          return;
-        }
-
-        data.forEach((item, index) => {
-          // 고유한 ID 생성 (타임스탬프 + 랜덤 + 인덱스)
+      // 2. 순차적 upsert 처리 (put 사용)
+      const processItem = async (item: any, index: number) => {
+        try {
+          // 고유 ID 보장
           if (!item.id) {
             item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
           }
           
-          // 중복 ID 확인 후 저장
-          const checkRequest = store.get(item.id);
-          checkRequest.onsuccess = () => {
-            if (checkRequest.result) {
-              // 이미 존재하는 ID라면 새로운 ID로 변경
-              item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
+          // 기존 데이터 확인 후 병합
+          const existingRequest = store.get(item.id);
+          existingRequest.onsuccess = () => {
+            const existing = existingRequest.result;
+            let mergedItem = item;
+            
+            if (existing) {
+              // 기존 데이터와 병합 (최대값 보존)
+              mergedItem = {
+                ...existing,
+                ...item,
+                viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+                likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
+                // 분류 정보는 새 데이터 우선
+                category: item.category || existing.category,
+                subCategory: item.subCategory || existing.subCategory,
+                status: item.status || existing.status,
+                updatedAt: new Date().toISOString()
+              };
             }
             
-            const addRequest = store.put(item);
-            addRequest.onsuccess = () => {
+            // upsert 실행 (put 사용)
+            const putRequest = store.put(mergedItem);
+            putRequest.onsuccess = () => {
               completed++;
-              if (completed === total) {
+              if (completed + errors === total) {
+                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
                 resolve();
               }
             };
-            addRequest.onerror = () => {
-              console.warn(`ID 충돌 발생, 새 ID로 재시도: ${item.id}`);
-              // ID 충돌 시 새로운 ID로 재시도
-              item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}_retry`;
-              const retryRequest = store.put(item);
-              retryRequest.onsuccess = () => {
-                completed++;
-                if (completed === total) {
-                  resolve();
-                }
-              };
-              retryRequest.onerror = () => reject(retryRequest.error);
+            putRequest.onerror = () => {
+              console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
+              errors++;
+              if (completed + errors === total) {
+                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+                resolve();
+              }
             };
           };
-          checkRequest.onerror = () => reject(checkRequest.error);
-        });
+          existingRequest.onerror = () => {
+            console.warn(`항목 ${index} 조회 실패:`, existingRequest.error);
+            errors++;
+            if (completed + errors === total) {
+              console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+              resolve();
+            }
+          };
+        } catch (error) {
+          console.warn(`항목 ${index} 처리 실패:`, error);
+          errors++;
+          if (completed + errors === total) {
+            console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+            resolve();
+          }
+        }
       };
+      
+      // 3. 순차 처리 (동시 요청 제한)
+      const processBatch = async () => {
+        for (let i = 0; i < data.length; i++) {
+          await processItem(data[i], i);
+          // 배치 간 짧은 지연 (브라우저 부하 방지)
+          if (i % 50 === 0 && i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 10));
+          }
+        }
+      };
+      
+      // 4. 트랜잭션 완료 감시
+      transaction.oncomplete = () => {
+        console.log('🎉 트랜잭션 완료');
+      };
+      
+      transaction.onerror = () => {
+        console.error('❌ 트랜잭션 실패:', transaction.error);
+        reject(transaction.error);
+      };
+      
+      // 5. 배치 처리 시작
+      processBatch();
     });
   }
 
