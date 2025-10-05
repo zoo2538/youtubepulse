@@ -13,8 +13,6 @@ jobs:
     
     env:
       RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-      SERVICE_NAME: f402d966-30d4-4fbf-994f-d3a892839697
-      ENV_NAME: production
     
     steps:
       - name: Checkout code
@@ -38,18 +36,12 @@ jobs:
       - name: Build project
         run: npm run build
       
-      - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli
-          railway --version
-      
       - name: Deploy to Railway
-        run: |
-          echo "Node version: $(node -v)"
-          echo "NPM version: $(npm -v)"
-          echo "Railway version: $(railway --version)"
-          railway link ${{ secrets.RAILWAY_PROJECT_ID }}
-          railway up --service "$SERVICE_NAME" --detach
+        uses: hubertstefanski/action-railway@v1.2
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          railway_service: ${{ secrets.RAILWAY_SERVICE_ID }}
+          railway_environment: production
       
       - name: Verify deployment
         run: |
