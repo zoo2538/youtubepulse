@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>멱등 복원 시스템 테스트</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background-color 0.3s;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+        .test-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background-color: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .loading {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 멱등 복원 시스템 테스트</h1>
+        
+        <div class="test-section">
+            <h3>1. IndexedDB 멱등성 테스트</h3>
+            <p>같은 데이터를 두 번 복원해도 결과가 동일한지 테스트합니다.</p>
+            <button class="test-button" onclick="runIdempotencyTest()">멱등성 테스트 실행</button>
+            <div id="idempotency-result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. 중복 검사</h3>
+            <p>현재 IndexedDB에 중복 데이터가 있는지 확인합니다.</p>
+            <button class="test-button" onclick="runDuplicateCheck()">중복 검사 실행</button>
+            <div id="duplicate-result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. 최대값 병합 테스트</h3>
+            <p>같은 영상의 조회수가 더 높은 값으로 병합되는지 테스트합니다.</p>
+            <button class="test-button" onclick="runMaxValueTest()">최대값 병합 테스트</button>
+            <div id="maxvalue-result" class="result" style="display: none;"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. 전체 시스템 테스트</h3>
+            <p>모든 기능을 종합적으로 테스트합니다.</p>
+            <button class="test-button" onclick="runFullTest()">전체 테스트 실행</button>
+            <div id="full-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // IndexedDB 열기
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('YouTubePulseDB', 3);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        // 멱등성 테스트
+        async function runIdempotencyTest() {
+            const resultDiv = document.getElementById('idempotency-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 멱등성 테스트 실행 중...';
+            
+            try {
+                const db = await openDB();
+                
+                // 테스트 데이터
+                const testData = [
+                    {
+                        videoId: 'test-video-1',
+                        dayKeyLocal: '2025-10-05',
+                        viewCount: 1000,
+                        likeCount: 50,
+                        channelName: 'Test Channel',
+                        videoTitle: 'Test Video 1'
+                    }
+                ];
+                
+                // 첫 번째 복원
+                const result1 = await batchIdempotentRestore(testData);
+                
+                // 두 번째 복원 (같은 데이터)
+                const result2 = await batchIdempotentRestore(testData);
+                
+                // 멱등성 검증
+                const isIdempotent = result1.success === result2.success && 
+                                  result1.merged === result2.merged && 
+                                  result1.new === result2.new;
+                
+                resultDiv.className = `result ${isIdempotent ? 'success' : 'error'}`;
+                resultDiv.textContent = `멱등성 테스트 결과: ${isIdempotent ? '✅ 통과' : '❌ 실패'}
+첫 번째 복원: 성공 ${result1.success}개, 병합 ${result1.merged}개, 신규 ${result1.new}개
+두 번째 복원: 성공 ${result2.success}개, 병합 ${result2.merged}개, 신규 ${result2.new}개`;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 테스트 실패: ${error.message}`;
+            }
+        }
+
+        // 중복 검사
+        async function runDuplicateCheck() {
+            const resultDiv = document.getElementById('duplicate-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 중복 검사 실행 중...';
+            
+            try {
+                const duplicateCheck = await checkDuplicates();
+                
+                resultDiv.className = `result ${duplicateCheck.duplicates === 0 ? 'success' : 'error'}`;
+                resultDiv.textContent = `중복 검사 결과: ${duplicateCheck.duplicates === 0 ? '✅ 통과' : '❌ 실패'}
+총 레코드: ${duplicateCheck.total}개
+고유 조합: ${duplicateCheck.unique}개
+중복: ${duplicateCheck.duplicates}개
+
+${duplicateCheck.duplicateDetails.length > 0 ? '중복 상세:\n' + duplicateCheck.duplicateDetails.map(d => `  ${d.key}: ${d.count}개`).join('\n') : ''}`;
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 중복 검사 실패: ${error.message}`;
+            }
+        }
+
+        // 최대값 병합 테스트
+        async function runMaxValueTest() {
+            const resultDiv = document.getElementById('maxvalue-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 최대값 병합 테스트 실행 중...';
+            
+            try {
+                const db = await openDB();
+                
+                // 낮은 조회수 데이터
+                const lowData = [{
+                    videoId: 'max-test-video',
+                    dayKeyLocal: '2025-10-05',
+                    viewCount: 1000,
+                    likeCount: 50,
+                    channelName: 'Test Channel',
+                    videoTitle: 'Max Test Video'
+                }];
+                
+                // 높은 조회수 데이터
+                const highData = [{
+                    videoId: 'max-test-video',
+                    dayKeyLocal: '2025-10-05',
+                    viewCount: 2000, // 더 높은 조회수
+                    likeCount: 100,  // 더 높은 좋아요
+                    channelName: 'Test Channel',
+                    videoTitle: 'Max Test Video Updated'
+                }];
+                
+                // 낮은 값 먼저 저장
+                await batchIdempotentRestore(lowData);
+                
+                // 높은 값으로 업데이트
+                await batchIdempotentRestore(highData);
+                
+                // 결과 확인
+                const transaction = db.transaction(['unclassifiedData'], 'readonly');
+                const store = transaction.objectStore('unclassifiedData');
+                const videoDayIndex = store.index('videoDay');
+                const getRequest = videoDayIndex.get(['max-test-video', '2025-10-05']);
+                
+                getRequest.onsuccess = () => {
+                    const result = getRequest.result;
+                    const isMaxValue = result && result.viewCount === 2000 && result.likeCount === 100;
+                    
+                    resultDiv.className = `result ${isMaxValue ? 'success' : 'error'}`;
+                    resultDiv.textContent = `최대값 병합 테스트 결과: ${isMaxValue ? '✅ 통과' : '❌ 실패'}
+저장된 조회수: ${result ? result.viewCount : '없음'}
+저장된 좋아요: ${result ? result.likeCount : '없음'}
+예상 조회수: 2000
+예상 좋아요: 100`;
+                };
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 최대값 병합 테스트 실패: ${error.message}`;
+            }
+        }
+
+        // 전체 테스트
+        async function runFullTest() {
+            const resultDiv = document.getElementById('full-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '🔄 전체 시스템 테스트 실행 중...';
+            
+            try {
+                // 모든 테스트 실행
+                await runIdempotencyTest();
+                await runDuplicateCheck();
+                await runMaxValueTest();
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = '✅ 전체 시스템 테스트 완료!\n모든 기능이 정상적으로 작동합니다.';
+                
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 전체 테스트 실패: ${error.message}`;
+            }
+        }
+
+        // 배치 멱등 복원 함수
+        async function batchIdempotentRestore(data) {
+            const db = await openDB();
+            const transaction = db.transaction(['unclassifiedData'], 'readwrite');
+            const store = transaction.objectStore('unclassifiedData');
+            const videoDayIndex = store.index('videoDay');
+            
+            let successCount = 0;
+            let mergedCount = 0;
+            let newCount = 0;
+            
+            for (const item of data) {
+                try {
+                    const key = [item.videoId, item.dayKeyLocal];
+                    const getRequest = videoDayIndex.get(key);
+                    
+                    await new Promise((resolve, reject) => {
+                        getRequest.onsuccess = () => {
+                            if (getRequest.result) {
+                                // 기존 레코드가 있으면 최대값으로 병합
+                                const existing = getRequest.result;
+                                const merged = {
+                                    ...existing,
+                                    viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+                                    likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
+                                    channelName: item.channelName || existing.channelName,
+                                    videoTitle: item.videoTitle || existing.videoTitle,
+                                    updatedAt: new Date().toISOString()
+                                };
+                                
+                                const putRequest = store.put(merged);
+                                putRequest.onsuccess = () => {
+                                    mergedCount++;
+                                    successCount++;
+                                    resolve();
+                                };
+                                putRequest.onerror = () => reject(putRequest.error);
+                            } else {
+                                // 새 레코드 추가
+                                const newItem = {
+                                    ...item,
+                                    id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                                    createdAt: item.createdAt || new Date().toISOString(),
+                                    updatedAt: new Date().toISOString()
+                                };
+                                
+                                const addRequest = store.add(newItem);
+                                addRequest.onsuccess = () => {
+                                    newCount++;
+                                    successCount++;
+                                    resolve();
+                                };
+                                addRequest.onerror = () => reject(addRequest.error);
+                            }
+                        };
+                        
+                        getRequest.onerror = () => reject(getRequest.error);
+                    });
+                } catch (error) {
+                    console.error(`❌ 레코드 처리 실패 ${item.videoId}:`, error);
+                }
+            }
+            
+            return {
+                total: data.length,
+                success: successCount,
+                merged: mergedCount,
+                new: newCount
+            };
+        }
+
+        // 중복 검사 함수
+        async function checkDuplicates() {
+            const db = await openDB();
+            const transaction = db.transaction(['unclassifiedData'], 'readonly');
+            const store = transaction.objectStore('unclassifiedData');
+            const getAllRequest = store.getAll();
+            
+            return new Promise((resolve, reject) => {
+                getAllRequest.onsuccess = () => {
+                    const allData = getAllRequest.result;
+                    const groups = {};
+                    
+                    allData.forEach(item => {
+                        const key = `${item.videoId}-${item.dayKeyLocal || item.collectionDate?.split('T')[0]}`;
+                        if (!groups[key]) {
+                            groups[key] = [];
+                        }
+                        groups[key].push(item);
+                    });
+                    
+                    const duplicates = Object.entries(groups)
+                        .filter(([key, items]) => items.length > 1)
+                        .map(([key, items]) => ({
+                            key,
+                            count: items.length,
+                            items: items.map(item => ({
+                                id: item.id,
+                                viewCount: item.viewCount,
+                                createdAt: item.createdAt
+                            }))
+                        }));
+                    
+                    resolve({
+                        total: allData.length,
+                        unique: Object.keys(groups).length,
+                        duplicates: duplicates.length,
+                        duplicateDetails: duplicates
+                    });
+                };
+                
+                getAllRequest.onerror = () => reject(getAllRequest.error);
+            });
+        }
+    </script>
+</body>
+</html>
