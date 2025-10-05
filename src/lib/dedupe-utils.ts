@@ -13,12 +13,13 @@ export interface VideoItem {
 }
 
 /**
- * 영상별 날짜별 중복 제거 (최대 조회수 보존)
+ * 영상별 날짜별 중복 제거 (최대 조회수 보존) - 강화된 버전
  * @param rows 영상 데이터 배열
  * @returns 중복 제거된 영상 데이터 배열
  */
 export function dedupeByVideoDay(rows: VideoItem[]): VideoItem[] {
   const map = new Map<string, VideoItem>();
+  let duplicatesFound = 0;
   
   for (const row of rows) {
     // dayKeyLocal 우선, 없으면 collectionDate, uploadDate 순으로 사용
@@ -26,7 +27,10 @@ export function dedupeByVideoDay(rows: VideoItem[]): VideoItem[] {
                    (row.collectionDate ? new Date(row.collectionDate).toISOString().split('T')[0] : null) ||
                    (row.uploadDate ? new Date(row.uploadDate).toISOString().split('T')[0] : null);
     
-    if (!dayKey) continue; // 날짜 키가 없으면 스킵
+    if (!dayKey) {
+      console.warn('⚠️ 날짜 키가 없는 항목 스킵:', row.videoId);
+      continue; // 날짜 키가 없으면 스킵
+    }
     
     const key = `${row.videoId}|${dayKey}`;
     const existing = map.get(key);
@@ -36,12 +40,14 @@ export function dedupeByVideoDay(rows: VideoItem[]): VideoItem[] {
       map.set(key, row);
     } else {
       // 중복 발견 - 최대 조회수 보존
+      duplicatesFound++;
       const currentViews = row.viewCount || 0;
       const existingViews = existing.viewCount || 0;
       
       if (currentViews > existingViews) {
         // 현재 항목이 조회수가 더 높으면 교체
         map.set(key, row);
+        console.log(`🔄 중복 교체: ${row.videoId} (조회수 ${existingViews} → ${currentViews})`);
       } else if (currentViews === existingViews) {
         // 조회수가 같으면 분류 상태 우선 (classified > unclassified)
         const currentStatus = row.status || 'unclassified';
@@ -49,6 +55,7 @@ export function dedupeByVideoDay(rows: VideoItem[]): VideoItem[] {
         
         if (currentStatus === 'classified' && existingStatus !== 'classified') {
           map.set(key, row);
+          console.log(`🔄 중복 교체: ${row.videoId} (상태 ${existingStatus} → ${currentStatus})`);
         } else if (currentStatus === existingStatus) {
           // 상태도 같으면 최신 항목 유지 (updatedAt 기준)
           const currentTime = new Date(row.updatedAt || row.createdAt || 0).getTime();
@@ -56,10 +63,15 @@ export function dedupeByVideoDay(rows: VideoItem[]): VideoItem[] {
           
           if (currentTime > existingTime) {
             map.set(key, row);
+            console.log(`🔄 중복 교체: ${row.videoId} (시간 ${existingTime} → ${currentTime})`);
           }
         }
       }
     }
+  }
+  
+  if (duplicatesFound > 0) {
+    console.log(`📊 중복 제거 완료: ${duplicatesFound}개 중복 발견, ${map.size}개 유지`);
   }
   
   return Array.from(map.values());
@@ -93,12 +105,13 @@ export function dedupeByCategory(rows: VideoItem[]): VideoItem[] {
 }
 
 /**
- * 날짜별 중복 제거
+ * 날짜별 중복 제거 - 강화된 버전
  * @param rows 영상 데이터 배열
  * @param targetDate 대상 날짜 (YYYY-MM-DD)
  * @returns 해당 날짜의 중복 제거된 데이터
  */
 export function dedupeByDate(rows: VideoItem[], targetDate: string): VideoItem[] {
+  // 1. 대상 날짜 필터링 (dayKeyLocal 우선)
   const filtered = rows.filter(row => {
     const dayKey = row.dayKeyLocal || 
                    (row.collectionDate ? new Date(row.collectionDate).toISOString().split('T')[0] : null) ||
@@ -106,7 +119,14 @@ export function dedupeByDate(rows: VideoItem[], targetDate: string): VideoItem[]
     return dayKey === targetDate;
   });
   
-  return dedupeByVideoDay(filtered);
+  console.log(`🔍 ${targetDate} 날짜 필터링: ${rows.length} → ${filtered.length}개`);
+  
+  // 2. 영상별 날짜별 중복 제거 (최대 조회수 보존)
+  const result = dedupeByVideoDay(filtered);
+  
+  console.log(`✅ ${targetDate} 중복 제거: ${filtered.length} → ${result.length}개`);
+  
+  return result;
 }
 
 /**

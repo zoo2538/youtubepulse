@@ -49,6 +49,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/lib/day-merge-service";
 import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
 import { dedupeComprehensive, dedupeByVideoDay, dedupeByDate, type VideoItem } from "@/lib/dedupe-utils";
+import { compressLocalIndexedDB, compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
 
@@ -912,6 +913,33 @@ const DataClassification = () => {
     }
   };
 
+  // 로컬 압축 핸들러
+  const handleCompressLocal = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🗜️ 로컬 압축 시작...');
+      
+      const result = await compressLocalIndexedDB();
+      
+      const message = `✅ 로컬 압축 완료!\n\n` +
+                     `📊 압축 전: ${result.before}개 항목\n` +
+                     `📊 압축 후: ${result.after}개 항목\n` +
+                     `🗑️ 중복 제거: ${result.duplicatesRemoved}개\n` +
+                     `📈 압축률: ${result.compressionRate.toFixed(2)}%`;
+      
+      alert(message);
+      
+      // 데이터 새로고침
+      await loadData();
+      
+    } catch (error) {
+      console.error('❌ 로컬 압축 실패:', error);
+      alert('❌ 로컬 압축에 실패했습니다: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 일자별 중복 제거 핸들러
   const handleRemoveDuplicatesByDate = async () => {
     try {
@@ -1732,6 +1760,17 @@ const DataClassification = () => {
               >
                 <Trash2 className="w-4 h-4" />
                 <span>일자별 중복 제거</span>
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCompressLocal}
+                className="flex items-center space-x-1 border-blue-500 text-blue-600 hover:bg-blue-50"
+                title="IndexedDB 전체 데이터 압축 및 중복 제거"
+              >
+                <Archive className="w-4 h-4" />
+                <span>로컬 압축</span>
               </Button>
               
               <DropdownMenu>
