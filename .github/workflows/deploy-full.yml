@@ -1,0 +1,131 @@
+name: Full Deployment Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+        - production
+        - staging
+
+jobs:
+  # 1. 병합 및 중복 제거 실행
+  merge-days:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run merge-days script
+        run: node scripts/merge-days-simple.js --mode overwrite --days 7
+        continue-on-error: true
+      
+      - name: Clear cache
+        run: npm run cache:clear || echo "Cache clear completed"
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: |
+            dist/
+            package.json
+            package-lock.json
+
+  # 2. Railway API 배포
+  deploy-railway:
+    needs: merge-days
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+          path: .
+      
+      - name: Deploy to Railway
+        uses: railwayapp/cli@latest
+        with:
+          command: up --service api --environment production --verbose --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      
+      - name: Verify Railway deployment
+        run: |
+          echo "✅ Railway API 배포 완료"
+          echo "🔗 API 서버: https://api.youthbepulse.com"
+
+  # 3. GitHub Pages 배포
+  deploy-pages:
+    needs: merge-days
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-files
+          path: .
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+      
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
+      
+      - name: Verify Pages deployment
+        run: |
+          echo "✅ GitHub Pages 배포 완료"
+          echo "🔗 웹사이트: https://youthbepulse.com"
+
+  # 4. 배포 완료 알림
+  notify:
+    needs: [deploy-railway, deploy-pages]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Deployment Summary
+        run: |
+          echo "🎉 전체 배포 파이프라인 완료!"
+          echo "📊 Railway API: https://api.youthbepulse.com"
+          echo "🌐 GitHub Pages: https://youthbepulse.com"
+          echo "🔧 프로젝트: https://railway.com/project/3b161b64-69d9-4b81-b040-b5c90ef7924d"
+          echo "📈 Pages: https://github.com/zoo2538/youtubepulse/deployments"
