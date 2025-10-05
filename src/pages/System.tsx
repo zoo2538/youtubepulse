@@ -612,6 +612,7 @@ const System = () => {
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
       console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
+      console.log(`🤖 자동 분류 시스템 활성화: 키워드 기반 자동 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       const { getKoreanDateString, getKoreanDateTimeString } = await import('@/lib/utils');
@@ -636,12 +637,22 @@ const System = () => {
       });
       console.log(`📊 기존 영상 날짜 매핑: ${existingVideoDateMap.size}개 영상의 최초 수집일 확인`);
       
+      // 자동 분류 서비스 import
+      const { autoClassificationService } = await import('@/lib/auto-classification-service');
+      
       const newData = uniqueVideos.map((video: any, index: number) => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
         const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
         
         // 오늘 수집된 모든 영상은 오늘 날짜로 설정 (기존 날짜 유지하지 않음)
         const collectionDate = today;
+        
+        // 자동 분류 실행
+        const autoClassification = autoClassificationService.classifyVideo(
+          video.snippet.title,
+          video.snippet.description,
+          video.snippet.channelTitle
+        );
         
         return {
           id: Date.now() + index,
@@ -655,9 +666,13 @@ const System = () => {
           uploadDate: video.snippet.publishedAt.split('T')[0],
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
-          category: existingClassification?.category || "",
-          subCategory: existingClassification?.subCategory || "",
-          status: existingClassification ? "classified" as const : "unclassified" as const
+          category: existingClassification?.category || autoClassification.category,
+          subCategory: existingClassification?.subCategory || autoClassification.subCategory,
+          status: existingClassification ? "classified" as const : 
+                  (autoClassification.confidence > 0.3 ? "classified" as const : "unclassified" as const),
+          autoClassified: !existingClassification && autoClassification.confidence > 0.3,
+          classificationConfidence: autoClassification.confidence,
+          matchedKeywords: autoClassification.matchedKeywords
         };
       });
 
@@ -756,6 +771,16 @@ const System = () => {
 
       const newChannels = newData.filter(item => !classifiedChannelMap.has(item.channelId)).length;
       const autoClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
+      
+      // 자동 분류 통계
+      const autoClassifiedByAI = newData.filter(item => item.autoClassified).length;
+      const manualClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
+      const unclassified = newData.filter(item => !item.autoClassified && !classifiedChannelMap.has(item.channelId)).length;
+      
+      console.log(`🤖 자동 분류 결과:`);
+      console.log(`   - AI 자동 분류: ${autoClassifiedByAI}개`);
+      console.log(`   - 기존 분류 적용: ${manualClassified}개`);
+      console.log(`   - 미분류: ${unclassified}개`);
 
       // 혼합 수집 통계를 알림 메시지에 포함
       const totalApiRequests = requestCount;
@@ -773,12 +798,15 @@ const System = () => {
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🎬 총 채널: ${newData.length}개\n` +
             `🆕 새 채널: ${newChannels}개 (분류 필요)\n` +
-            `♻️ 자동 분류: ${autoClassified}개\n` +
+            `♻️ 기존 분류 적용: ${manualClassified}개\n` +
+            `🤖 AI 자동 분류: ${autoClassifiedByAI}개\n` +
+            `❓ 미분류: ${unclassified}개\n` +
             `📊 평균 조회수: ${avgViews.toLocaleString()}회\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🔧 API 요청: ${totalApiRequests}번\n` +
             `💰 할당량: 약 ${estimatedUnits} units\n\n` +
-            `데이터 분류 관리 페이지에서 분류 작업을 진행하세요.`);
+            `자동 분류된 영상은 이미 분류 완료 상태입니다.\n` +
+            `미분류 영상만 수동 분류하면 됩니다.`);
     } catch (error) {
       console.error('데이터 수집 오류:', error);
       alert('데이터 수집 중 오류가 발생했습니다: ' + (error instanceof Error ? error.message : error));
