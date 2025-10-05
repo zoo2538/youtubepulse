@@ -9,7 +9,13 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     if: github.ref == 'refs/heads/main'
+    
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      SERVICE_NAME: api
+      ENV_NAME: production
     
     steps:
       - name: Checkout code
@@ -27,12 +33,11 @@ jobs:
       - name: Build project
         run: npm run build
       
+      - name: Verify Railway CLI
+        run: railway --version
+      
       - name: Deploy to Railway
-        uses: railwayapp/cli@latest
-        with:
-          command: up --service api --environment production --verbose --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service "$SERVICE_NAME" --environment "$ENV_NAME" --verbose --detach
       
       - name: Verify deployment
         run: |
