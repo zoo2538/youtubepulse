@@ -164,7 +164,7 @@ class IndexedDBService {
     });
   }
 
-  // unclassifiedData 저장 - 안전한 백업 복원 패턴
+  // unclassifiedData 저장 - 완전 안전한 백업 복원 패턴
   async saveUnclassifiedData(data: any[]): Promise<void> {
     if (!this.db) await this.init();
     
@@ -172,52 +172,113 @@ class IndexedDBService {
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
-      console.log(`🔄 백업 복원 시작: ${data.length}개 항목`);
+    console.log(`🔄 백업 복원 시작: ${data.length}개 항목`);
+    
+    // 1. 비동기 준비: 날짜 키 단일화 (KST yyyy-MM-dd)
+    const normalizedData = data.map(item => {
+      const dayKeyLocal = this.normalizeDayKey(item.dayKeyLocal || item.collectionDate || item.uploadDate);
+      return {
+        ...item,
+        dayKeyLocal,
+        // ID 보장
+        id: item.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`
+      };
+    });
+    
+    console.log(`✅ 날짜 키 단일화 완료: ${normalizedData.length}개 항목`);
+    
+    // 2. 배치 크기 제한 (브라우저 부하 방지)
+    const BATCH_SIZE = 50;
+    const batches = [];
+    for (let i = 0; i < normalizedData.length; i += BATCH_SIZE) {
+      batches.push(normalizedData.slice(i, i + BATCH_SIZE));
+    }
+    
+    console.log(`📦 배치 처리: ${batches.length}개 배치 (${BATCH_SIZE}개씩)`);
+    
+    // 3. 배치별 순차 처리
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      console.log(`🔄 배치 ${batchIndex + 1}/${batches.length} 처리 중... (${batch.length}개 항목)`);
       
-      // 1. 비동기 준비 완료 후 단일 트랜잭션 시작
+      await this.processBatch(batch, batchIndex);
+      
+      // 배치 간 짧은 지연 (브라우저 부하 방지)
+      if (batchIndex < batches.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+    }
+    
+    console.log(`🎉 백업 복원 완료: ${normalizedData.length}개 항목 처리됨`);
+  }
+  
+  // 날짜 키 단일화 (KST yyyy-MM-dd)
+  private normalizeDayKey(dateInput: any): string {
+    if (!dateInput) return new Date().toISOString().split('T')[0];
+    
+    try {
+      const date = new Date(dateInput);
+      if (isNaN(date.getTime())) {
+        return new Date().toISOString().split('T')[0];
+      }
+      
+      // KST 기준으로 yyyy-MM-dd 형식 변환
+      return date.toLocaleDateString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).replace(/\./g, '-').replace(/\s/g, '');
+    } catch (error) {
+      console.warn('날짜 키 변환 실패:', dateInput, error);
+      return new Date().toISOString().split('T')[0];
+    }
+  }
+  
+  // 배치 처리 헬퍼
+  private async processBatch(batch: any[], batchIndex: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      // 단일 트랜잭션으로 배치 처리
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
       let completed = 0;
       let errors = 0;
-      const total = data.length;
+      const total = batch.length;
       
-      // 2. 순차적 upsert 처리 (put 사용)
-      const processItem = async (item: any, index: number) => {
+      // 3. 순차적 upsert 처리 (get→병합→put)
+      const processItem = (item: any, index: number) => {
         try {
-          // 고유 ID 보장
-          if (!item.id) {
-            item.id = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`;
-          }
+          // 키 기반 조회 (videoId + dayKeyLocal)
+          const key = `${item.videoId}|${item.dayKeyLocal}`;
+          const existingRequest = store.get(key);
           
-          // 기존 데이터 확인 후 병합
-          const existingRequest = store.get(item.id);
           existingRequest.onsuccess = () => {
             const existing = existingRequest.result;
             let mergedItem = item;
             
             if (existing) {
-              // 기존 데이터와 병합 (최대값 보존)
+              // 기존 데이터와 병합 (최대값 보존 + 수동 분류 우선)
               mergedItem = {
                 ...existing,
                 ...item,
+                // 조회수/좋아요는 최대값 보존
                 viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
                 likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
-                // 분류 정보는 새 데이터 우선
-                category: item.category || existing.category,
-                subCategory: item.subCategory || existing.subCategory,
-                status: item.status || existing.status,
+                // 수동 분류 필드는 기존 값 우선 (사용자 입력 보존)
+                category: existing.category || item.category,
+                subCategory: existing.subCategory || item.subCategory,
+                status: existing.status || item.status,
                 updatedAt: new Date().toISOString()
               };
             }
             
-            // upsert 실행 (put 사용)
+            // upsert 실행 (put 사용, add 금지)
             const putRequest = store.put(mergedItem);
             putRequest.onsuccess = () => {
               completed++;
               if (completed + errors === total) {
-                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+                console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
                 resolve();
               }
             };
@@ -225,16 +286,17 @@ class IndexedDBService {
               console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
               errors++;
               if (completed + errors === total) {
-                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+                console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
                 resolve();
               }
             };
           };
+          
           existingRequest.onerror = () => {
             console.warn(`항목 ${index} 조회 실패:`, existingRequest.error);
             errors++;
             if (completed + errors === total) {
-              console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+              console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
               resolve();
             }
           };
@@ -242,35 +304,26 @@ class IndexedDBService {
           console.warn(`항목 ${index} 처리 실패:`, error);
           errors++;
           if (completed + errors === total) {
-            console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+            console.log(`✅ 배치 ${batchIndex + 1} 완료: ${completed}개 성공, ${errors}개 실패`);
             resolve();
           }
         }
       };
       
-      // 3. 순차 처리 (동시 요청 제한)
-      const processBatch = async () => {
-        for (let i = 0; i < data.length; i++) {
-          await processItem(data[i], i);
-          // 배치 간 짧은 지연 (브라우저 부하 방지)
-          if (i % 50 === 0 && i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 10));
-          }
-        }
-      };
+      // 4. 배치 처리 시작
+      batch.forEach((item, index) => {
+        processItem(item, index);
+      });
       
-      // 4. 트랜잭션 완료 감시
+      // 5. 트랜잭션 완료 감시
       transaction.oncomplete = () => {
-        console.log('🎉 트랜잭션 완료');
+        console.log(`🎉 배치 ${batchIndex + 1} 트랜잭션 완료`);
       };
       
       transaction.onerror = () => {
-        console.error('❌ 트랜잭션 실패:', transaction.error);
+        console.error(`❌ 배치 ${batchIndex + 1} 트랜잭션 실패:`, transaction.error);
         reject(transaction.error);
       };
-      
-      // 5. 배치 처리 시작
-      processBatch();
     });
   }
 

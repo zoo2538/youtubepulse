@@ -1204,7 +1204,7 @@ const DataClassification = () => {
     }
   };
 
-  // 백업 복원 - 안전한 패턴
+  // 백업 복원 - 완전 안전한 패턴
   const handleRestoreBackup = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1218,6 +1218,9 @@ const DataClassification = () => {
         try {
           setIsLoading(true);
           console.log('🔄 백업 복원 시작...');
+          
+          // 복원 락 설정 (동시 이벤트 차단)
+          sessionStorage.setItem('restoreInProgress', 'true');
           
           const text = event.target?.result as string;
           let restoredData;
@@ -1373,6 +1376,8 @@ const DataClassification = () => {
           console.error('❌ 백업 복원 실패:', error);
           alert('❌ 백업 복원에 실패했습니다: ' + (error instanceof Error ? error.message : 'Unknown error'));
         } finally {
+          // 복원 락 해제
+          sessionStorage.removeItem('restoreInProgress');
           setIsLoading(false);
           console.log('🔄 백업 복원 프로세스 종료');
         }
