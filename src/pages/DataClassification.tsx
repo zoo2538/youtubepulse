@@ -905,6 +905,142 @@ const DataClassification = () => {
     }
   };
 
+  // 일자별 중복 제거 핸들러
+  const handleRemoveDuplicatesByDate = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🗑️ 일자별 중복 제거 시작...');
+      
+      // IndexedDB 열기
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open('YouTubePulseDB', 2);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      
+      // 트랜잭션 시작
+      const transaction = db.transaction(['unclassifiedData'], 'readwrite');
+      const store = transaction.objectStore('unclassifiedData');
+      
+      // 모든 데이터 가져오기
+      const allData = await new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+      
+      console.log(`📊 전체 데이터: ${allData.length}개 항목`);
+      
+      // 일자별로 그룹핑
+      const dateGroups = new Map();
+      for (const item of allData) {
+        const dateKey = item.dayKeyLocal || item.collectionDate || 'unknown';
+        if (!dateGroups.has(dateKey)) {
+          dateGroups.set(dateKey, []);
+        }
+        dateGroups.get(dateKey).push(item);
+      }
+      
+      console.log(`📅 일자별 그룹: ${dateGroups.size}개`);
+      
+      let totalRemoved = 0;
+      const results = [];
+      
+      // 각 일자별로 처리
+      for (const [dateKey, items] of dateGroups) {
+        console.log(`\n📅 처리 중: ${dateKey} (${items.length}개 항목)`);
+        
+        // 같은 영상 제목으로 그룹핑
+        const titleGroups = new Map();
+        for (const item of items) {
+          const title = item.videoTitle || item.video_title || 'Unknown Title';
+          if (!titleGroups.has(title)) {
+            titleGroups.set(title, []);
+          }
+          titleGroups.get(title).push(item);
+        }
+        
+        let dateRemoved = 0;
+        const dateResults = [];
+        
+        // 같은 제목의 영상들 중 조회수가 높은 것만 남기기
+        for (const [title, titleItems] of titleGroups) {
+          if (titleItems.length > 1) {
+            console.log(`  🎬 "${title}" - ${titleItems.length}개 중복 발견`);
+            
+            // 조회수 기준으로 정렬 (높은 순)
+            titleItems.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+            
+            // 가장 높은 조회수 항목만 유지
+            const keepItem = titleItems[0];
+            const removeItems = titleItems.slice(1);
+            
+            console.log(`    ✅ 유지: ${keepItem.viewCount || 0} 조회수`);
+            console.log(`    🗑️ 삭제: ${removeItems.length}개 항목`);
+            
+            // 삭제할 항목들을 IndexedDB에서 제거
+            for (const removeItem of removeItems) {
+              await new Promise((resolve, reject) => {
+                const request = store.delete(removeItem.id);
+                request.onerror = () => reject(request.error);
+                request.onsuccess = () => resolve(request.result);
+              });
+            }
+            
+            dateRemoved += removeItems.length;
+            dateResults.push({
+              title,
+              kept: 1,
+              removed: removeItems.length,
+              maxViews: keepItem.viewCount || 0
+            });
+          }
+        }
+        
+        totalRemoved += dateRemoved;
+        results.push({
+          date: dateKey,
+          totalItems: items.length,
+          removed: dateRemoved,
+          remaining: items.length - dateRemoved,
+          details: dateResults
+        });
+        
+        console.log(`  📊 ${dateKey}: ${dateRemoved}개 제거, ${items.length - dateRemoved}개 유지`);
+      }
+      
+      console.log('\n🎉 일자별 중복 영상 제거 완료!');
+      console.log(`📊 총 제거: ${totalRemoved}개 항목`);
+      console.log(`📊 남은 항목: ${allData.length - totalRemoved}개 항목`);
+      
+      // 결과 상세 출력
+      let resultMessage = `🎉 일자별 중복 영상 제거 완료!\n\n`;
+      resultMessage += `📊 총 제거: ${totalRemoved}개 항목\n`;
+      resultMessage += `📊 남은 항목: ${allData.length - totalRemoved}개 항목\n\n`;
+      
+      resultMessage += `📋 일자별 결과:\n`;
+      results.forEach(result => {
+        if (result.removed > 0) {
+          resultMessage += `  📅 ${result.date}: ${result.removed}개 제거\n`;
+          result.details.forEach(detail => {
+            resultMessage += `    🎬 "${detail.title}": ${detail.removed}개 제거, ${detail.maxViews} 조회수 유지\n`;
+          });
+        }
+      });
+      
+      alert(resultMessage);
+      
+      // 데이터 새로고침
+      await loadData();
+      
+    } catch (error) {
+      console.error('❌ 일자별 중복 제거 실패:', error);
+      alert('❌ 일자별 중복 제거에 실패했습니다: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 하이브리드 자동 수집 데이터 가져오기 (서버 + 로컬 병합)
   const handleFetchAutoCollected = async (action: 'download' | 'merge') => {
     try {
@@ -1530,6 +1666,17 @@ const DataClassification = () => {
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>하이브리드 동기화</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleRemoveDuplicatesByDate}
+                className="flex items-center space-x-1 border-orange-500 text-orange-600 hover:bg-orange-50"
+                title="같은 날짜에서 같은 영상 제목 중 조회수 높은 것만 유지하고 나머지 삭제"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>일자별 중복 제거</span>
               </Button>
               
               <DropdownMenu>
