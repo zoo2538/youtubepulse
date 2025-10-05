@@ -918,23 +918,6 @@ const System = () => {
                 <Play className="w-4 h-4 mr-2" />
                 데이터 수집 시작
               </Button>
-              <Button variant="outline" onClick={exportConfig}>
-                <Download className="w-4 h-4 mr-2" />
-                설정 내보내기
-              </Button>
-              <Button variant="outline" asChild>
-                <label htmlFor="import-config">
-                  <Upload className="w-4 h-4 mr-2" />
-                  설정 가져오기
-                </label>
-              </Button>
-              <input
-                id="import-config"
-                type="file"
-                accept=".json"
-                onChange={importConfig}
-                className="hidden"
-              />
               <Button onClick={saveConfig}>
                 <Save className="w-4 h-4 mr-2" />
                 설정 저장
@@ -1099,7 +1082,7 @@ const System = () => {
                       </div>
                     </Card>
 
-                    {/* 시스템 설정 */}
+                    {/* 시스템 설정 - 간소화 */}
                     <Card className="p-6">
                       <div className="flex items-center space-x-2 mb-4">
                         <Settings className="w-5 h-5 text-purple-600" />
@@ -1107,55 +1090,13 @@ const System = () => {
                       </div>
                       
                       <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="refresh-interval">데이터 새로고침 간격 (초)</Label>
-                          <Input
-                            id="refresh-interval"
-                            type="number"
-                            min="60"
-                            max="3600"
-                            value={systemConfig.dataRefreshInterval}
-                            onChange={(e) => 
-                              setSystemConfig(prev => ({ ...prev, dataRefreshInterval: parseInt(e.target.value) }))
-                            }
-                          />
-                          <p className="text-xs text-muted-foreground mt-1">
-                            최소 60초, 최대 3600초 (1시간)
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <h4 className="text-sm font-medium text-blue-900 mb-2">💡 핵심 기능</h4>
+                          <p className="text-xs text-blue-700">
+                            • 자동 수집 시 키워드 기반 분류 적용<br/>
+                            • 14일간 분류 이력 우선 적용<br/>
+                            • 하이브리드 저장 (IndexedDB + PostgreSQL)
                           </p>
-                        </div>
-
-                        <div>
-                          <Label htmlFor="retry-attempts">최대 재시도 횟수</Label>
-                          <Input
-                            id="retry-attempts"
-                            type="number"
-                            min="1"
-                            max="10"
-                            value={systemConfig.maxRetryAttempts}
-                            onChange={(e) => 
-                              setSystemConfig(prev => ({ ...prev, maxRetryAttempts: parseInt(e.target.value) }))
-                            }
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm font-medium">자동 동기화</Label>
-                          <Switch
-                            checked={systemConfig.enableAutoSync}
-                            onCheckedChange={(checked) => 
-                              setSystemConfig(prev => ({ ...prev, enableAutoSync: checked }))
-                            }
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <Label className="text-sm font-medium">알림 활성화</Label>
-                          <Switch
-                            checked={systemConfig.enableNotifications}
-                            onCheckedChange={(checked) => 
-                              setSystemConfig(prev => ({ ...prev, enableNotifications: checked }))
-                            }
-                          />
                         </div>
                       </div>
                     </Card>
@@ -1341,14 +1282,6 @@ const System = () => {
                         <div className="p-3 rounded-lg bg-blue-600 text-white">
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="text-sm font-medium">IndexedDB 정보</h4>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={handleCleanupOldData}
-                              className="text-xs"
-                            >
-                              🧹 14일 정리
-                            </Button>
                           </div>
                           <div className="text-xs space-y-1">
                             <div><strong>데이터베이스:</strong> {dbInfo?.name || 'YouTubePulseDB'}</div>
@@ -1360,9 +1293,9 @@ const System = () => {
                             <div><strong>상태:</strong> <span className="text-green-300">정상 운영</span></div>
                           </div>
                           
-                          {/* 실시간 데이터 통계 */}
+                          {/* 통합 데이터 통계 */}
                           <div className="mt-3 p-2 bg-blue-500/20 rounded border border-blue-400/30">
-                            <h5 className="text-xs font-medium mb-1 text-blue-100">실시간 데이터 통계</h5>
+                            <h5 className="text-xs font-medium mb-1 text-blue-100">📊 데이터 현황</h5>
                             <div className="grid grid-cols-2 gap-2 text-xs">
                               <div>
                                 <span className="text-blue-200">채널:</span>
@@ -1373,7 +1306,7 @@ const System = () => {
                                 <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.videos || 0}개</span>
                               </div>
                               <div>
-                                <span className="text-blue-200">분류 데이터:</span>
+                                <span className="text-blue-200">분류됨:</span>
                                 <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.classifiedData || 0}개</span>
                               </div>
                               <div>
