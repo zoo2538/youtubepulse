@@ -24,7 +24,9 @@
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && electron .\"",
     "electron:build": "npm run build && electron-builder",
-    "electron:dist": "npm run build && electron-builder --publish=never"
+    "electron:dist": "npm run build && electron-builder --publish=never",
+    "cache:clear": "rm -rf dist && rm -rf node_modules/.vite && echo 'Cache cleared'",
+    "cache:clear:win": "if exist dist rmdir /s /q dist && if exist node_modules\\.vite rmdir /s /q node_modules\\.vite && echo Cache cleared"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
