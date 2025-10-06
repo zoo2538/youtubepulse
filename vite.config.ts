@@ -60,26 +60,28 @@ export default defineConfig({
   </head>
   <body>
     <script>
-      // spa-github-pages 방식: 원경로를 ?p= 파라미터로 인코딩하여 안전하게 전달
-      console.log('🔄 404.html에서 SPA 리다이렉트 시작');
-      console.log('📍 현재 URL:', location.href);
-      
-      // /assets/* 경로는 절대 가로채지 않음
-      if (location.pathname.startsWith('/assets/')) {
-        console.log('⚠️ 자산 파일 요청 - 404.html에서 처리하지 않음');
-        return;
-      }
-      
-      // 원경로를 ?p= 파라미터로 인코딩하여 전달
-      const pathSegmentsToKeep = 0; // 커스텀 도메인 루트용
-      const pathSegments = location.pathname.split('/').slice(1);
-      const segmentsToKeep = pathSegments.slice(0, pathSegmentsToKeep);
-      const pathToRestore = '/' + segmentsToKeep.join('/') + location.search + location.hash;
-      
-      console.log('💾 복원할 경로:', pathToRestore);
-      
-      // 인코딩된 경로로 리다이렉트 (루프 방지)
-      window.location.replace(location.origin + '/?p=' + encodeURIComponent(pathToRestore));
+      (function() {
+        // spa-github-pages 방식: 원경로를 ?p= 파라미터로 인코딩하여 안전하게 전달
+        console.log('🔄 404.html에서 SPA 리다이렉트 시작');
+        console.log('📍 현재 URL:', location.href);
+        
+        // /assets/* 경로는 절대 가로채지 않음
+        if (location.pathname.startsWith('/assets/')) {
+          console.log('⚠️ 자산 파일 요청 - 404.html에서 처리하지 않음');
+          return;
+        }
+        
+        // 원경로를 ?p= 파라미터로 인코딩하여 전달
+        const pathSegmentsToKeep = 0; // 커스텀 도메인 루트용
+        const pathSegments = location.pathname.split('/').slice(1);
+        const segmentsToKeep = pathSegments.slice(0, pathSegmentsToKeep);
+        const pathToRestore = '/' + segmentsToKeep.join('/') + location.search + location.hash;
+        
+        console.log('💾 복원할 경로:', pathToRestore);
+        
+        // 인코딩된 경로로 리다이렉트 (루프 방지)
+        window.location.replace(location.origin + '/?p=' + encodeURIComponent(pathToRestore));
+      })();
     </script>
   </body>
 </html>`;
@@ -131,26 +133,28 @@ export default defineConfig({
   </head>
   <body>
     <script>
-      // spa-github-pages 방식: 원경로를 ?p= 파라미터로 인코딩하여 안전하게 전달
-      console.log('🔄 404.html에서 SPA 리다이렉트 시작');
-      console.log('📍 현재 URL:', location.href);
-      
-      // /assets/* 경로는 절대 가로채지 않음
-      if (location.pathname.startsWith('/assets/')) {
-        console.log('⚠️ 자산 파일 요청 - 404.html에서 처리하지 않음');
-        return;
-      }
-      
-      // 원경로를 ?p= 파라미터로 인코딩하여 전달
-      const pathSegmentsToKeep = 0; // 커스텀 도메인 루트용
-      const pathSegments = location.pathname.split('/').slice(1);
-      const segmentsToKeep = pathSegments.slice(0, pathSegmentsToKeep);
-      const pathToRestore = '/' + segmentsToKeep.join('/') + location.search + location.hash;
-      
-      console.log('💾 복원할 경로:', pathToRestore);
-      
-      // 인코딩된 경로로 리다이렉트 (루프 방지)
-      window.location.replace(location.origin + '/?p=' + encodeURIComponent(pathToRestore));
+      (function() {
+        // spa-github-pages 방식: 원경로를 ?p= 파라미터로 인코딩하여 안전하게 전달
+        console.log('🔄 404.html에서 SPA 리다이렉트 시작');
+        console.log('📍 현재 URL:', location.href);
+        
+        // /assets/* 경로는 절대 가로채지 않음
+        if (location.pathname.startsWith('/assets/')) {
+          console.log('⚠️ 자산 파일 요청 - 404.html에서 처리하지 않음');
+          return;
+        }
+        
+        // 원경로를 ?p= 파라미터로 인코딩하여 전달
+        const pathSegmentsToKeep = 0; // 커스텀 도메인 루트용
+        const pathSegments = location.pathname.split('/').slice(1);
+        const segmentsToKeep = pathSegments.slice(0, pathSegmentsToKeep);
+        const pathToRestore = '/' + segmentsToKeep.join('/') + location.search + location.hash;
+        
+        console.log('💾 복원할 경로:', pathToRestore);
+        
+        // 인코딩된 경로로 리다이렉트 (루프 방지)
+        window.location.replace(location.origin + '/?p=' + encodeURIComponent(pathToRestore));
+      })();
     </script>
   </body>
 </html>`;
