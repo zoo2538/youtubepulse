@@ -2293,10 +2293,10 @@ const DataClassification = () => {
             </div>
 
             {/* 현재 데이터 정보 */}
-             <div className="space-y-4">
-               <h3 className="font-medium text-foreground">현재 데이터 정보</h3>
+            <div className="space-y-4">
+              <h3 className="font-medium text-foreground">현재 데이터 정보</h3>
               <div className="space-y-2 text-sm">
-                       <div className="flex justify-between">
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">전체 영상:</span>
                   <span className="font-medium">{totalVideos.toLocaleString()}개</span>
                 </div>
@@ -2315,10 +2315,10 @@ const DataClassification = () => {
               </div>
             </div>
 
-                         {/* 데이터 관리 액션 */}
-             <div className="space-y-4">
+            {/* 데이터 관리 액션 */}
+            <div className="space-y-4">
               <h3 className="font-medium text-foreground">데이터 관리 액션</h3>
-               <div className="space-y-2">
+              <div className="space-y-2">
                  <Button 
                    variant="outline" 
                    onClick={handleCleanupOldData}
