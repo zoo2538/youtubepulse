@@ -2299,21 +2299,21 @@ const DataClassification = () => {
                        <div className="flex justify-between">
                   <span className="text-muted-foreground">전체 영상:</span>
                   <span className="font-medium">{totalVideos.toLocaleString()}개</span>
-                       </div>
-                       <div className="flex justify-between">
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">분류 완료:</span>
                   <span className="font-medium text-green-600">{classifiedVideos.toLocaleString()}개</span>
-                       </div>
-                       <div className="flex justify-between">
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">미분류:</span>
                   <span className="font-medium text-red-600">{unclassifiedVideos.toLocaleString()}개</span>
-                       </div>
-                       <div className="flex justify-between">
+                </div>
+                <div className="flex justify-between">
                   <span className="text-muted-foreground">진행률:</span>
                   <span className="font-medium text-primary">{Math.round(classificationProgress)}%</span>
-                       </div>
-                     </div>
-             </div>
+                </div>
+              </div>
+            </div>
 
                          {/* 데이터 관리 액션 */}
              <div className="space-y-4">
