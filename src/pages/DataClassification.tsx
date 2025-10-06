@@ -324,7 +324,6 @@ const DataClassification = () => {
       // 데이터 다시 로드 (페이지 새로고침 대신 데이터만 새로고침)
       const loadData = async () => {
         try {
-          setIsLoading(true);
           console.log('🔄 데이터 분류 관리 페이지 - 데이터 새로고침 시작');
           
           // 1. 하이브리드 서비스에서 전체 unclassifiedData 로드 (통계용) - 강제 새로고침
@@ -402,8 +401,6 @@ const DataClassification = () => {
         } catch (error) {
           console.error('데이터 로드 실패:', error);
           setUnclassifiedData([]);
-        } finally {
-          setIsLoading(false);
         }
       };
       
