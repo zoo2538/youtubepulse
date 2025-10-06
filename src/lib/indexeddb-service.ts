@@ -187,7 +187,35 @@ class IndexedDBService {
     
     console.log(`✅ 날짜 키 단일화 완료: ${normalizedData.length}개 항목`);
     
-    // 2. 단일 트랜잭션으로 완전 직렬 처리
+    // 2. 중복 제거 처리
+    const uniqueItems = new Map<string, any>();
+    
+    // 중복 제거: (videoId, dayKeyLocal) 조합으로 유니크하게 만들기
+    normalizedData.forEach(item => {
+      const key = `${item.videoId}|${item.dayKeyLocal}`;
+      if (uniqueItems.has(key)) {
+        // 기존 항목과 병합 (최대값 보존)
+        const existing = uniqueItems.get(key)!;
+        const merged = {
+          ...existing,
+          ...item,
+          viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+          likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
+          // 수동 분류 우선
+          status: item.status === 'classified' ? 'classified' : existing.status,
+          category: item.category || existing.category,
+          subCategory: item.subCategory || existing.subCategory
+        };
+        uniqueItems.set(key, merged);
+      } else {
+        uniqueItems.set(key, item);
+      }
+    });
+    
+    const deduplicatedData = Array.from(uniqueItems.values());
+    console.log(`🔄 중복 제거 완료: ${normalizedData.length}개 → ${deduplicatedData.length}개`);
+    
+    // 3. 단일 트랜잭션으로 완전 직렬 처리
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
@@ -197,34 +225,6 @@ class IndexedDBService {
       const total = deduplicatedData.length;
       
       console.log(`🔄 단일 트랜잭션 시작: ${total}개 항목 직렬 처리`);
-      
-      // 3. 중복 제거 후 순차적 upsert 처리
-      const uniqueItems = new Map<string, any>();
-      
-      // 중복 제거: (videoId, dayKeyLocal) 조합으로 유니크하게 만들기
-      normalizedData.forEach(item => {
-        const key = `${item.videoId}|${item.dayKeyLocal}`;
-        if (uniqueItems.has(key)) {
-          // 기존 항목과 병합 (최대값 보존)
-          const existing = uniqueItems.get(key)!;
-          const merged = {
-            ...existing,
-            ...item,
-            viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
-            likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
-            // 수동 분류 우선
-            status: item.status === 'classified' ? 'classified' : existing.status,
-            category: item.category || existing.category,
-            subCategory: item.subCategory || existing.subCategory
-          };
-          uniqueItems.set(key, merged);
-        } else {
-          uniqueItems.set(key, item);
-        }
-      });
-      
-      const deduplicatedData = Array.from(uniqueItems.values());
-      console.log(`🔄 중복 제거 완료: ${normalizedData.length}개 → ${deduplicatedData.length}개`);
       
       // 4. 순차적 upsert 처리
       const processItem = (item: any, index: number) => {
