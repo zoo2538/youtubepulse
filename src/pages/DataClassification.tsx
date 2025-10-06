@@ -290,7 +290,7 @@ const DataClassification = () => {
     };
 
     loadData();
-  }, [dataLoaded]); // dataLoaded를 의존성으로 추가
+  }, []); // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
 
   const [dataManagementConfig, setDataManagementConfig] = useState<DataManagementConfig>({
     retentionDays: 14,
@@ -542,6 +542,47 @@ const DataClassification = () => {
     setDateStats({});
     setAutoCollectedStats({});
     setUnclassifiedData([]);
+    
+    // 강제로 데이터 다시 로드
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        console.log('🔄 하이브리드 데이터 로드 시작...');
+        
+        // 1. 서버와 로컬 데이터 병합
+        const mergeResult = await loadAndMergeDays('overwrite');
+        console.log('📊 병합 결과:', mergeResult.stats);
+        
+        if (mergeResult.conflicts.length > 0) {
+          console.log('⚠️ 데이터 충돌 발견:', mergeResult.conflicts);
+        }
+        
+        // 2. 병합된 데이터를 기반으로 통계 계산
+        const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+        
+        mergeResult.mergedDays.forEach(dayRow => {
+          mergedDateStats[dayRow.dayKey] = {
+            total: dayRow.total,
+            classified: dayRow.done,
+            progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
+          };
+        });
+        
+        setDateStats(mergedDateStats);
+        console.log('📊 병합된 dateStats:', mergedDateStats);
+        
+        // 3. 자동수집 데이터 로드
+        await loadAutoCollectedData();
+        
+        setDataLoaded(true);
+      } catch (error) {
+        console.error('데이터 로드 실패:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    await loadData();
   };
 
 
