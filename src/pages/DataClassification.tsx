@@ -164,8 +164,8 @@ const DataClassification = () => {
       } else {
         console.log('🤖 자동수집 API 호출 실패');
         setAutoCollectedStats({});
-        }
-      } catch (error) {
+      }
+    } catch (error) {
       console.error('🤖 자동수집 데이터 로드 실패:', error);
       setAutoCollectedStats({});
     }
@@ -234,42 +234,42 @@ const DataClassification = () => {
           console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
         } else {
           // 6. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
-        const channelsData = localStorage.getItem('youtubepulse_channels');
-        const videosData = localStorage.getItem('youtubepulse_videos');
-        
-        if (channelsData && videosData) {
-          const channels = JSON.parse(channelsData);
-          const videos = JSON.parse(videosData);
+          const channelsData = localStorage.getItem('youtubepulse_channels');
+          const videosData = localStorage.getItem('youtubepulse_videos');
           
-          // 채널과 비디오 데이터를 결합하여 UnclassifiedData 형태로 변환
-          const combinedData: UnclassifiedData[] = [];
-          let id = 1;
-          
-          Object.values(channels).forEach((channel: any) => {
-            const channelVideos = videos[channel.id] || [];
+          if (channelsData && videosData) {
+            const channels = JSON.parse(channelsData);
+            const videos = JSON.parse(videosData);
             
-            channelVideos.forEach((video: any) => {
-              combinedData.push({
-                id: id++,
-                channelId: channel.id,
-                channelName: channel.name,
-                description: channel.description || "설명 없음",
-                videoId: video.id,
-                videoTitle: video.title,
-                videoDescription: video.description || "설명 없음",
-                viewCount: video.viewCount || 0,
-                uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
-                category: "",
-                subCategory: "",
-                status: "unclassified" as const
+            // 채널과 비디오 데이터를 결합하여 UnclassifiedData 형태로 변환
+            const combinedData: UnclassifiedData[] = [];
+            let id = 1;
+            
+            Object.values(channels).forEach((channel: any) => {
+              const channelVideos = videos[channel.id] || [];
+              
+              channelVideos.forEach((video: any) => {
+                combinedData.push({
+                  id: id++,
+                  channelId: channel.id,
+                  channelName: channel.name,
+                  description: channel.description || "설명 없음",
+                  videoId: video.id,
+                  videoTitle: video.title,
+                  videoDescription: video.description || "설명 없음",
+                  viewCount: video.viewCount || 0,
+                  uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
+                  category: "",
+                  subCategory: "",
+                  status: "unclassified" as const
+                });
               });
             });
-          });
-          
-          if (combinedData.length > 0) {
+            
+            if (combinedData.length > 0) {
               console.log('🔄 localStorage 데이터를 하이브리드 저장소로 마이그레이션:', combinedData.length, '개');
               await hybridService.saveUnclassifiedData(combinedData);
-            setUnclassifiedData(combinedData);
+              setUnclassifiedData(combinedData);
             } else {
               console.log('📊 실제 데이터가 없습니다. 데이터 수집을 먼저 진행해주세요.');
               setUnclassifiedData([]);
@@ -873,10 +873,10 @@ const DataClassification = () => {
         classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
         unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
         dailyProgress: availableDates.slice(0, 7).map(date => {
-          const dateData = unclassifiedData.filter(item => {
+      const dateData = unclassifiedData.filter(item => {
         const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            return itemDate === date;
-          });
+        return itemDate === date;
+      });
           
           const total = dateData.length;
           const classified = dateData.filter(item => item.status === 'classified').length;
@@ -1488,7 +1488,7 @@ const DataClassification = () => {
                   console.log('✅ IndexedDB upsert 완료');
                   
                   // 3. UI 상태 업데이트 (트랜잭션 완료 후)
-                setUnclassifiedData(allData);
+                  setUnclassifiedData(allData);
                   console.log('✅ UI 상태 업데이트 완료');
                 } catch (dbError) {
                   console.error('❌ IndexedDB 저장 실패:', dbError);
@@ -1938,43 +1938,44 @@ const DataClassification = () => {
         {/* 카테고리 관리 섹션 제거 - 하드코딩 방식 사용 */}
         {/* 세부카테고리는 src/lib/subcategories.ts 파일에서 직접 수정 */}
 
-        {/* 일별 분류 진행률 섹션 삭제됨 */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-2">
+        {/* 일별 분류 진행률 */}
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
               <Calendar className="w-5 h-5 text-green-600" />
               <h2 className="text-xl font-semibold text-foreground">일별 분류 진행</h2>
-              </div>
+            </div>
             <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
+              <Button 
+                variant="outline" 
                 size="sm" 
                 onClick={handleBulkSaveProgress}
                 className="flex items-center space-x-1"
-                    >
+              >
                 <SaveAll className="w-4 h-4" />
                 <span>진행률 일괄 저장</span>
-                    </Button>
-                  
-                          <Button
+              </Button>
+              
+              <Button 
                 variant="outline" 
-                            size="sm"
+                size="sm" 
                 onClick={handleRestoreBackup}
                 className="flex items-center space-x-1"
-                          >
+              >
                 <Upload className="w-4 h-4" />
                 <span>백업 복원하기</span>
-                          </Button>
+              </Button>
               
-                          <Button
+              <Button 
                 variant="outline" 
-                            size="sm"
+                size="sm" 
                 onClick={handleHybridSync}
                 className="flex items-center space-x-1 border-blue-500 text-blue-600 hover:bg-blue-50"
                 title="서버와 로컬 데이터 동기화 + 중복 제거 + 최대값 보존"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>하이브리드 동기화</span>
-                          </Button>
+              </Button>
               
               <Button 
                 variant="outline" 
@@ -1987,9 +1988,9 @@ const DataClassification = () => {
                 <span>일자별 중복 제거</span>
               </Button>
               
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleCompressLocal}
                 className="flex items-center space-x-1 border-blue-500 text-blue-600 hover:bg-blue-50"
                 title="IndexedDB 전체 데이터 압축 및 중복 제거"
@@ -2048,29 +2049,29 @@ const DataClassification = () => {
             <div>
               <h3 className="text-sm font-medium text-white mb-2">수동수집</h3>
               <div className="grid grid-cols-7 gap-3">
-            {availableDates.slice(0, 7).map(date => {
+                {availableDates.slice(0, 7).map(date => {
                   // 수동수집 데이터 (실제 데이터 기반)
-              const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-              const total = stats.total;
-              const classified = stats.classified;
-              const progress = stats.progress;
-              const hasData = total > 0;
-              
-              return (
-                <div 
+                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const total = stats.total;
+                  const classified = stats.classified;
+                  const progress = stats.progress;
+                  const hasData = total > 0;
+                  
+                  return (
+                    <div 
                       key={`manual-${date}`}
-                  className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
-                  onClick={() => handleDateClick(date)}
-                  title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
-                      {new Date(date).toLocaleDateString('ko-KR', { 
-                        month: 'short', 
-                        day: 'numeric',
-                        weekday: 'short'
-                      })}
-                    </h3>
+                      className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
+                      onClick={() => handleDateClick(date)}
+                      title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
+                          {new Date(date).toLocaleDateString('ko-KR', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            weekday: 'short'
+                          })}
+                        </h3>
                         {hasData ? (
                           <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
                             {Math.round(progress)}%
@@ -2139,16 +2140,16 @@ const DataClassification = () => {
                             weekday: 'short'
                           })}
                         </h3>
-                      {hasData ? (
-                        <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
-                          {Math.round(progress)}%
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-gray-500">
-                          데이터 없음
-                        </Badge>
-                      )}
-                    </div>
+                        {hasData ? (
+                          <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
+                            {Math.round(progress)}%
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-gray-500">
+                            데이터 없음
+                          </Badge>
+                        )}
+                      </div>
                       
                       {hasData ? (
                         <>
@@ -2160,7 +2161,7 @@ const DataClassification = () => {
                               }`}
                               style={{ width: `${progress}%` }}
                             />
-          </div>
+                          </div>
                           <div className="text-xs text-muted-foreground">
                             {classified}/{total} 완료
                           </div>
@@ -2220,33 +2221,33 @@ const DataClassification = () => {
                         )}
                       </div>
                       
-                  {hasData ? (
-                    <>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all ${
-                            progress === 100 ? 'bg-green-500' : 
-                            progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
+                      {hasData ? (
+                        <>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all ${
+                                progress === 100 ? 'bg-green-500' : 
+                                progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {classified}/{total} 완료
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-gray-400">
+                          수집된 데이터 없음
                         </div>
-                      <div className="text-xs text-muted-foreground">
-                        {classified}/{total} 완료
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-xs text-gray-400">
-                      수집된 데이터 없음
-                    </div>
-                  )}
-                  
+                      )}
+                      
                       <div className="text-xs text-purple-500 font-medium text-center mt-2">
-                    클릭하여 분류하기
-                  </div>
+                        클릭하여 분류하기
+                      </div>
                     </div>
-              );
-            })}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2293,32 +2294,32 @@ const DataClassification = () => {
             </div>
 
             {/* 현재 데이터 정보 */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-foreground">현재 데이터 정보</h3>
+             <div className="space-y-4">
+               <h3 className="font-medium text-foreground">현재 데이터 정보</h3>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
+                       <div className="flex justify-between">
                   <span className="text-muted-foreground">전체 영상:</span>
                   <span className="font-medium">{totalVideos.toLocaleString()}개</span>
-                </div>
-                <div className="flex justify-between">
+                       </div>
+                       <div className="flex justify-between">
                   <span className="text-muted-foreground">분류 완료:</span>
                   <span className="font-medium text-green-600">{classifiedVideos.toLocaleString()}개</span>
-                </div>
-                <div className="flex justify-between">
+                       </div>
+                       <div className="flex justify-between">
                   <span className="text-muted-foreground">미분류:</span>
                   <span className="font-medium text-red-600">{unclassifiedVideos.toLocaleString()}개</span>
-                </div>
-                <div className="flex justify-between">
+                       </div>
+                       <div className="flex justify-between">
                   <span className="text-muted-foreground">진행률:</span>
                   <span className="font-medium text-primary">{Math.round(classificationProgress)}%</span>
-                </div>
-              </div>
-            </div>
+                       </div>
+                     </div>
+             </div>
 
-            {/* 데이터 관리 액션 */}
-            <div className="space-y-4">
+                         {/* 데이터 관리 액션 */}
+             <div className="space-y-4">
               <h3 className="font-medium text-foreground">데이터 관리 액션</h3>
-              <div className="space-y-2">
+               <div className="space-y-2">
                  <Button 
                    variant="outline" 
                    onClick={handleCleanupOldData}
