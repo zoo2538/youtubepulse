@@ -778,8 +778,9 @@ const DataClassification = () => {
         allClassifiedData.push(...dateClassifiedData);
       });
 
-      // 분류된 데이터를 하이브리드 저장 (대시보드용)
-      await hybridService.saveClassifiedData(allClassifiedData);
+      // 주의: saveClassifiedData는 전체 데이터를 덮어쓰므로 호출하지 않음
+      // 분류된 데이터는 이미 unclassifiedData에 status='classified'로 저장되어 있음
+      console.log('📊 분류된 데이터 개수:', allClassifiedData.length, '개 (이미 unclassifiedData에 저장됨)');
       
       // 진행률 데이터 생성 (14일간 모든 날짜)
       const progressData = sevenDays.map(date => {
