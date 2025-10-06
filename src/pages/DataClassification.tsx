@@ -873,19 +873,35 @@ const DataClassification = () => {
     }
   };
 
-  // 전체 백업 다운로드
+  // 전체 백업 다운로드 (하이브리드 방식 개선)
   const handleDownloadAllBackup = async () => {
     try {
+      // 하이브리드 백업 형식으로 개선
       const allBackupData = {
+        // 메타데이터
         exportDate: new Date().toISOString(),
-        totalVideos: unclassifiedData.length,
-        classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
-        unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
-        dailyProgress: availableDates.slice(0, 7).map(date => {
-      const dateData = unclassifiedData.filter(item => {
-        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-        return itemDate === date;
-      });
+        version: '2.0', // 하이브리드 버전
+        backupType: 'hybrid',
+        
+        // 통계 정보
+        summary: {
+          totalVideos: unclassifiedData.length,
+          classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
+          unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
+          manualCollected: unclassifiedData.filter(item => item.collectionType === 'manual').length,
+          autoCollected: unclassifiedData.filter(item => item.collectionType === 'auto').length
+        },
+        
+        // 일별 데이터 (하이브리드 구조)
+        dailyData: availableDates.slice(0, 7).map(date => {
+          const dateData = unclassifiedData.filter(item => {
+            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            return itemDate === date;
+          });
+          
+          // 수동수집/자동수집 구분
+          const manualData = dateData.filter(item => item.collectionType === 'manual');
+          const autoData = dateData.filter(item => item.collectionType === 'auto');
           
           const total = dateData.length;
           const classified = dateData.filter(item => item.status === 'classified').length;
@@ -896,11 +912,24 @@ const DataClassification = () => {
             total,
             classified,
             unclassified: total - classified,
-            progress: Math.round(progress)
+            progress: Math.round(progress),
+            manualCollected: manualData.length,
+            manualClassified: manualData.filter(item => item.status === 'classified').length,
+            autoCollected: autoData.length,
+            autoClassified: autoData.filter(item => item.status === 'classified').length,
+            data: dateData // 해당 날짜의 모든 데이터
           };
         }),
+        
+        // 전체 데이터 (하이브리드 구조)
         allData: unclassifiedData,
-        version: '1.0'
+        
+        // 하이브리드 설정 정보
+        hybridConfig: {
+          useApiServer: true,
+          fallbackToLocal: true,
+          syncEnabled: true
+        }
       };
 
       const blob = new Blob([JSON.stringify(allBackupData, null, 2)], { 
