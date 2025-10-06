@@ -433,9 +433,16 @@ const DateClassificationDetail = () => {
       const unclassified = total - classified;
       const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
       
-      // 수동수집/자동수집 구분
-      const manualData = unclassifiedData.filter(item => item.collectionType === 'manual');
+      // 수동수집/자동수집 구분 (collectionType이 없으면 수동수집으로 분류)
+      const manualData = unclassifiedData.filter(item => !item.collectionType || item.collectionType === 'manual');
       const autoData = unclassifiedData.filter(item => item.collectionType === 'auto');
+      
+      console.log('📊 수집 타입 분류:', {
+        total: unclassifiedData.length,
+        manual: manualData.length,
+        auto: autoData.length,
+        undefined: unclassifiedData.filter(item => !item.collectionType).length
+      });
       
       // 하이브리드 백업 형식으로 구성 (DataClassification과 동일)
       const backupData = {
