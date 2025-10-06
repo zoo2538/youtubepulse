@@ -171,8 +171,13 @@ const DataClassification = () => {
     }
   };
 
-  // 하이브리드 데이터 로드 (서버 + 로컬 병합)
+  // 데이터 로딩 상태 관리
+  const [dataLoaded, setDataLoaded] = React.useState(false);
+
+  // 하이브리드 데이터 로드 (서버 + 로컬 병합) - 한 번만 실행
   React.useEffect(() => {
+    if (dataLoaded) return; // 이미 로드된 경우 중복 실행 방지
+    
     const loadData = async () => {
       try {
         setIsLoading(true);
@@ -203,7 +208,7 @@ const DataClassification = () => {
         // 3. 자동수집 데이터 로드
         await loadAutoCollectedData();
         
-        // 3. 기존 방식으로도 데이터 로드 (하위 호환성)
+        // 4. 기존 방식으로도 데이터 로드 (하위 호환성)
         const savedData = await hybridService.loadUnclassifiedData();
         if (savedData && savedData.length > 0) {
           const { getKoreanDateString } = await import('@/lib/utils');
@@ -219,7 +224,7 @@ const DataClassification = () => {
             };
           });
           
-          // 4. 중복 제거 적용
+          // 5. 중복 제거 적용
           console.log('🔄 중복 제거 전:', sanitized.length, '개 항목');
           const dedupedData = dedupeComprehensive(sanitized as VideoItem[]);
           console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
@@ -228,43 +233,43 @@ const DataClassification = () => {
           setUnclassifiedData(dedupedData as UnclassifiedData[]);
           console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
         } else {
-          // 2. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
-        const channelsData = localStorage.getItem('youtubepulse_channels');
-        const videosData = localStorage.getItem('youtubepulse_videos');
-        
-        if (channelsData && videosData) {
-          const channels = JSON.parse(channelsData);
-          const videos = JSON.parse(videosData);
+          // 6. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
+          const channelsData = localStorage.getItem('youtubepulse_channels');
+          const videosData = localStorage.getItem('youtubepulse_videos');
           
-          // 채널과 비디오 데이터를 결합하여 UnclassifiedData 형태로 변환
-          const combinedData: UnclassifiedData[] = [];
-          let id = 1;
-          
-          Object.values(channels).forEach((channel: any) => {
-            const channelVideos = videos[channel.id] || [];
+          if (channelsData && videosData) {
+            const channels = JSON.parse(channelsData);
+            const videos = JSON.parse(videosData);
             
-            channelVideos.forEach((video: any) => {
-              combinedData.push({
-                id: id++,
-                channelId: channel.id,
-                channelName: channel.name,
-                description: channel.description || "설명 없음",
-                videoId: video.id,
-                videoTitle: video.title,
-                videoDescription: video.description || "설명 없음",
-                viewCount: video.viewCount || 0,
-                uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
-                category: "",
-                subCategory: "",
-                status: "unclassified" as const
+            // 채널과 비디오 데이터를 결합하여 UnclassifiedData 형태로 변환
+            const combinedData: UnclassifiedData[] = [];
+            let id = 1;
+            
+            Object.values(channels).forEach((channel: any) => {
+              const channelVideos = videos[channel.id] || [];
+              
+              channelVideos.forEach((video: any) => {
+                combinedData.push({
+                  id: id++,
+                  channelId: channel.id,
+                  channelName: channel.name,
+                  description: channel.description || "설명 없음",
+                  videoId: video.id,
+                  videoTitle: video.title,
+                  videoDescription: video.description || "설명 없음",
+                  viewCount: video.viewCount || 0,
+                  uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
+                  category: "",
+                  subCategory: "",
+                  status: "unclassified" as const
+                });
               });
             });
-          });
-          
-          if (combinedData.length > 0) {
-            console.log('🔄 localStorage 데이터를 하이브리드 저장소로 마이그레이션:', combinedData.length, '개');
-            await hybridService.saveUnclassifiedData(combinedData);
-            setUnclassifiedData(combinedData);
+            
+            if (combinedData.length > 0) {
+              console.log('🔄 localStorage 데이터를 하이브리드 저장소로 마이그레이션:', combinedData.length, '개');
+              await hybridService.saveUnclassifiedData(combinedData);
+              setUnclassifiedData(combinedData);
             } else {
               console.log('📊 실제 데이터가 없습니다. 데이터 수집을 먼저 진행해주세요.');
               setUnclassifiedData([]);
@@ -274,9 +279,10 @@ const DataClassification = () => {
             setUnclassifiedData([]);
           }
         }
+        
+        setDataLoaded(true); // 데이터 로드 완료 표시
       } catch (error) {
         console.error('데이터 로드 실패:', error);
-        // 오류 발생 시 빈 배열로 설정
         setUnclassifiedData([]);
       } finally {
         setIsLoading(false);
@@ -284,7 +290,7 @@ const DataClassification = () => {
     };
 
     loadData();
-  }, []);
+  }, [dataLoaded]); // dataLoaded를 의존성으로 추가
 
   const [dataManagementConfig, setDataManagementConfig] = useState<DataManagementConfig>({
     retentionDays: 14,
@@ -527,6 +533,15 @@ const DataClassification = () => {
     console.log('📅 날짜 클릭됨:', date);
     console.log('🔗 이동할 URL:', `/date-classification-detail?date=${date}`);
     navigate(`/date-classification-detail?date=${date}`);
+  };
+
+  // 데이터 새로고침 함수
+  const refreshData = async () => {
+    console.log('🔄 데이터 새로고침 시작...');
+    setDataLoaded(false); // 데이터 로드 상태 초기화
+    setDateStats({});
+    setAutoCollectedStats({});
+    setUnclassifiedData([]);
   };
 
 

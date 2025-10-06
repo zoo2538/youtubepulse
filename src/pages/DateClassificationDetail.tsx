@@ -108,13 +108,17 @@ const DateClassificationDetail = () => {
           allData = await indexedDBService.loadUnclassifiedData();
         }
         
-        // 선택된 날짜의 데이터만 필터링 (ID 타임스탬프도 고려)
+        // 선택된 날짜의 데이터만 필터링 (dayKeyLocal 우선, ID 타임스탬프도 고려)
         const dateData = allData.filter(item => {
-          // 1. collectionDate 또는 uploadDate 확인
+          // 1. dayKeyLocal 우선 확인 (백업 복원 데이터)
+          const dayKeyLocal = item.dayKeyLocal;
+          if (dayKeyLocal === selectedDate) return true;
+          
+          // 2. collectionDate 또는 uploadDate 확인
           const itemDate = item.collectionDate || item.uploadDate;
           if (itemDate === selectedDate) return true;
           
-          // 2. ID 타임스탬프 확인 (실제 수집 시간)
+          // 3. ID 타임스탬프 확인 (실제 수집 시간)
           if (item.id && typeof item.id === 'string') {
             const timestamp = parseInt(item.id.split('_')[0]);
             if (!isNaN(timestamp)) {
