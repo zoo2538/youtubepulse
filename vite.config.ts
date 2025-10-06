@@ -128,4 +128,21 @@ export default defineConfig({
       v7_relativeSplatPath: true
     })
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // 핵심 모듈들을 안정적인 청크로 분리
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui': ['lucide-react'],
+          'utils': ['@/lib/utils', '@/lib/date-rollover-service'],
+          'services': ['@/lib/hybrid-service', '@/lib/indexeddb-service', '@/lib/api-service'],
+          'auto-classification': ['@/lib/auto-classification-service'],
+          'scheduler': ['@/lib/auto-collection-scheduler', '@/lib/server-authoritative-service']
+        },
+      },
+    },
+    // 청크 크기 경고 제한 증가
+    chunkSizeWarningLimit: 1000,
+  },
 });

@@ -36,8 +36,30 @@ class ChunkErrorBoundary extends React.Component<
         error.message.includes('Loading chunk') ||
         error.message.includes('Loading CSS chunk')) {
       this.setState({ hasError: true, error });
+      
+      // 서비스 워커 업데이트 시도
+      this.handleServiceWorkerUpdate();
     }
   }
+
+  handleServiceWorkerUpdate = async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration && registration.waiting) {
+          console.log('🔄 서비스 워커 업데이트 감지 - 즉시 활성화');
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          
+          // 클라이언트 클레임
+          if (registration.active) {
+            registration.active.postMessage({ type: 'CLIENTS_CLAIM' });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ 서비스 워커 업데이트 실패:', error);
+    }
+  };
 
   handleRefresh = () => {
     // 강력 새로고침으로 캐시 무효화

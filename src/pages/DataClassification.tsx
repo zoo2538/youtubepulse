@@ -51,6 +51,7 @@ import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/l
 import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
 import { dedupeComprehensive, dedupeByVideoDay, dedupeByDate, type VideoItem } from "@/lib/dedupe-utils";
 import { getKoreanDateString, getKoreanDateStringWithOffset } from "@/lib/utils";
+import { dateRolloverService } from "@/lib/date-rollover-service";
 import { compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
@@ -550,6 +551,16 @@ const DataClassification = () => {
     };
     
     loadDates();
+
+    // 자정 전환 감지 등록
+    const unregisterRollover = dateRolloverService.onRollover((dateKey) => {
+      console.log('🔄 자정 전환 감지 - 날짜 그리드 재생성:', dateKey);
+      loadDates(); // 날짜 그리드 재생성
+    });
+
+    return () => {
+      unregisterRollover();
+    };
   }, []); // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
 
   // 분류된 데이터 추출
