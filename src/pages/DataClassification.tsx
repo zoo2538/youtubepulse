@@ -106,6 +106,7 @@ const DataClassification = () => {
   const { logout, userEmail, userRole } = useAuth();
   const [unclassifiedData, setUnclassifiedData] = useState<UnclassifiedData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [autoCollectedStats, setAutoCollectedStats] = useState<{[date: string]: {total: number; classified: number; progress: number}}>({});
   // 하드코딩된 세부카테고리 사용 (수정 불가)
   const dynamicSubCategories = subCategories;
   const isAdmin = userRole === 'admin'; // 관리자 권한 확인
@@ -118,6 +119,57 @@ const DataClassification = () => {
   React.useEffect(() => {
     console.log('📊 하드코딩된 카테고리 사용:', subCategories);
   }, []);
+
+  // 자동수집 데이터 로드 함수
+  const loadAutoCollectedData = async () => {
+    try {
+      console.log('🤖 자동수집 데이터 로드 시작...');
+      
+      // API에서 자동수집 데이터 조회
+      const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.data && result.data.length > 0) {
+          // 가장 최신 자동수집 데이터 사용
+          const latestCollection = result.data[0];
+          const autoCollectedData = latestCollection.data;
+          
+          // 자동수집 데이터 통계 계산
+          const autoStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+          autoCollectedData.forEach((item: any) => {
+            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            if (date) {
+              if (!autoStats[date]) {
+                autoStats[date] = { total: 0, classified: 0, progress: 0 };
+              }
+              autoStats[date].total++;
+              if (item.status === 'classified') {
+                autoStats[date].classified++;
+              }
+            }
+          });
+          
+          // 진행률 계산
+          Object.keys(autoStats).forEach(date => {
+            const stats = autoStats[date];
+            stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+          });
+          
+          setAutoCollectedStats(autoStats);
+          console.log('🤖 자동수집 통계:', autoStats);
+        } else {
+          console.log('🤖 자동수집 데이터 없음');
+          setAutoCollectedStats({});
+        }
+      } else {
+        console.log('🤖 자동수집 API 호출 실패');
+        setAutoCollectedStats({});
+      }
+    } catch (error) {
+      console.error('🤖 자동수집 데이터 로드 실패:', error);
+      setAutoCollectedStats({});
+    }
+  };
 
   // 하이브리드 데이터 로드 (서버 + 로컬 병합)
   React.useEffect(() => {
@@ -147,6 +199,9 @@ const DataClassification = () => {
         
         setDateStats(mergedDateStats);
         console.log('📊 병합된 dateStats:', mergedDateStats);
+        
+        // 3. 자동수집 데이터 로드
+        await loadAutoCollectedData();
         
         // 3. 기존 방식으로도 데이터 로드 (하위 호환성)
         const savedData = await hybridService.loadUnclassifiedData();
@@ -2007,11 +2062,11 @@ const DataClassification = () => {
               <h3 className="text-sm font-medium text-white mb-2">자동수집</h3>
               <div className="grid grid-cols-7 gap-3">
                 {availableDates.slice(0, 7).map(date => {
-                  // 자동수집 데이터 (모의 데이터 - 실제로는 자동수집된 데이터)
-                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-                  const total = Math.floor(stats.total * 0.8); // 자동수집은 80% 수준
-                  const classified = Math.floor(stats.classified * 0.9); // 자동수집은 90% 분류율
-                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
+                  // 자동수집 데이터 (실제 자동수집된 데이터)
+                  const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const total = autoStats.total; // 실제 자동수집 데이터
+                  const classified = autoStats.classified; // 실제 자동수집 분류 데이터
+                  const progress = autoStats.progress; // 실제 자동수집 진행률
                   const hasData = total > 0;
                   
                   return (
@@ -2076,15 +2131,12 @@ const DataClassification = () => {
               <div className="grid grid-cols-7 gap-3">
                 {availableDates.slice(0, 7).map(date => {
                   // 합계 데이터 (수동수집 + 자동수집)
-                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-                  const manualTotal = stats.total;
-                  const manualClassified = stats.classified;
-                  const autoTotal = Math.floor(stats.total * 0.8);
-                  const autoClassified = Math.floor(stats.classified * 0.9);
+                  const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
                   
-                  const total = manualTotal + autoTotal;
-                  const classified = manualClassified + autoClassified;
-                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
+                  const total = manualStats.total + autoStats.total; // 수동 + 자동
+                  const classified = manualStats.classified + autoStats.classified; // 수동 + 자동
+                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0; // 합계 진행률
                   const hasData = total > 0;
                   
                   return (
