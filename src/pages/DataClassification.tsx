@@ -28,12 +28,13 @@ import {
   XCircle,
   Eye,
   LogOut,
+  Play,
   Users,
   Trash2,
   Download,
   Upload,
-  Play,
   Pause,
+  SaveAll,
   Calendar,
   ChevronLeft,
   ChevronRight,
@@ -619,6 +620,37 @@ const DataClassification = () => {
     } catch (error) {
       console.error('❌ 하이브리드 동기화 실패:', error);
       alert('❌ 동기화 실패: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 자동수집 시작
+  const handleAutoCollection = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🔄 자동수집 시작...');
+      
+      // System 페이지의 데이터 수집 로직을 여기서 실행
+      const { startDataCollection } = await import('@/lib/youtube-api-service');
+      
+      // 자동수집 실행
+      const result = await startDataCollection();
+      
+      if (result.success) {
+        console.log('✅ 자동수집 완료:', result);
+        alert(`🎉 자동수집 완료!\n수집된 영상: ${result.collectedVideos}개\n처리된 채널: ${result.processedChannels}개`);
+        
+        // 데이터 새로고침
+        window.location.reload();
+      } else {
+        console.error('❌ 자동수집 실패:', result.error);
+        alert('❌ 자동수집 실패: ' + result.error);
+      }
+      
+    } catch (error) {
+      console.error('❌ 자동수집 오류:', error);
+      alert('❌ 자동수집 오류: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -1830,6 +1862,17 @@ const DataClassification = () => {
               <h2 className="text-xl font-semibold text-foreground">일별 분류 진행률</h2>
             </div>
             <div className="flex items-center space-x-2">
+              <Button 
+                variant="default" 
+                size="sm" 
+                onClick={handleAutoCollection}
+                className="flex items-center space-x-1 bg-green-600 hover:bg-green-700"
+                disabled={isLoading}
+              >
+                <Play className="w-4 h-4" />
+                <span>자동수집</span>
+              </Button>
+              
               <Button 
                 variant="outline" 
                 size="sm" 
