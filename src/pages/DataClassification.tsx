@@ -308,8 +308,9 @@ const DataClassification = () => {
     const dateParam = urlParams.get('date');
     if (dateParam) return dateParam;
     
-    // 기본값은 오늘 날짜로 설정하고, useEffect에서 한국 시간으로 업데이트
-    return new Date().toISOString().split('T')[0];
+    // 기본값은 한국시간 기준 오늘 날짜로 설정
+    const now = new Date();
+    return now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
   });
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [dateStats, setDateStats] = useState<{ [date: string]: { total: number; classified: number; progress: number } }>({});

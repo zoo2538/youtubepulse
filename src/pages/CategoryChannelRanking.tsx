@@ -102,7 +102,8 @@ const CategoryChannelRanking = () => {
           console.log(`📊 카테고리별 데이터 개수:`, categoryCounts);
           
           // 최근 데이터 사용 (오늘 데이터가 없으면 최근 데이터 사용)
-          const today = new Date().toISOString().split('T')[0];
+          const now = new Date();
+          const today = now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
           let dateFilteredData = filteredData.filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
             if (!itemDate) return false;

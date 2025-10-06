@@ -59,7 +59,10 @@ const DateClassificationDetail = () => {
   const { logout, userEmail } = useAuth();
   const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
   
-  const selectedDate = searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const selectedDate = searchParams.get('date') || (() => {
+    const now = new Date();
+    return now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+  })();
   const collectionType = searchParams.get('type') as 'manual' | 'auto' | 'total' | null;
   const [unclassifiedData, setUnclassifiedData] = useState<UnclassifiedData[]>([]);
   const [isLoading, setIsLoading] = useState(true);

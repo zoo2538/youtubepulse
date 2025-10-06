@@ -46,7 +46,7 @@ const getViewsData = async (classifiedData: any[], categories: Record<string, st
   for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    sevenDays.push(date.toISOString().split('T')[0]);
+    sevenDays.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));
   }
   
   console.log('📊 getViewsData - 7일간 날짜들:', sevenDays);

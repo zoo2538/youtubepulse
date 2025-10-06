@@ -152,8 +152,9 @@ export const saveToDatabase = async (data: {
 
 // IndexedDB 기반 일일 조회수 계산 함수
 export const calculateDailyViews = async (channelId: string): Promise<number> => {
-  const today = new Date().toISOString().split('T')[0];
-  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const { getKoreanDateString, getKoreanDateStringWithOffset } = await import('./utils');
+  const today = getKoreanDateString();
+  const yesterday = getKoreanDateStringWithOffset(-1);
 
   try {
     const todayStats = await indexedDBService.loadSystemConfig(`dailyStats_${channelId}_${today}`);

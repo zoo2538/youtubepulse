@@ -85,11 +85,11 @@ const ChannelDetail = () => {
             const today = new Date();
             const dailyViews = [];
             
-            // 최근 7일간의 수집일별 데이터 생성
+            // 최근 7일간의 수집일별 데이터 생성 (한국시간 기준)
             for (let i = 6; i >= 0; i--) {
               const date = new Date(today);
               date.setDate(today.getDate() - i);
-              const dateStr = date.toISOString().split('T')[0];
+              const dateStr = date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
               
               // 해당 날짜에 수집된 영상들의 조회수 합계 계산
               const dailyViewCount = channelVideos

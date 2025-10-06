@@ -272,24 +272,27 @@ class IndexedDBService {
   
   // 날짜 키 단일화 (KST yyyy-MM-dd)
   private normalizeDayKey(dateInput: any): string {
-    if (!dateInput) return new Date().toISOString().split('T')[0];
+    if (!dateInput) {
+      // 한국시간 기준 오늘 날짜 반환
+      const now = new Date();
+      return now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+    }
     
     try {
       const date = new Date(dateInput);
       if (isNaN(date.getTime())) {
-        return new Date().toISOString().split('T')[0];
+        // 한국시간 기준 오늘 날짜 반환
+        const now = new Date();
+        return now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
       }
       
       // KST 기준으로 yyyy-MM-dd 형식 변환
-      return date.toLocaleDateString('ko-KR', {
-        timeZone: 'Asia/Seoul',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).replace(/\./g, '-').replace(/\s/g, '');
+      return date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
     } catch (error) {
       console.warn('날짜 키 변환 실패:', dateInput, error);
-      return new Date().toISOString().split('T')[0];
+      // 한국시간 기준 오늘 날짜 반환
+      const now = new Date();
+      return now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
     }
   }
 
