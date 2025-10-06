@@ -128,10 +128,13 @@ const DateClassificationDetail = () => {
             selectedDate
           });
           
-          // 1. dayKeyLocal 우선 확인 (백업 복원 데이터)
-          if (item.dayKeyLocal === selectedDate) {
-            console.log('✅ dayKeyLocal 매치:', item.dayKeyLocal);
-            return true;
+          // 1. dayKeyLocal 우선 확인 (백업 복원 데이터) - 대시 문제 해결
+          if (item.dayKeyLocal) {
+            const normalizedDayKey = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
+            if (normalizedDayKey === selectedDate) {
+              console.log('✅ dayKeyLocal 매치:', item.dayKeyLocal, '→', normalizedDayKey);
+              return true;
+            }
           }
           
           // 2. collectionDate 확인

@@ -111,11 +111,19 @@ export function dedupeByCategory(rows: VideoItem[]): VideoItem[] {
  * @returns 해당 날짜의 중복 제거된 데이터
  */
 export function dedupeByDate(rows: VideoItem[], targetDate: string): VideoItem[] {
-  // 1. 대상 날짜 필터링 (dayKeyLocal 우선)
+  // 1. 대상 날짜 필터링 (dayKeyLocal 우선) - 대시 문제 해결
   const filtered = rows.filter(row => {
-    const dayKey = row.dayKeyLocal || 
-                   (row.collectionDate ? new Date(row.collectionDate).toISOString().split('T')[0] : null) ||
-                   (row.uploadDate ? new Date(row.uploadDate).toISOString().split('T')[0] : null);
+    let dayKey = null;
+    
+    // dayKeyLocal 우선 확인 (대시 제거)
+    if (row.dayKeyLocal) {
+      dayKey = row.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
+    } else if (row.collectionDate) {
+      dayKey = new Date(row.collectionDate).toISOString().split('T')[0];
+    } else if (row.uploadDate) {
+      dayKey = new Date(row.uploadDate).toISOString().split('T')[0];
+    }
+    
     return dayKey === targetDate;
   });
   
