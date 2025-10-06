@@ -50,6 +50,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/lib/day-merge-service";
 import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
 import { dedupeComprehensive, dedupeByVideoDay, dedupeByDate, type VideoItem } from "@/lib/dedupe-utils";
+import { getKoreanDateString, getKoreanDateStringWithOffset } from "@/lib/utils";
 import { compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
@@ -211,7 +212,7 @@ const DataClassification = () => {
         // 4. 기존 방식으로도 데이터 로드 (하위 호환성)
         const savedData = await hybridService.loadUnclassifiedData();
         if (savedData && savedData.length > 0) {
-          const { getKoreanDateString } = await import('@/lib/utils');
+          // utils 함수들은 이미 정적 import됨
           const today = getKoreanDateString();
           const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
             const baseItem = it.category === '해외채널'
@@ -451,7 +452,7 @@ const DataClassification = () => {
           console.log('📊 날짜별 통계 업데이트:', newDateStats);
           
           if (savedData && savedData.length > 0) {
-            const { getKoreanDateString } = await import('@/lib/utils');
+            // utils 함수들은 이미 정적 import됨
             const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜
             // 해외채널 카테고리 제거/정리 및 collectionDate 추가
             const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
@@ -470,7 +471,7 @@ const DataClassification = () => {
             console.log(`✅ 데이터 분류 관리 페이지 - ${sanitized.length}개 데이터 업데이트 완료`);
             
             // 사용 가능한 날짜 목록도 새로고침 - 정확히 7일만 생성
-            const { getKoreanDateStringWithOffset } = await import('@/lib/utils');
+            // utils 함수들은 이미 정적 import됨
             const dates = [];
             
             // 오늘 기준 최근 7일 날짜들만 생성 (중복 없이)
@@ -524,7 +525,7 @@ const DataClassification = () => {
   React.useEffect(() => {
     const loadDates = async () => {
       try {
-        const { getKoreanDateString, getKoreanDateStringWithOffset } = await import('@/lib/utils');
+        // utils 함수들은 이미 정적 import됨
         const dates = new Set<string>();
         
         // 오늘 기준 최근 7일 날짜들만 생성 (중복 없이)
@@ -539,7 +540,7 @@ const DataClassification = () => {
       } catch (error) {
         console.error('날짜 목록 로드 실패:', error);
         // 오류 시 기본 날짜 목록 생성
-        const { getKoreanDateStringWithOffset } = await import('@/lib/utils');
+        // utils 함수들은 이미 정적 import됨
         const dates = [];
         for (let i = 0; i < 7; i++) {
           dates.push(getKoreanDateStringWithOffset(-i));
@@ -740,7 +741,7 @@ const DataClassification = () => {
         try {
           const savedData = await hybridService.loadUnclassifiedData();
           if (savedData && savedData.length > 0) {
-            const { getKoreanDateString } = await import('@/lib/utils');
+            // utils 함수들은 이미 정적 import됨
             const today = getKoreanDateString();
             
             const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
@@ -853,7 +854,7 @@ const DataClassification = () => {
       const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
       
       // 7일간 모든 날짜 생성 (한국 시간 기준)
-      const { getKoreanDateString } = await import('@/lib/utils');
+      // utils 함수들은 이미 정적 import됨
       const today = getKoreanDateString();
       const sevenDays = [];
       
@@ -1139,7 +1140,7 @@ const DataClassification = () => {
       // 3. 기존 데이터도 업데이트 (하위 호환성)
       const allData = await hybridService.loadUnclassifiedData();
       if (allData && allData.length > 0) {
-        const { getKoreanDateString } = await import('@/lib/utils');
+        // utils 함수들은 이미 정적 import됨
         const today = getKoreanDateString();
         const sanitized: UnclassifiedData[] = allData.map((it: UnclassifiedData) => {
           const baseItem = it.category === '해외채널'
@@ -1285,7 +1286,7 @@ const DataClassification = () => {
       // 기존 데이터도 업데이트 (하위 호환성)
       const allData = await hybridService.loadUnclassifiedData();
       if (allData && allData.length > 0) {
-        const { getKoreanDateString } = await import('@/lib/utils');
+        // utils 함수들은 이미 정적 import됨
         const today = getKoreanDateString();
         const sanitized: UnclassifiedData[] = allData.map((it: UnclassifiedData) => {
           const baseItem = it.category === '해외채널'
@@ -1549,7 +1550,7 @@ const DataClassification = () => {
         // 기존 데이터도 업데이트 (하위 호환성)
         const allData = await hybridService.loadUnclassifiedData();
         if (allData && allData.length > 0) {
-          const { getKoreanDateString } = await import('@/lib/utils');
+          // utils 함수들은 이미 정적 import됨
           const today = getKoreanDateString();
           const sanitized: UnclassifiedData[] = allData.map((it: UnclassifiedData) => {
             const baseItem = it.category === '해외채널'
