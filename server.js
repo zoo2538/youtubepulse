@@ -151,19 +151,38 @@ if (process.env.DATABASE_URL) {
   console.error('❌ 사용 가능한 환경 변수:', Object.keys(process.env).filter(key => key.includes('DATABASE')));
 }
 
-// CORS 설정 (GitHub Pages 도메인 추가)
+// CORS 설정 (강화된 GitHub Pages 지원)
+const allowedOrigins = [
+  'http://localhost:8080', 
+  'http://localhost:5173', 
+  'https://youthbepulse.com',
+  'https://www.youthbepulse.com',
+  'https://api.youthbepulse.com',
+  'https://zoo2538.github.io',  // GitHub Pages 도메인
+  'https://zoo2538.github.io/youtubepulse'  // GitHub Pages 서브경로
+];
+
 app.use(cors({
-  origin: [
-    'http://localhost:8080', 
-    'http://localhost:5173', 
-    'https://youthbepulse.com',
-    'https://www.youthbepulse.com',
-    'https://api.youthbepulse.com',
-    'https://zoo2538.github.io',  // GitHub Pages 도메인
-    'https://zoo2538.github.io/youtubepulse'  // GitHub Pages 서브경로
-  ],
-  credentials: true
+  origin: (origin, callback) => {
+    // origin이 undefined인 경우 (같은 도메인 요청) 허용
+    if (!origin) return callback(null, true);
+    
+    // 허용된 origin인지 확인
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    console.log('🚫 CORS 차단된 origin:', origin);
+    return callback(new Error('CORS 정책에 의해 차단됨'), false);
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
+
+// OPTIONS 요청에 대한 명시적 처리
+app.options('*', cors());
 
 // JSON 파싱 (크기 제한 증가: 50MB)
 app.use(express.json({ limit: '50mb' }));
