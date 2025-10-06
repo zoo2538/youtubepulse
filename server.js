@@ -1002,11 +1002,28 @@ app.use((req, res, next) => {
 // 자동수집 API 엔드포인트 (GitHub Actions에서 호출)
 app.post('/api/auto-collect', async (req, res) => {
   try {
+    // 수동 수집 중인지 확인
+    if (global.manualCollectionInProgress) {
+      console.log('⚠️ 수동 수집이 진행 중이므로 자동 수집을 건너뜁니다.');
+      return res.json({ success: false, message: '수동 수집이 진행 중입니다.' });
+    }
+
+    // 자동 수집 시작 플래그 설정
+    global.autoCollectionInProgress = true;
+    
     console.log('🤖 자동수집 API 호출됨');
     await autoCollectData();
+    
+    // 자동 수집 완료 플래그 해제
+    global.autoCollectionInProgress = false;
+    
     res.json({ success: true, message: 'Auto collection completed' });
   } catch (error) {
     console.error('자동수집 실패:', error);
+    
+    // 오류 발생 시에도 플래그 해제
+    global.autoCollectionInProgress = false;
+    
     res.status(500).json({ error: 'Auto collection failed' });
   }
 });
@@ -1220,7 +1237,10 @@ async function autoCollectData() {
         subCategory: existingClassification?.subCategory || "",
         status: existingClassification ? "classified" : "unclassified",
         keyword: sourceKeyword, // 키워드 정보 추가
-        source: keywordVideo ? 'keyword' : 'trending' // 수집 소스 정보 추가
+        source: keywordVideo ? 'keyword' : 'trending', // 수집 소스 정보 추가
+        collectionType: 'auto', // 자동 수집으로 명시
+        collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
+        collectionSource: 'auto_collect_api' // 수집 소스 기록
       };
     });
 

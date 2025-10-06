@@ -351,6 +351,15 @@ const System = () => {
         return;
       }
 
+      // 자동 수집 중인지 확인
+      if (window.autoCollectionInProgress) {
+        alert('⚠️ 자동 수집이 진행 중입니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
+
+      // 수동 수집 시작 플래그 설정
+      window.manualCollectionInProgress = true;
+
       const collectionConfig = loadCollectionConfig();
       const maxVideos = 10000;
       let requestCount = 0;
@@ -667,6 +676,9 @@ const System = () => {
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
           category: existingClassification?.category || autoClassification.category,
+          collectionType: 'manual', // 수동 수집으로 명시
+          collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
+          collectionSource: 'system_page', // 수집 소스 기록
           subCategory: existingClassification?.subCategory || autoClassification.subCategory,
           status: existingClassification ? "classified" as const : 
                   (autoClassification.confidence > 0.3 ? "classified" as const : "unclassified" as const),
@@ -807,9 +819,15 @@ const System = () => {
             `💰 할당량: 약 ${estimatedUnits} units\n\n` +
             `자동 분류된 영상은 이미 분류 완료 상태입니다.\n` +
             `미분류 영상만 수동 분류하면 됩니다.`);
+      
+      // 수동 수집 완료 플래그 해제
+      window.manualCollectionInProgress = false;
     } catch (error) {
       console.error('데이터 수집 오류:', error);
       alert('데이터 수집 중 오류가 발생했습니다: ' + (error instanceof Error ? error.message : error));
+      
+      // 오류 발생 시에도 플래그 해제
+      window.manualCollectionInProgress = false;
     }
   };
 
