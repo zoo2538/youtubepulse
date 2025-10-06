@@ -91,21 +91,30 @@ const DateClassificationDetail = () => {
         setIsLoading(true);
         console.log('📅 날짜별 데이터 로드 시작:', selectedDate);
         
-        // 1. 먼저 API 서버에서 데이터 로드 시도
+        // 1. IndexedDB를 우선으로 로드 (백업 복원 데이터 포함)
         let allData = [];
         try {
-          const response = await fetch(`https://api.youthbepulse.com/api/unclassified?date=${selectedDate}`);
-          if (response.ok) {
-            const serverData = await response.json();
-            allData = serverData.data || [];
-            console.log('✅ API 서버에서 데이터 로드:', allData.length, '개');
-          } else {
-            throw new Error('API 서버 응답 실패');
-          }
-        } catch (apiError) {
-          console.log('⚠️ API 서버 로드 실패, IndexedDB에서 로드:', apiError);
-          // API 실패시 IndexedDB에서 로드
+          console.log('📊 IndexedDB에서 데이터 로드 시도...');
           allData = await indexedDBService.loadUnclassifiedData();
+          console.log('✅ IndexedDB에서 데이터 로드:', allData.length, '개');
+          
+          // IndexedDB에 데이터가 없으면 API 서버에서 시도
+          if (allData.length === 0) {
+            console.log('📊 IndexedDB에 데이터 없음, API 서버에서 시도...');
+            try {
+              const response = await fetch(`https://api.youthbepulse.com/api/unclassified?date=${selectedDate}`);
+              if (response.ok) {
+                const serverData = await response.json();
+                allData = serverData.data || [];
+                console.log('✅ API 서버에서 데이터 로드:', allData.length, '개');
+              }
+            } catch (apiError) {
+              console.log('⚠️ API 서버도 실패:', apiError);
+            }
+          }
+        } catch (dbError) {
+          console.error('❌ IndexedDB 로드 실패:', dbError);
+          allData = [];
         }
         
         // 선택된 날짜의 데이터만 필터링 (다양한 날짜 필드 확인)
