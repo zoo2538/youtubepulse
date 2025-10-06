@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
+import { 
   Settings, 
   Database, 
   Filter,
@@ -39,7 +39,8 @@ import {
   ChevronRight,
   Archive,
   FileDown,
-  SaveAll
+  SaveAll,
+  BarChart3
   } from "lucide-react";
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
@@ -409,6 +410,9 @@ const DataClassification = () => {
     
     loadDates();
   }, [unclassifiedData]);
+
+  // 분류된 데이터 추출
+  const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
 
   // 일별 분류 진행률 계산 함수
   const calculateDailyProgress = (unclassifiedData: UnclassifiedData[], classifiedData: UnclassifiedData[]): DailyProgressData[] => {
