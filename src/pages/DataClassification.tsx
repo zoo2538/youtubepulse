@@ -525,6 +525,32 @@ const DataClassification = () => {
             console.log('❌ 10월 6일 자동수집 통계 없음 - 자동수집 데이터가 없거나 날짜 매칭 실패');
           }
           
+          // 전체 데이터의 collectionType 분포 확인
+          const collectionTypeStats = savedData?.reduce((acc, item) => {
+            const type = item.collectionType || 'undefined';
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>) || {};
+          console.log('📊 collectionType 분포:', collectionTypeStats);
+          
+          // 10월 6일 데이터 전체 확인
+          const october6Data = savedData?.filter(item => {
+            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            const normalizedDate = date?.replace(/-$/, '');
+            return normalizedDate === '2025-10-06';
+          }) || [];
+          console.log('🔍 10월 6일 전체 데이터:', october6Data.length, '개');
+          if (october6Data.length > 0) {
+            console.log('🔍 10월 6일 데이터 샘플:', october6Data.slice(0, 3).map(item => ({
+              id: item.id,
+              collectionType: item.collectionType,
+              dayKeyLocal: item.dayKeyLocal,
+              collectionDate: item.collectionDate,
+              uploadDate: item.uploadDate,
+              status: item.status
+            })));
+          }
+          
           if (savedData && savedData.length > 0) {
             // utils 함수들은 이미 정적 import됨
             const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜
