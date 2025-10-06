@@ -331,6 +331,69 @@ const DataClassification = () => {
           const savedData = await hybridService.loadUnclassifiedData();
           console.log(`📊 로드된 데이터 개수: ${savedData?.length || 0}개`);
           
+          // 백업 복원 중이면 데이터 로드 차단 (데이터 손실 방지)
+          if (window.restoreLock || sessionStorage.getItem('restoreInProgress')) {
+            console.log('🔒 백업 복원 중이므로 데이터 로드 차단');
+            return;
+          }
+          
+          // 백업 데이터와 분류된 데이터 병합
+          const currentData = unclassifiedData; // 현재 UI에 표시된 데이터
+          if (currentData && currentData.length > 0) {
+            console.log('🔄 백업 데이터와 분류된 데이터 병합 중...');
+            
+            // 분류된 데이터만 추출 (상태가 변경된 데이터)
+            const classifiedUpdates = currentData.filter(item => 
+              item.status === 'classified' && 
+              (item.category || item.subCategory)
+            );
+            
+            if (classifiedUpdates.length > 0) {
+              console.log(`📊 ${classifiedUpdates.length}개의 분류된 데이터 병합`);
+              
+              // 기존 데이터와 분류된 데이터 병합
+              const mergedData = [...savedData];
+              classifiedUpdates.forEach(update => {
+                const existingIndex = mergedData.findIndex(item => item.id === update.id);
+                if (existingIndex >= 0) {
+                  // 기존 데이터 업데이트
+                  mergedData[existingIndex] = { ...mergedData[existingIndex], ...update };
+                } else {
+                  // 새 데이터 추가
+                  mergedData.push(update);
+                }
+              });
+              
+              console.log(`✅ 병합 완료: ${mergedData.length}개 데이터`);
+              
+              // 병합된 데이터의 통계 재계산
+              const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+              mergedData.forEach(item => {
+                const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+                if (date) {
+                  if (!mergedDateStats[date]) {
+                    mergedDateStats[date] = { total: 0, classified: 0, progress: 0 };
+                  }
+                  mergedDateStats[date].total++;
+                  if (item.status === 'classified') {
+                    mergedDateStats[date].classified++;
+                  }
+                }
+              });
+              
+              // 진행률 계산
+              Object.keys(mergedDateStats).forEach(date => {
+                const stats = mergedDateStats[date];
+                stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+              });
+              
+              setDateStats(mergedDateStats);
+              setUnclassifiedData(mergedData as UnclassifiedData[]);
+              console.log('📊 병합된 데이터 통계 업데이트:', mergedDateStats);
+              return; // 병합된 데이터로 UI 업데이트 후 종료
+            }
+          }
+          
           // 2. 사용 가능한 날짜 목록 새로고침
           const dates = await hybridService.getAvailableDates();
           console.log('🔄 사용 가능한 날짜 새로고침:', dates);
