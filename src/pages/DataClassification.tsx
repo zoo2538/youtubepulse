@@ -740,6 +740,9 @@ const DataClassification = () => {
   // 일별 분류 진행률 일괄 저장
   const handleBulkSaveProgress = async () => {
     try {
+      setIsLoading(true);
+      console.log('💾 진행률 일괄 저장 시작...');
+      
       // 분류된 데이터만 추출
       const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
       
@@ -816,6 +819,8 @@ const DataClassification = () => {
     } catch (error) {
       console.error('진행률 저장 실패:', error);
       alert('❌ 진행률 저장에 실패했습니다.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
