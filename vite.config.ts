@@ -60,26 +60,26 @@ export default defineConfig({
   </head>
   <body>
     <script>
-      // GitHub Pages SPA 라우팅을 위한 404.html 리다이렉트
+      // spa-github-pages 방식: 원경로를 ?p= 파라미터로 인코딩하여 안전하게 전달
       console.log('🔄 404.html에서 SPA 리다이렉트 시작');
       console.log('📍 현재 URL:', location.href);
       
-      // 리다이렉트 루프 방지
-      if (sessionStorage.getItem('redirecting')) {
-        console.log('⚠️ 리다이렉트 루프 감지, 중단');
-        sessionStorage.removeItem('redirecting');
+      // /assets/* 경로는 절대 가로채지 않음
+      if (location.pathname.startsWith('/assets/')) {
+        console.log('⚠️ 자산 파일 요청 - 404.html에서 처리하지 않음');
         return;
       }
       
-      // 리다이렉트 플래그 설정
-      sessionStorage.setItem('redirecting', 'true');
+      // 원경로를 ?p= 파라미터로 인코딩하여 전달
+      const pathSegmentsToKeep = 0; // 커스텀 도메인 루트용
+      const pathSegments = location.pathname.split('/').slice(1);
+      const segmentsToKeep = pathSegments.slice(0, pathSegmentsToKeep);
+      const pathToRestore = '/' + segmentsToKeep.join('/') + location.search + location.hash;
       
-      // 현재 URL을 sessionStorage에 저장하고 메인 페이지로 리다이렉트
-      sessionStorage.redirect = location.href;
-      console.log('💾 리다이렉트 URL 저장:', location.href);
+      console.log('💾 복원할 경로:', pathToRestore);
       
-      // 루트 경로로 리다이렉트 (커스텀 도메인용)
-      window.location.href = "/";
+      // 인코딩된 경로로 리다이렉트 (루프 방지)
+      window.location.replace(location.origin + '/?p=' + encodeURIComponent(pathToRestore));
     </script>
   </body>
 </html>`;
@@ -87,18 +87,37 @@ export default defineConfig({
           return;
         }
 
-        // index.html에 redirect 보정 스크립트 삽입
+        // index.html에 SPA 라우팅 복원 스크립트 삽입
         let html = fs.readFileSync(indexHtml, 'utf-8');
-        if (!html.includes('sessionStorage.redirect')) {
+        if (!html.includes('spa-restored')) {
           html = html.replace(
             '<head>',
             `<head>
-<script>
-  if (sessionStorage.redirect) {
-    history.replaceState(null, null, sessionStorage.redirect);
-    delete sessionStorage.redirect;
-  }
-</script>`
+    <!-- SPA 라우팅 복원 스크립트 (1회만 실행) -->
+    <script>
+      (function() {
+        // 이미 복원이 실행되었는지 확인
+        if (sessionStorage.getItem('spa-restored')) {
+          return;
+        }
+        
+        // ?p= 파라미터 감지 및 복원
+        const urlParams = new URLSearchParams(location.search);
+        const pathToRestore = urlParams.get('p');
+        
+        if (pathToRestore) {
+          console.log('🔄 SPA 라우팅 복원:', pathToRestore);
+          
+          // history.replaceState로 원경로 복원 (페이지 새로고침 없음)
+          history.replaceState(null, null, pathToRestore);
+          
+          // 복원 완료 플래그 설정 (중복 실행 방지)
+          sessionStorage.setItem('spa-restored', 'true');
+          
+          console.log('✅ SPA 라우팅 복원 완료');
+        }
+      })();
+    </script>`
           );
           fs.writeFileSync(indexHtml, html, 'utf-8');
         }
@@ -112,16 +131,26 @@ export default defineConfig({
   </head>
   <body>
     <script>
-      // GitHub Pages SPA 라우팅을 위한 404.html 리다이렉트
+      // spa-github-pages 방식: 원경로를 ?p= 파라미터로 인코딩하여 안전하게 전달
       console.log('🔄 404.html에서 SPA 리다이렉트 시작');
       console.log('📍 현재 URL:', location.href);
       
-      // 현재 URL을 sessionStorage에 저장하고 메인 페이지로 리다이렉트
-      sessionStorage.redirect = location.href;
-      console.log('💾 리다이렉트 URL 저장:', location.href);
+      // /assets/* 경로는 절대 가로채지 않음
+      if (location.pathname.startsWith('/assets/')) {
+        console.log('⚠️ 자산 파일 요청 - 404.html에서 처리하지 않음');
+        return;
+      }
       
-      // 루트 경로로 리다이렉트 (커스텀 도메인용)
-      window.location.href = "/";
+      // 원경로를 ?p= 파라미터로 인코딩하여 전달
+      const pathSegmentsToKeep = 0; // 커스텀 도메인 루트용
+      const pathSegments = location.pathname.split('/').slice(1);
+      const segmentsToKeep = pathSegments.slice(0, pathSegmentsToKeep);
+      const pathToRestore = '/' + segmentsToKeep.join('/') + location.search + location.hash;
+      
+      console.log('💾 복원할 경로:', pathToRestore);
+      
+      // 인코딩된 경로로 리다이렉트 (루프 방지)
+      window.location.replace(location.origin + '/?p=' + encodeURIComponent(pathToRestore));
     </script>
   </body>
 </html>`;

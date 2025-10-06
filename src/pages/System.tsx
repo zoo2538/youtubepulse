@@ -30,7 +30,9 @@ import {
   Upload,
   Filter,
   Play,
-  Users
+  Users,
+  Trash2,
+  HardDrive
 } from "lucide-react";
 import DataCollectionManager from "@/components/DataCollectionManager";
 import { indexedDBService } from "@/lib/indexeddb-service";
@@ -39,6 +41,7 @@ import { dataMigrationService } from "@/lib/data-migration-service";
 import { autoClassificationService } from "@/lib/auto-classification-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
 import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
+import { CacheCleanup } from "@/lib/cache-cleanup";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -119,6 +122,14 @@ const System = () => {
       videos: number;
       classificationData: number;
     };
+  } | null>(null);
+
+  // 캐시 정리 상태
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [cacheCleanupResult, setCacheCleanupResult] = useState<{
+    serviceWorker: boolean;
+    cache: boolean;
+    localStorage: boolean;
   } | null>(null);
 
 
@@ -263,6 +274,37 @@ const System = () => {
         console.error('데이터 정리 오류:', error);
         alert('데이터 정리 중 오류가 발생했습니다.');
       }
+    }
+  };
+
+  // 캐시 정리 핸들러
+  const handleCacheCleanup = async () => {
+    if (window.confirm('브라우저 캐시와 서비스워커를 정리하시겠습니까?\n\n이 작업은 페이지 새로고침을 유발할 수 있습니다.')) {
+      setIsClearingCache(true);
+      setCacheCleanupResult(null);
+      
+      try {
+        const result = await CacheCleanup.fullCleanup();
+        setCacheCleanupResult(result);
+        
+        if (result.serviceWorker || result.cache) {
+          alert('캐시 정리가 완료되었습니다!\n\n페이지를 새로고침하여 변경사항을 적용하세요.');
+        } else {
+          alert('정리할 캐시가 없습니다.');
+        }
+      } catch (error) {
+        console.error('캐시 정리 오류:', error);
+        alert('캐시 정리 중 오류가 발생했습니다.');
+      } finally {
+        setIsClearingCache(false);
+      }
+    }
+  };
+
+  // 강력한 새로고침 핸들러
+  const handleHardRefresh = () => {
+    if (window.confirm('강력한 새로고침을 실행하시겠습니까?\n\n모든 캐시가 무효화되고 페이지가 새로고침됩니다.')) {
+      CacheCleanup.hardRefresh();
     }
   };
 
