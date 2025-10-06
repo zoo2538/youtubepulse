@@ -2241,16 +2241,16 @@ const DataClassification = () => {
                     </div>
                   )}
                   
-                      <div className="text-xs text-purple-500 font-medium text-center mt-2">
+                  <div className="text-xs text-purple-500 font-medium text-center mt-2">
                     클릭하여 분류하기
                   </div>
-                    </div>
+                </div>
               );
             })}
               </div>
             </div>
-                    </div>
-                  </Card>
+          </div>
+        </Card>
 
 
         {/* 14일 데이터 관리 */}
