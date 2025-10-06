@@ -2351,7 +2351,7 @@ const DataClassification = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              일별 분류 진행
+              일별 분류 진행률 표시
             </CardTitle>
             <CardDescription>
               자동수집, 수동수집, 합계별 분류 진행률을 확인하세요
