@@ -901,8 +901,9 @@ const DataClassification = () => {
         console.log('✅ 분류된 데이터 병합 저장 완료');
       }
       
-      // 진행률 데이터 생성 (14일간 모든 날짜)
+      // 진행률 데이터 생성 (7일간 모든 날짜) - 현재 UI 데이터 사용
       const progressData = sevenDays.map(date => {
+        // 현재 UI에 표시된 데이터에서 해당 날짜 데이터 필터링
         const dateData = unclassifiedData.filter(item => {
           const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
@@ -925,19 +926,39 @@ const DataClassification = () => {
       // 하이브리드 저장 - 진행률 데이터
       await hybridService.saveDailyProgress(progressData);
       
-      // 안전한 데이터 업데이트 이벤트 발생 (백업 데이터 보존)
-      window.dispatchEvent(new CustomEvent('dataUpdated', { 
-        detail: { 
-          type: 'bulkSave', 
-          dataCount: allClassifiedData.length,
-          preserveBackupData: true, // 백업 데이터 보존 플래그
-          timestamp: new Date().toISOString()
-        }
-      }));
+      // 로컬 상태 업데이트 (백업 데이터 보존)
+      if (allClassifiedData.length > 0) {
+        // 현재 UI 데이터를 병합된 데이터로 업데이트
+        setUnclassifiedData(mergedData as UnclassifiedData[]);
+        
+        // 통계 재계산
+        const updatedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+        mergedData.forEach(item => {
+          const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+          if (date) {
+            if (!updatedDateStats[date]) {
+              updatedDateStats[date] = { total: 0, classified: 0, progress: 0 };
+            }
+            updatedDateStats[date].total++;
+            if (item.status === 'classified') {
+              updatedDateStats[date].classified++;
+            }
+          }
+        });
+        
+        // 진행률 계산
+        Object.keys(updatedDateStats).forEach(date => {
+          const stats = updatedDateStats[date];
+          stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+        });
+        
+        setDateStats(updatedDateStats);
+        console.log('📊 로컬 상태 업데이트 완료:', updatedDateStats);
+      }
       
-      console.log('✅ 진행률 일괄 저장 완료, 백업 데이터 보존하며 데이터 업데이트 이벤트 발생');
+      console.log('✅ 진행률 일괄 저장 완료, 백업 데이터 보존하며 로컬 상태 업데이트');
       
-      alert(`✅ 14일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n대시보드가 자동으로 업데이트됩니다.`);
+      alert(`✅ 7일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n현재 페이지가 자동으로 업데이트됩니다.`);
     } catch (error) {
       console.error('진행률 저장 실패:', error);
       alert('❌ 진행률 저장에 실패했습니다.');
