@@ -76,6 +76,21 @@ interface UnclassifiedData {
   subCategory: string;
   status: 'unclassified' | 'classified' | 'pending';
   updatedAt?: string;
+  collectionType?: 'auto' | 'manual'; // 수집 타입 구분
+}
+
+// 일별 분류 진행률 데이터 타입
+interface DailyProgressData {
+  date: string; // YYYY-MM-DD
+  autoCollected: number; // 자동수집 총 개수
+  autoClassified: number; // 자동수집 중 분류된 개수
+  manualCollected: number; // 수동수집 총 개수
+  manualClassified: number; // 수동수집 중 분류된 개수
+  totalCollected: number; // 전체 수집 개수
+  totalClassified: number; // 전체 분류된 개수
+  autoProgress: number; // 자동수집 분류율 (%)
+  manualProgress: number; // 수동수집 분류율 (%)
+  totalProgress: number; // 전체 분류율 (%)
 }
 
 interface DataManagementConfig {
@@ -394,6 +409,67 @@ const DataClassification = () => {
     
     loadDates();
   }, [unclassifiedData]);
+
+  // 일별 분류 진행률 계산 함수
+  const calculateDailyProgress = (unclassifiedData: UnclassifiedData[], classifiedData: UnclassifiedData[]): DailyProgressData[] => {
+    const progressMap = new Map<string, DailyProgressData>();
+    
+    // 모든 데이터를 합쳐서 날짜별로 그룹화
+    const allData = [...unclassifiedData, ...classifiedData];
+    
+    allData.forEach(item => {
+      const dayKey = item.dayKeyLocal || 
+                    (item.collectionDate ? new Date(item.collectionDate).toISOString().split('T')[0] : null) ||
+                    (item.uploadDate ? new Date(item.uploadDate).toISOString().split('T')[0] : null);
+      
+      if (!dayKey) return;
+      
+      if (!progressMap.has(dayKey)) {
+        progressMap.set(dayKey, {
+          date: dayKey,
+          autoCollected: 0,
+          autoClassified: 0,
+          manualCollected: 0,
+          manualClassified: 0,
+          totalCollected: 0,
+          totalClassified: 0,
+          autoProgress: 0,
+          manualProgress: 0,
+          totalProgress: 0
+        });
+      }
+      
+      const progress = progressMap.get(dayKey)!;
+      const isClassified = item.status === 'classified';
+      const collectionType = item.collectionType || 'auto'; // 기본값은 auto
+      
+      // 수집 타입별 카운트
+      if (collectionType === 'auto') {
+        progress.autoCollected++;
+        if (isClassified) progress.autoClassified++;
+      } else {
+        progress.manualCollected++;
+        if (isClassified) progress.manualClassified++;
+      }
+      
+      // 전체 카운트
+      progress.totalCollected++;
+      if (isClassified) progress.totalClassified++;
+    });
+    
+    // 진행률 계산
+    progressMap.forEach(progress => {
+      progress.autoProgress = progress.autoCollected > 0 ? 
+        Math.round((progress.autoClassified / progress.autoCollected) * 100) : 0;
+      progress.manualProgress = progress.manualCollected > 0 ? 
+        Math.round((progress.manualClassified / progress.manualCollected) * 100) : 0;
+      progress.totalProgress = progress.totalCollected > 0 ? 
+        Math.round((progress.totalClassified / progress.totalCollected) * 100) : 0;
+    });
+    
+    // 날짜별로 정렬 (최신 날짜가 먼저)
+    return Array.from(progressMap.values()).sort((a, b) => b.date.localeCompare(a.date));
+  };
 
   // 날짜 클릭 핸들러
   const handleDateClick = (date: string) => {
@@ -2000,6 +2076,101 @@ const DataClassification = () => {
                </div>
               </div>
           </div>
+        </Card>
+
+        {/* 일별 분류 진행률 테이블 */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              일별 분류 진행률
+            </CardTitle>
+            <CardDescription>
+              자동수집, 수동수집, 합계별 분류 진행률을 확인하세요
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2 font-medium">날짜</th>
+                    <th className="text-center p-2 font-medium">자동수집</th>
+                    <th className="text-center p-2 font-medium">수동수집</th>
+                    <th className="text-center p-2 font-medium">합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calculateDailyProgress(unclassifiedData, classifiedData).slice(0, 7).map((progress) => (
+                    <tr key={progress.date} className="border-b hover:bg-muted/50">
+                      <td className="p-2">
+                        <Button
+                          variant="link"
+                          className="p-0 h-auto font-medium"
+                          onClick={() => handleDateClick(progress.date)}
+                        >
+                          {progress.date}
+                        </Button>
+                      </td>
+                      <td className="p-2 text-center">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">
+                            {progress.autoClassified}/{progress.autoCollected}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {progress.autoProgress}%
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-blue-500 h-2 rounded-full transition-all"
+                              style={{ width: `${progress.autoProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-2 text-center">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">
+                            {progress.manualClassified}/{progress.manualCollected}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {progress.manualProgress}%
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-green-500 h-2 rounded-full transition-all"
+                              style={{ width: `${progress.manualProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-2 text-center">
+                        <div className="space-y-1">
+                          <div className="text-sm font-medium">
+                            {progress.totalClassified}/{progress.totalCollected}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {progress.totalProgress}%
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full transition-all"
+                              style={{ width: `${progress.totalProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 text-xs text-muted-foreground space-y-1">
+              <p>• 자동수집: 시스템이 자동으로 수집한 데이터</p>
+              <p>• 수동수집: 사용자가 직접 추가한 데이터</p>
+              <p>• 합계: 자동수집 + 수동수집 전체 데이터</p>
+            </div>
+          </CardContent>
         </Card>
 
         {/* 모달들 제거 - 하드코딩 방식에서는 불필요 */}
