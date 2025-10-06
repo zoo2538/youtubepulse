@@ -1142,7 +1142,7 @@ const System = () => {
                               </div>
                               <div className="flex justify-between">
                                 <span>예상 총 수집량:</span>
-                                <span className="font-medium text-green-600">{200 + (EXPANDED_KEYWORDS.length * 50)}~{200 + (EXPANDED_KEYWORDS.length * 50) + 100}개</span>
+                                <span className="font-medium text-green-600">{200 + (EXPANDED_KEYWORDS.length * 50)}개</span>
                               </div>
                               <div className="flex justify-between">
                                 <span>중복 제거:</span>
