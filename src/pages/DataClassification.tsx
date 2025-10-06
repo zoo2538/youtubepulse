@@ -40,7 +40,6 @@ import {
   ChevronRight,
   Archive,
   FileDown,
-  SaveAll,
   BarChart3
   } from "lucide-react";
 import { postgresqlService } from "@/lib/postgresql-service";
@@ -1863,17 +1862,6 @@ const DataClassification = () => {
             </div>
             <div className="flex items-center space-x-2">
               <Button 
-                variant="default" 
-                size="sm" 
-                onClick={handleAutoCollection}
-                className="flex items-center space-x-1 bg-green-600 hover:bg-green-700"
-                disabled={isLoading}
-              >
-                <Play className="w-4 h-4" />
-                <span>자동수집</span>
-              </Button>
-              
-              <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleBulkSaveProgress}
@@ -1970,85 +1958,210 @@ const DataClassification = () => {
             </div>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-            {availableDates.slice(0, 7).map(date => {
-              // 날짜별 통계에서 직접 가져오기 (실시간 업데이트)
-              const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-              const total = stats.total;
-              const classified = stats.classified;
-              const progress = stats.progress;
-              const hasData = total > 0;
-              
-              return (
-                <div 
-                  key={date} 
-                  className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
-                  onClick={() => handleDateClick(date)}
-                  title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
-                      {new Date(date).toLocaleDateString('ko-KR', { 
-                        month: 'short', 
-                        day: 'numeric',
-                        weekday: 'short'
-                      })}
-                    </h3>
-                    <div className="flex items-center space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadBackup(date);
-                        }}
-                        className="h-6 w-6 p-0 hover:bg-blue-100"
-                        title={`${date} 날짜 백업 다운로드`}
-                        disabled={!hasData}
-                      >
-                        <FileDown className={`w-3 h-3 ${hasData ? 'text-blue-600' : 'text-gray-400'}`} />
-                      </Button>
-                      {hasData ? (
-                        <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
-                          {Math.round(progress)}%
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-gray-500">
-                          데이터 없음
-                        </Badge>
-                      )}
-                    </div>
-          </div>
-                  {hasData ? (
-                    <>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className={`h-2 rounded-full transition-all ${
-                            progress === 100 ? 'bg-green-500' : 
-                            progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
-                        </div>
-                      <div className="text-xs text-muted-foreground">
-                        {classified}/{total} 완료
-                      </div>
-                    </>
-                  ) : (
-                    <div className="text-xs text-gray-400">
-                      수집된 데이터 없음
-                    </div>
-                  )}
+          {/* 3행 × 7열 그리드 */}
+          <div className="space-y-4">
+            {/* 수동수집 행 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">수동수집</h3>
+              <div className="grid grid-cols-7 gap-3">
+                {availableDates.slice(0, 7).map(date => {
+                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const total = stats.total;
+                  const classified = stats.classified;
+                  const progress = stats.progress;
+                  const hasData = total > 0;
                   
-                  {/* 클릭 안내 텍스트 */}
-                  <div className="text-xs text-blue-500 font-medium text-center mt-2">
-                    클릭하여 분류하기
-                  </div>
+                  return (
+                    <div 
+                      key={`manual-${date}`}
+                      className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
+                      onClick={() => handleDateClick(date)}
+                      title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
+                          {new Date(date).toLocaleDateString('ko-KR', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            weekday: 'short'
+                          })}
+                        </h3>
+                        {hasData ? (
+                          <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
+                            {Math.round(progress)}%
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-gray-500">
+                            데이터 없음
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {hasData ? (
+                        <>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all ${
+                                progress === 100 ? 'bg-green-500' : 
+                                progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {classified}/{total} 완료
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-gray-400">
+                          수집된 데이터 없음
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-blue-500 font-medium text-center mt-2">
+                        클릭하여 분류하기
+                      </div>
                     </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 자동수집 행 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">자동수집</h3>
+              <div className="grid grid-cols-7 gap-3">
+                {availableDates.slice(0, 7).map(date => {
+                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const total = stats.total;
+                  const classified = stats.classified;
+                  const progress = stats.progress;
+                  const hasData = total > 0;
+                  
+                  return (
+                    <div 
+                      key={`auto-${date}`}
+                      className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-green-50 hover:border-green-300 transition-all duration-200 active:scale-95"
+                      onClick={() => handleDateClick(date)}
+                      title={`${date} 날짜 자동수집 데이터 - 클릭하여 상세 페이지로 이동`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm text-green-600 hover:text-green-800">
+                          {new Date(date).toLocaleDateString('ko-KR', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            weekday: 'short'
+                          })}
+                        </h3>
+                        {hasData ? (
+                          <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
+                            {Math.round(progress)}%
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-gray-500">
+                            데이터 없음
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {hasData ? (
+                        <>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all ${
+                                progress === 100 ? 'bg-green-500' : 
+                                progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {classified}/{total} 완료
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-gray-400">
+                          수집된 데이터 없음
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-green-500 font-medium text-center mt-2">
+                        클릭하여 분류하기
+                      </div>
                     </div>
-                  </Card>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 합계 행 */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">합계</h3>
+              <div className="grid grid-cols-7 gap-3">
+                {availableDates.slice(0, 7).map(date => {
+                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const total = stats.total;
+                  const classified = stats.classified;
+                  const progress = stats.progress;
+                  const hasData = total > 0;
+                  
+                  return (
+                    <div 
+                      key={`total-${date}`}
+                      className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 active:scale-95"
+                      onClick={() => handleDateClick(date)}
+                      title={`${date} 날짜 합계 데이터 - 클릭하여 상세 페이지로 이동`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-medium text-sm text-purple-600 hover:text-purple-800">
+                          {new Date(date).toLocaleDateString('ko-KR', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            weekday: 'short'
+                          })}
+                        </h3>
+                        {hasData ? (
+                          <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
+                            {Math.round(progress)}%
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-gray-500">
+                            데이터 없음
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      {hasData ? (
+                        <>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`h-2 rounded-full transition-all ${
+                                progress === 100 ? 'bg-green-500' : 
+                                progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {classified}/{total} 완료
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-gray-400">
+                          수집된 데이터 없음
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-purple-500 font-medium text-center mt-2">
+                        클릭하여 분류하기
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </Card>
 
 
         {/* 14일 데이터 관리 */}
