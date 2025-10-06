@@ -462,7 +462,7 @@ const DataClassification = () => {
     };
     
     loadDates();
-  }, [unclassifiedData]);
+  }, []); // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
 
   // 분류된 데이터 추출
   const classifiedData = unclassifiedData.filter(item => item.status === 'classified');

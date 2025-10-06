@@ -150,23 +150,22 @@ const TrendingVideosDetail = () => {
     }
   };
 
-  // 데이터 업데이트 이벤트 리스너
+  // 데이터 로드 및 업데이트 이벤트 리스너
   useEffect(() => {
     const handleDataUpdate = (event: CustomEvent) => {
       console.log('🔄 조회수 급등 동영상 상세 데이터 업데이트 이벤트 감지:', event.detail);
       loadTrendingVideosData();
     };
-
+    
+    // 컴포넌트 마운트 시 데이터 로드
+    loadTrendingVideosData();
+    
+    // 데이터 업데이트 이벤트 리스너 등록
     window.addEventListener('dataUpdated', handleDataUpdate as EventListener);
     
     return () => {
       window.removeEventListener('dataUpdated', handleDataUpdate as EventListener);
     };
-  }, [selectedDate]);
-
-  // 컴포넌트 마운트 시 데이터 로드
-  useEffect(() => {
-    loadTrendingVideosData();
   }, [selectedDate]);
 
   // 필터링 함수
