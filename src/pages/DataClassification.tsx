@@ -549,6 +549,63 @@ const DataClassification = () => {
               uploadDate: item.uploadDate,
               status: item.status
             })));
+            
+            // 10월 6일 데이터 정규화 및 저장
+            console.log('🔄 10월 6일 데이터 정규화 시작...');
+            const normalizedData = october6Data.map(item => {
+              const normalizedItem = {
+                ...item,
+                // collectionType이 없으면 'manual'로 설정
+                collectionType: item.collectionType || 'manual',
+                // dayKeyLocal 정규화 (대시 제거)
+                dayKeyLocal: item.dayKeyLocal ? item.dayKeyLocal.replace(/-$/, '') : '2025-10-06',
+                // collectionDate가 없으면 dayKeyLocal 사용
+                collectionDate: item.collectionDate || item.dayKeyLocal?.replace(/-$/, '') || '2025-10-06',
+                // uploadDate가 없으면 collectionDate 사용
+                uploadDate: item.uploadDate || item.collectionDate || '2025-10-06'
+              };
+              return normalizedItem;
+            });
+            
+            console.log('📊 정규화된 10월 6일 데이터:', normalizedData.length, '개');
+            console.log('📊 정규화 샘플:', normalizedData.slice(0, 2).map(item => ({
+              id: item.id,
+              collectionType: item.collectionType,
+              dayKeyLocal: item.dayKeyLocal,
+              collectionDate: item.collectionDate,
+              uploadDate: item.uploadDate
+            })));
+            
+            // 정규화된 데이터로 기존 데이터 업데이트
+            const updatedData = savedData.map(item => {
+              const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              const normalizedDate = date?.replace(/-$/, '');
+              
+              if (normalizedDate === '2025-10-06') {
+                const normalizedItem = normalizedData.find(nItem => nItem.id === item.id);
+                if (normalizedItem) {
+                  return normalizedItem;
+                }
+              }
+              return item;
+            });
+            
+            // 정규화된 데이터 저장
+            try {
+              await hybridService.saveUnclassifiedData(updatedData);
+              console.log('✅ 10월 6일 데이터 정규화 및 저장 완료');
+              
+              // 저장 후 통계 재계산을 위해 데이터 업데이트 이벤트 발생
+              window.dispatchEvent(new CustomEvent('dataUpdated', { 
+                detail: { 
+                  type: 'dataNormalized', 
+                  timestamp: Date.now(),
+                  normalizedCount: normalizedData.length
+                } 
+              }));
+            } catch (error) {
+              console.error('❌ 10월 6일 데이터 정규화 저장 실패:', error);
+            }
           }
           
           if (savedData && savedData.length > 0) {
