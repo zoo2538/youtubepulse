@@ -803,7 +803,7 @@ const DataClassification = () => {
   // Feature flag for bulk save progress
   // TODO: Re-enable after server-authoritative flow is fully validated
   // Tracking issue: https://github.com/zoo2538/youtubepulse/issues/bulk-save-data-loss
-  const BULK_PROGRESS_ENABLED = false;
+  const BULK_PROGRESS_ENABLED = true;
   
   // 일별 분류 진행률 일괄 저장 (데이터 손실 방지를 위해 비활성화)
   const handleBulkSaveProgress = async () => {
@@ -851,9 +851,32 @@ const DataClassification = () => {
         allClassifiedData.push(...dateClassifiedData);
       });
 
-      // 주의: saveClassifiedData는 전체 데이터를 덮어쓰므로 호출하지 않음
-      // 분류된 데이터는 이미 unclassifiedData에 status='classified'로 저장되어 있음
-      console.log('📊 분류된 데이터 개수:', allClassifiedData.length, '개 (이미 unclassifiedData에 저장됨)');
+      // 안전한 분류된 데이터 저장 (기존 데이터 보존)
+      if (allClassifiedData.length > 0) {
+        console.log('📊 분류된 데이터 개수:', allClassifiedData.length, '개');
+        
+        // 기존 데이터와 분류된 데이터 병합 (덮어쓰기 방지)
+        const existingData = await hybridService.loadUnclassifiedData();
+        const mergedData = [...existingData];
+        
+        // 분류된 데이터만 업데이트 (기존 데이터 보존)
+        allClassifiedData.forEach(classifiedItem => {
+          const existingIndex = mergedData.findIndex(item => item.id === classifiedItem.id);
+          if (existingIndex >= 0) {
+            // 기존 데이터 업데이트 (분류 정보만)
+            mergedData[existingIndex] = { 
+              ...mergedData[existingIndex], 
+              status: 'classified',
+              category: classifiedItem.category,
+              subCategory: classifiedItem.subCategory
+            };
+          }
+        });
+        
+        // 병합된 데이터 저장
+        await hybridService.saveUnclassifiedData(mergedData);
+        console.log('✅ 분류된 데이터 병합 저장 완료');
+      }
       
       // 진행률 데이터 생성 (14일간 모든 날짜)
       const progressData = sevenDays.map(date => {
@@ -879,11 +902,16 @@ const DataClassification = () => {
       // 하이브리드 저장 - 진행률 데이터
       await hybridService.saveDailyProgress(progressData);
       
-      // 주의: 데이터 업데이트 이벤트를 발생시키지 않음 (데이터 손실 방지)
-      // window.dispatchEvent(new CustomEvent('dataUpdated'));
+      // 안전한 데이터 업데이트 이벤트 발생
+      window.dispatchEvent(new CustomEvent('dataUpdated', { 
+        detail: { 
+          type: 'bulkSave', 
+          dataCount: allClassifiedData.length,
+          timestamp: new Date().toISOString()
+        }
+      }));
       
-      // 진행률만 업데이트하고 기존 데이터는 유지
-      console.log('✅ 진행률 데이터만 저장됨, 기존 데이터는 유지됨');
+      console.log('✅ 진행률 일괄 저장 완료, 데이터 업데이트 이벤트 발생');
       
       alert(`✅ 14일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n대시보드가 자동으로 업데이트됩니다.`);
     } catch (error) {
