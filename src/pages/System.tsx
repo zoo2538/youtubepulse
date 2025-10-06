@@ -649,6 +649,7 @@ const System = () => {
       console.log(`📊 기존 영상 날짜 매핑: ${existingVideoDateMap.size}개 영상의 최초 수집일 확인`);
       
       // 자동 분류 서비스는 이미 정적 import됨
+      // 동적 import 실패 시 IndexedDB-only 플로우로 fallback
       
       const newData = uniqueVideos.map((video: any, index: number) => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
