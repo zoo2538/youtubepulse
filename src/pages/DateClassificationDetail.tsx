@@ -393,8 +393,13 @@ const DateClassificationDetail = () => {
         timestamp: new Date().toISOString()
       };
       
-      // 여러 이벤트로 다른 페이지들에 알림
-      window.dispatchEvent(new CustomEvent('dataUpdated', { detail: eventDetail }));
+      // 여러 이벤트로 다른 페이지들에 알림 (백업 데이터 보존)
+      window.dispatchEvent(new CustomEvent('dataUpdated', { 
+        detail: { 
+          ...eventDetail, 
+          preserveBackupData: true // 백업 데이터 보존 플래그
+        } 
+      }));
       window.dispatchEvent(new CustomEvent('dashboardDateChanged', { detail: { date: selectedDate } }));
       window.dispatchEvent(new CustomEvent('categoriesUpdated'));
       
@@ -587,13 +592,14 @@ const DateClassificationDetail = () => {
           console.log('⚠️ 서버 연결 실패, 로컬에서만 복원됨');
         }
         
-        // 데이터 업데이트 이벤트 발생
+        // 데이터 업데이트 이벤트 발생 (백업 데이터 보존)
         window.dispatchEvent(new CustomEvent('dataUpdated', { 
           detail: { 
             type: 'backupRestored', 
             date: selectedDate, 
-            dataCount: backupData.data.length 
-          } 
+            dataCount: backupData.data.length,
+            preserveBackupData: true // 백업 데이터 보존 플래그
+          }
         }));
         
         console.log(`🔄 ${selectedDate} 날짜 데이터 복원 완료:`, backupData);
