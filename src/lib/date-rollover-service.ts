@@ -3,6 +3,7 @@ import { getKoreanDateString } from './utils';
 
 interface RolloverState {
   lastCheckedDate: string;
+  lastGeneratedDateKey: string;
   isProcessing: boolean;
   requestKey: string;
 }
@@ -10,6 +11,7 @@ interface RolloverState {
 class DateRolloverService {
   private state: RolloverState = {
     lastCheckedDate: '',
+    lastGeneratedDateKey: '',
     isProcessing: false,
     requestKey: ''
   };
@@ -23,6 +25,7 @@ class DateRolloverService {
 
   private initialize() {
     // 앱 시작 시 즉시 평가
+    console.log('🔄 앱 시작 - 자정 전환 즉시 평가');
     this.checkRollover();
     
     // 가시성 변경 감지
@@ -35,6 +38,7 @@ class DateRolloverService {
 
     // 5분 간격 가드 (중복 작업 방지)
     this.intervalId = setInterval(() => {
+      console.log('🔄 5분 간격 자정 전환 확인');
       this.checkRollover();
     }, 5 * 60 * 1000); // 5분
   }
@@ -47,6 +51,12 @@ class DateRolloverService {
 
     const today = getKoreanDateString();
     
+    // 아이템포턴트 가드: 이미 생성된 날짜면 스킵
+    if (this.state.lastGeneratedDateKey === today) {
+      console.log('⏭️ 이미 생성된 날짜:', today);
+      return;
+    }
+    
     if (this.state.lastCheckedDate === today) {
       console.log('📅 날짜 변경 없음:', today);
       return;
@@ -58,10 +68,20 @@ class DateRolloverService {
     this.state.requestKey = `rollover_${Date.now()}`;
     
     try {
-      // 오늘 수집 스케줄링 (중복 방지)
-      await this.scheduleTodayCollection(today);
+      console.time('rollover-compute');
       
-      // 콜백 실행
+      // 오늘 수집 스케줄링 (중복 방지) - 독립 실행
+      try {
+        await this.scheduleTodayCollection(today);
+      } catch (collectionError) {
+        console.error('❌ 수집 스케줄링 실패 (그리드 생성은 계속):', collectionError);
+        // 수집 실패해도 그리드 생성은 계속 진행
+      }
+      
+      console.timeEnd('rollover-compute');
+      console.time('rollover-commit');
+      
+      // 콜백 실행 (상태 갱신 → 렌더 타이밍 고정)
       this.callbacks.forEach(callback => {
         try {
           callback(today);
@@ -70,7 +90,11 @@ class DateRolloverService {
         }
       });
       
+      // 상태 동기 커밋
       this.state.lastCheckedDate = today;
+      this.state.lastGeneratedDateKey = today;
+      
+      console.timeEnd('rollover-commit');
       console.log('✅ 자정 전환 처리 완료:', today);
       
     } catch (error) {
@@ -128,6 +152,42 @@ class DateRolloverService {
   // 현재 날짜 반환
   getCurrentDate(): string {
     return getKoreanDateString();
+  }
+
+  // 강제 재평가 API (디버그용)
+  forceEvaluateNow(): boolean {
+    console.log('🔄 강제 재평가 시작');
+    console.time('rollover-force-evaluate');
+    
+    const todayKST = getKoreanDateString();
+    const lastDateKey = this.state.lastCheckedDate;
+    
+    console.log('📅 날짜 비교:', { lastDateKey, todayKST });
+    
+    if (lastDateKey === todayKST) {
+      console.log('⏭️ 날짜 변경 없음 - 스킵');
+      console.timeEnd('rollover-force-evaluate');
+      return false;
+    }
+    
+    console.log('🔄 자정 전환 감지:', lastDateKey, '→', todayKST);
+    
+    // 상태 업데이트
+    this.state.lastCheckedDate = todayKST;
+    
+    // 콜백 실행 (동기적으로)
+    this.callbacks.forEach(callback => {
+      try {
+        console.log('🔄 콜백 실행:', todayKST);
+        callback(todayKST);
+      } catch (error) {
+        console.error('❌ 콜백 실행 실패:', error);
+      }
+    });
+    
+    console.log('✅ 강제 재평가 완료:', todayKST);
+    console.timeEnd('rollover-force-evaluate');
+    return true;
   }
 
   // 서비스 정리

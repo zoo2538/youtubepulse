@@ -121,6 +121,7 @@ const System = () => {
     };
   } | null>(null);
 
+
   const [dbInfo, setDbInfo] = useState<any>(null);
   const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false);
 
@@ -177,6 +178,27 @@ const System = () => {
       console.log('🔧 커스텀 API 기본값 설정 완료 (Railway 서버 문제로 비활성화)');
     }
   }, []);
+
+  // API 설정 자동 저장
+  useEffect(() => {
+    const saveApiConfig = () => {
+      try {
+        localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey || '');
+        localStorage.setItem('customApiUrl', apiConfig.customApiUrl || '');
+        localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
+        localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
+        localStorage.setItem('youtubeApiEnabled', apiConfig.youtubeApiEnabled.toString());
+        localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
+      } catch (error) {
+        console.error('설정 자동 저장 오류:', error);
+      }
+    };
+
+    // 설정이 변경될 때마다 자동 저장 (500ms 지연으로 과도한 저장 방지)
+    const timeoutId = setTimeout(saveApiConfig, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [apiConfig, systemConfig]);
 
   // 마이그레이션 상태 로드
   const loadMigrationStatus = async () => {
@@ -245,6 +267,7 @@ const System = () => {
   };
 
 
+
   // PostgreSQL과 Redis 연결 테스트 함수 제거 - 서버에서 자동 관리
 
   const testYouTubeAPI = async () => {
@@ -305,26 +328,6 @@ const System = () => {
     }
   };
 
-  const saveConfig = async () => {
-    try {
-      // 설정 저장 로직
-      console.log('설정 저장:', { apiConfig, dbConfig, systemConfig });
-      
-      // API 설정을 localStorage에 저장 (항상 저장)
-      localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey || '');
-      localStorage.setItem('customApiUrl', apiConfig.customApiUrl || '');
-      localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
-      localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
-      
-      // 시스템 설정도 localStorage에 저장
-      localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
-      
-      // 설정 저장 완료 알림
-      alert('✅ 모든 설정이 저장되었습니다. 페이지를 새로고침해도 유지됩니다.');
-    } catch (error) {
-      alert('설정 저장에 실패했습니다.');
-    }
-  };
 
   const exportConfig = () => {
     const config = { apiConfig, systemConfig };
@@ -938,10 +941,6 @@ const System = () => {
                 <Play className="w-4 h-4 mr-2" />
                 데이터 수집 시작
               </Button>
-              <Button onClick={saveConfig}>
-                <Save className="w-4 h-4 mr-2" />
-                설정 저장
-              </Button>
               <Link to="/data-classification">
                 <Button variant="outline">
                   <Filter className="w-4 h-4 mr-2" />
@@ -1399,6 +1398,7 @@ const System = () => {
                               )}
                             </div>
                           )}
+
                         </div>
                       </div>
                     </Card>
