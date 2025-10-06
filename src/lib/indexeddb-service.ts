@@ -215,86 +215,50 @@ class IndexedDBService {
     const deduplicatedData = Array.from(uniqueItems.values());
     console.log(`🔄 중복 제거 완료: ${normalizedData.length}개 → ${deduplicatedData.length}개`);
     
-    // 3. 단일 트랜잭션으로 완전 직렬 처리
+    // 3. 기존 데이터 완전 삭제 후 새 데이터로 덮어씌우기
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
-      let completed = 0;
-      let errors = 0;
-      const total = deduplicatedData.length;
-      
-      console.log(`🔄 단일 트랜잭션 시작: ${total}개 항목 직렬 처리`);
-      
-      // 4. 순차적 upsert 처리
-      const processItem = (item: any, index: number) => {
-        try {
-          // 기존 데이터 조회
-          const existingRequest = store.get(item.id);
+      // 기존 데이터 모두 삭제
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        console.log('🗑️ 기존 데이터 삭제 완료');
+        
+        // 새 데이터 저장
+        let completed = 0;
+        let errors = 0;
+        const total = deduplicatedData.length;
+        
+        console.log(`🔄 새 데이터 저장 시작: ${total}개 항목`);
+        
+        deduplicatedData.forEach((item, index) => {
+          const putRequest = store.put(item);
           
-          existingRequest.onsuccess = () => {
-            const existing = existingRequest.result;
-            let mergedItem = item;
-            
-            if (existing) {
-              // 기존 데이터와 병합 (최대값 보존 + 수동 분류 우선)
-              mergedItem = {
-                ...existing,
-                ...item,
-                // 조회수/좋아요는 최대값 보존
-                viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
-                likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
-                // 수동 분류 필드는 기존 값 우선 (사용자 입력 보존)
-                category: existing.category || item.category,
-                subCategory: existing.subCategory || item.subCategory,
-                status: existing.status || item.status,
-                updatedAt: new Date().toISOString()
-              };
+          putRequest.onsuccess = () => {
+            completed++;
+            if (completed + errors === total) {
+              console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
+              resolve();
             }
-            
-            // upsert 실행 (put 사용, add 금지)
-            const putRequest = store.put(mergedItem);
-            putRequest.onsuccess = () => {
-              completed++;
-              if (completed + errors === total) {
-                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-                resolve();
-              }
-            };
-            putRequest.onerror = () => {
-              console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
-              errors++;
-              if (completed + errors === total) {
-                console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-                resolve();
-              }
-            };
           };
           
-          existingRequest.onerror = () => {
-            console.warn(`항목 ${index} 조회 실패:`, existingRequest.error);
+          putRequest.onerror = () => {
+            console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
             errors++;
             if (completed + errors === total) {
               console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
               resolve();
             }
           };
-        } catch (error) {
-          console.warn(`항목 ${index} 처리 실패:`, error);
-          errors++;
-          if (completed + errors === total) {
-            console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-            resolve();
-          }
-        }
+        });
       };
       
-      // 4. 순차 처리 (동시 요청 제한)
-      deduplicatedData.forEach((item, index) => {
-        processItem(item, index);
-      });
+      clearRequest.onerror = () => {
+        console.error('❌ 기존 데이터 삭제 실패:', clearRequest.error);
+        reject(clearRequest.error);
+      };
       
-      // 5. 트랜잭션 완료 감시
       transaction.oncomplete = () => {
         console.log('🎉 백업 복원 트랜잭션 완료');
       };
