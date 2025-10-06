@@ -425,32 +425,73 @@ const DateClassificationDetail = () => {
   };
 
 
-  // 일별 데이터 내보내기
+  // 일별 데이터 내보내기 (하이브리드 호환 형식 - DataClassification과 동일)
   const handleExportByDate = () => {
     try {
-      const exportData = {
+      const total = unclassifiedData.length;
+      const classified = unclassifiedData.filter(item => item.status === 'classified').length;
+      const unclassified = total - classified;
+      const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
+      
+      // 수동수집/자동수집 구분
+      const manualData = unclassifiedData.filter(item => item.collectionType === 'manual');
+      const autoData = unclassifiedData.filter(item => item.collectionType === 'auto');
+      
+      // 하이브리드 백업 형식으로 구성 (DataClassification과 동일)
+      const backupData = {
+        // 메타데이터
         exportDate: new Date().toISOString(),
-        selectedDate: selectedDate,
-        totalVideos: unclassifiedData.length,
-        classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
-        unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
-        data: unclassifiedData
+        version: '2.0', // 하이브리드 버전
+        backupType: 'hybrid',
+        
+        // 통계 정보
+        summary: {
+          totalVideos: total,
+          classifiedVideos: classified,
+          unclassifiedVideos: unclassified,
+          manualCollected: manualData.length,
+          autoCollected: autoData.length
+        },
+        
+        // 일별 데이터 (하이브리드 구조)
+        dailyData: [{
+          date: selectedDate,
+          total,
+          classified,
+          unclassified: total - classified,
+          progress,
+          manualCollected: manualData.length,
+          manualClassified: manualData.filter(item => item.status === 'classified').length,
+          autoCollected: autoData.length,
+          autoClassified: autoData.filter(item => item.status === 'classified').length,
+          data: unclassifiedData // 해당 날짜의 모든 데이터
+        }],
+        
+        // 전체 데이터 (하이브리드 구조)
+        allData: unclassifiedData,
+        
+        // 하이브리드 설정 정보
+        hybridConfig: {
+          useApiServer: true,
+          fallbackToLocal: true,
+          syncEnabled: true
+        }
       };
 
-      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataStr = JSON.stringify(backupData, null, 2);
       const dataBlob = new Blob([dataStr], { type: 'application/json' });
       const url = URL.createObjectURL(dataBlob);
       
       const link = document.createElement('a');
       link.href = url;
-      link.download = `youtubepulse_${selectedDate}_export.json`;
+      link.download = `youtubepulse_hybrid_${selectedDate}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
       
-      console.log(`📤 ${selectedDate} 날짜 데이터 내보내기 완료:`, exportData);
-      alert(`✅ ${selectedDate} 날짜 데이터가 성공적으로 내보내졌습니다!`);
+      console.log(`📤 ${selectedDate} 하이브리드 백업 내보내기 완료:`, backupData);
+      alert(`✅ ${selectedDate} 하이브리드 백업이 성공적으로 내보내졌습니다!\n\n📊 총 ${total}개 영상 (분류완료: ${classified}개, 미분류: ${unclassified}개)\n🔧 수동수집: ${manualData.length}개, 자동수집: ${autoData.length}개`);
     } catch (error) {
       console.error('❌ 데이터 내보내기 실패:', error);
       alert('❌ 데이터 내보내기에 실패했습니다.');
