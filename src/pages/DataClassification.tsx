@@ -806,10 +806,13 @@ const DataClassification = () => {
   };
 
   // 날짜 클릭 핸들러
-  const handleDateClick = (date: string) => {
-    console.log('📅 날짜 클릭됨:', date);
-    console.log('🔗 이동할 URL:', `/date-classification-detail?date=${date}`);
-    navigate(`/date-classification-detail?date=${date}`);
+  const handleDateClick = (date: string, collectionType?: 'manual' | 'auto' | 'total') => {
+    console.log('📅 날짜 클릭됨:', date, '수집타입:', collectionType);
+    const url = collectionType 
+      ? `/date-classification-detail?date=${date}&type=${collectionType}`
+      : `/date-classification-detail?date=${date}`;
+    console.log('🔗 이동할 URL:', url);
+    navigate(url);
   };
 
   // 데이터 새로고침 함수
@@ -2436,8 +2439,8 @@ const DataClassification = () => {
                 <div 
                       key={`manual-${date}`}
                   className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
-                  onClick={() => handleDateClick(date)}
-                  title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
+                  onClick={() => handleDateClick(date, 'manual')}
+                  title={`${date} 수동수집 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
                 >
                   <div className="flex items-center justify-between">
                     <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
@@ -2504,8 +2507,8 @@ const DataClassification = () => {
                     <div 
                       key={`auto-${date}`}
                       className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-green-50 hover:border-green-300 transition-all duration-200 active:scale-95"
-                      onClick={() => handleDateClick(date)}
-                      title={`${date} 날짜 자동수집 데이터 - 클릭하여 상세 페이지로 이동`}
+                      onClick={() => handleDateClick(date, 'auto')}
+                      title={`${date} 자동수집 데이터 - 클릭하여 상세 페이지로 이동`}
                     >
                       <div className="flex items-center justify-between">
                         <h3 className="font-medium text-sm text-green-600 hover:text-green-800">
@@ -2574,8 +2577,8 @@ const DataClassification = () => {
                     <div 
                       key={`total-${date}`}
                       className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-purple-50 hover:border-purple-300 transition-all duration-200 active:scale-95"
-                      onClick={() => handleDateClick(date)}
-                      title={`${date} 날짜 합계 데이터 - 클릭하여 상세 페이지로 이동`}
+                      onClick={() => handleDateClick(date, 'total')}
+                      title={`${date} 합계 데이터 (수동+자동) - 클릭하여 상세 페이지로 이동`}
                     >
                       <div className="flex items-center justify-between">
                         <h3 className="font-medium text-sm text-purple-600 hover:text-purple-800">

@@ -60,6 +60,7 @@ const DateClassificationDetail = () => {
   const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
   
   const selectedDate = searchParams.get('date') || new Date().toISOString().split('T')[0];
+  const collectionType = searchParams.get('type') as 'manual' | 'auto' | 'total' | null;
   const [unclassifiedData, setUnclassifiedData] = useState<UnclassifiedData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -171,10 +172,25 @@ const DateClassificationDetail = () => {
           return false;
         });
 
+        // 수집 타입별 필터링 추가
+        let typeFilteredData = filteredData;
+        if (collectionType) {
+          console.log('🔍 수집 타입 필터링:', collectionType);
+          if (collectionType === 'manual') {
+            // 수동수집 데이터만 (collectionType이 없거나 'manual')
+            typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual');
+          } else if (collectionType === 'auto') {
+            // 자동수집 데이터만
+            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
+          }
+          // 'total'인 경우 모든 데이터 (필터링 없음)
+          console.log('📊 수집 타입 필터링 후:', typeFilteredData.length, '개');
+        }
+
         // 중복 제거 로직 추가 (videoId 기준으로 중복 제거)
-        console.log('📊 필터링된 데이터 개수:', filteredData.length);
+        console.log('📊 필터링된 데이터 개수:', typeFilteredData.length);
         const seenVideoIds = new Set<string>();
-        const dateData = filteredData.filter(item => {
+        const dateData = typeFilteredData.filter(item => {
           const videoId = item.videoId;
           if (seenVideoIds.has(videoId)) {
             console.log('🔄 중복 데이터 제거:', videoId, '제목:', item.videoTitle);
@@ -717,7 +733,16 @@ const DateClassificationDetail = () => {
               <ArrowLeft className="w-4 h-4 mr-2" />
               뒤로가기
             </Button>
-            <h1 className="text-3xl font-bold text-foreground">데이터 분류 상세</h1>
+            <h1 className="text-3xl font-bold text-foreground">
+              데이터 분류 상세
+              {collectionType && (
+                <span className="ml-2 text-lg">
+                  {collectionType === 'manual' && '📝 수동수집'}
+                  {collectionType === 'auto' && '🤖 자동수집'}
+                  {collectionType === 'total' && '📊 합계'}
+                </span>
+              )}
+            </h1>
             <p className="text-muted-foreground mt-2">
               {new Date(selectedDate).toLocaleDateString('ko-KR', { 
                 year: 'numeric', 
@@ -725,6 +750,13 @@ const DateClassificationDetail = () => {
                 day: 'numeric',
                 weekday: 'long'
               })} 수집 데이터
+              {collectionType && (
+                <span className="ml-2 text-sm">
+                  ({collectionType === 'manual' && '수동수집 데이터만'}
+                   {collectionType === 'auto' && '자동수집 데이터만'}
+                   {collectionType === 'total' && '수동+자동 전체 데이터'})
+                </span>
+              )}
             </p>
           </div>
           
