@@ -52,6 +52,9 @@ import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-se
 import { dedupeComprehensive, dedupeByVideoDay, dedupeByDate, type VideoItem } from "@/lib/dedupe-utils";
 import { getKoreanDateString, getKoreanDateStringWithOffset } from "@/lib/utils";
 import { dateRolloverService } from "@/lib/date-rollover-service";
+import { autoCollectionScheduler } from "@/lib/auto-collection-scheduler";
+import { offlineResilienceService } from "@/lib/offline-resilience-service";
+import { startDataCollection } from "@/lib/youtube-api-service";
 import { compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
@@ -558,6 +561,12 @@ const DataClassification = () => {
       loadDates(); // 날짜 그리드 재생성
     });
 
+    // 서비스 초기화 (전역 객체에 등록)
+    console.log('🔄 서비스 초기화 중...');
+    console.log('dateRolloverService:', dateRolloverService);
+    console.log('autoCollectionScheduler:', autoCollectionScheduler);
+    console.log('offlineResilienceService:', offlineResilienceService);
+
     return () => {
       unregisterRollover();
     };
@@ -815,7 +824,7 @@ const DataClassification = () => {
       console.log('🔄 자동수집 시작...');
       
       // System 페이지의 데이터 수집 로직을 여기서 실행
-      const { startDataCollection } = await import('@/lib/youtube-api-service');
+      // startDataCollection은 이미 정적 import됨
       
       // 자동수집 실행
       const result = await startDataCollection();
@@ -1217,7 +1226,7 @@ const DataClassification = () => {
       }
       
       // 전체 교체 저장
-      const { indexedDBService } = await import('@/lib/indexeddb-service');
+      // indexedDBService는 이미 정적 import됨
       await indexedDBService.replaceAllUnclassifiedData(filteredData);
       console.log(`✅ 조회수 ${thresholdText} 미만 ${deletedCount}개 영상 삭제 완료`);
       
