@@ -94,7 +94,7 @@ const DateClassificationDetail = () => {
         // 1. 먼저 API 서버에서 데이터 로드 시도
         let allData = [];
         try {
-          const response = await fetch(`/api/unclassified?date=${selectedDate}`);
+          const response = await fetch(`https://api.youthbepulse.com/api/unclassified?date=${selectedDate}`);
           if (response.ok) {
             const serverData = await response.json();
             allData = serverData.data || [];
@@ -108,25 +108,54 @@ const DateClassificationDetail = () => {
           allData = await indexedDBService.loadUnclassifiedData();
         }
         
-        // 선택된 날짜의 데이터만 필터링 (dayKeyLocal 우선, ID 타임스탬프도 고려)
+        // 선택된 날짜의 데이터만 필터링 (다양한 날짜 필드 확인)
         const dateData = allData.filter(item => {
+          console.log('🔍 데이터 필터링 확인:', {
+            id: item.id,
+            dayKeyLocal: item.dayKeyLocal,
+            collectionDate: item.collectionDate,
+            uploadDate: item.uploadDate,
+            publishedAt: item.publishedAt,
+            selectedDate
+          });
+          
           // 1. dayKeyLocal 우선 확인 (백업 복원 데이터)
-          const dayKeyLocal = item.dayKeyLocal;
-          if (dayKeyLocal === selectedDate) return true;
+          if (item.dayKeyLocal === selectedDate) {
+            console.log('✅ dayKeyLocal 매치:', item.dayKeyLocal);
+            return true;
+          }
           
-          // 2. collectionDate 또는 uploadDate 확인
-          const itemDate = item.collectionDate || item.uploadDate;
-          if (itemDate === selectedDate) return true;
+          // 2. collectionDate 확인
+          if (item.collectionDate === selectedDate) {
+            console.log('✅ collectionDate 매치:', item.collectionDate);
+            return true;
+          }
           
-          // 3. ID 타임스탬프 확인 (실제 수집 시간)
+          // 3. uploadDate 확인
+          if (item.uploadDate === selectedDate) {
+            console.log('✅ uploadDate 매치:', item.uploadDate);
+            return true;
+          }
+          
+          // 4. publishedAt 확인 (YYYY-MM-DD 형식)
+          if (item.publishedAt && item.publishedAt.startsWith(selectedDate)) {
+            console.log('✅ publishedAt 매치:', item.publishedAt);
+            return true;
+          }
+          
+          // 5. ID 타임스탬프 확인 (실제 수집 시간)
           if (item.id && typeof item.id === 'string') {
             const timestamp = parseInt(item.id.split('_')[0]);
             if (!isNaN(timestamp)) {
               const actualDate = new Date(timestamp).toISOString().split('T')[0];
-              if (actualDate === selectedDate) return true;
+              if (actualDate === selectedDate) {
+                console.log('✅ ID 타임스탬프 매치:', actualDate);
+                return true;
+              }
             }
           }
           
+          console.log('❌ 매치되지 않음');
           return false;
         }).map(item => ({
           ...item,
