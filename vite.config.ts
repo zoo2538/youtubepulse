@@ -71,7 +71,7 @@ export default defineConfig({
       sessionStorage.redirect = location.href;
       console.log('💾 리다이렉트 URL 저장:', location.href);
       
-      // /youtubepulse/ 경로로 리다이렉트
+      // /youtubepulse/ 경로로 리다이렉트 (절대 경로 사용)
       window.location.href = "/youtubepulse/";
     </script>
   </body>
