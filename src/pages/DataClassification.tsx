@@ -737,8 +737,18 @@ const DataClassification = () => {
     }
   };
 
-  // 일별 분류 진행률 일괄 저장
+  // Feature flag for bulk save progress
+  // TODO: Re-enable after server-authoritative flow is fully validated
+  // Tracking issue: https://github.com/zoo2538/youtubepulse/issues/bulk-save-data-loss
+  const BULK_PROGRESS_ENABLED = false;
+  
+  // 일별 분류 진행률 일괄 저장 (데이터 손실 방지를 위해 비활성화)
   const handleBulkSaveProgress = async () => {
+    if (!BULK_PROGRESS_ENABLED) {
+      alert('⚠️ 진행률 일괄 저장 기능은 데이터 손실 위험이 있어 현재 비활성화되었습니다.\n\n진행률은 자동으로 계산되어 표시됩니다.');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       console.log('💾 진행률 일괄 저장 시작...');
@@ -806,15 +816,11 @@ const DataClassification = () => {
       // 하이브리드 저장 - 진행률 데이터
       await hybridService.saveDailyProgress(progressData);
       
-      // 데이터 업데이트 이벤트 발생 (대시보드 새로고침)
-      window.dispatchEvent(new CustomEvent('dataUpdated'));
+      // 주의: 데이터 업데이트 이벤트를 발생시키지 않음 (데이터 손실 방지)
+      // window.dispatchEvent(new CustomEvent('dataUpdated'));
       
-      // 강제 새로고침을 위한 localStorage 플래그 설정
-      localStorage.setItem('forceRefresh', JSON.stringify({
-        timestamp: Date.now(),
-        type: 'bulkSave',
-        dataCount: allClassifiedData.length
-      }));
+      // 진행률만 업데이트하고 기존 데이터는 유지
+      console.log('✅ 진행률 데이터만 저장됨, 기존 데이터는 유지됨');
       
       alert(`✅ 14일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n대시보드가 자동으로 업데이트됩니다.`);
     } catch (error) {
@@ -1927,7 +1933,9 @@ const DataClassification = () => {
                 variant="outline" 
                 size="sm" 
                 onClick={handleBulkSaveProgress}
-                className="flex items-center space-x-1"
+                disabled={!BULK_PROGRESS_ENABLED}
+                className="flex items-center space-x-1 opacity-50"
+                title={BULK_PROGRESS_ENABLED ? "진행률 일괄 저장" : "데이터 손실 위험으로 비활성화됨"}
               >
                 <SaveAll className="w-4 h-4" />
                 <span>진행률 일괄 저장</span>
