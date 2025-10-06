@@ -36,6 +36,7 @@ import DataCollectionManager from "@/components/DataCollectionManager";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { dataMigrationService } from "@/lib/data-migration-service";
+import { autoClassificationService } from "@/lib/auto-classification-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -637,8 +638,7 @@ const System = () => {
       });
       console.log(`📊 기존 영상 날짜 매핑: ${existingVideoDateMap.size}개 영상의 최초 수집일 확인`);
       
-      // 자동 분류 서비스 import
-      const { autoClassificationService } = await import('@/lib/auto-classification-service');
+      // 자동 분류 서비스는 이미 정적 import됨
       
       const newData = uniqueVideos.map((video: any, index: number) => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
