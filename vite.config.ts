@@ -5,8 +5,8 @@ import fs from "fs";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // 도메인 배포 (루트 경로)
-  base: '/',
+  // GitHub Pages 하위 경로 배포
+  base: '/youtubepulse/',
   server: {
     host: "::",
     port: 8080,
