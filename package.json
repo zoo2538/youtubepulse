@@ -12,7 +12,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/copy-server.js",
+    "build": "vite build && node scripts/copy-server.js && powershell -Command \"Copy-Item -Path dist/index.html -Destination dist/404.html -Force\"",
     "build:dev": "vite build --mode development && node scripts/copy-server.js",
     "start": "node dist/server/index.js",
     "lint": "eslint .",
