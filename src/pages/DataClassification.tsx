@@ -324,14 +324,23 @@ const DataClassification = () => {
             const { getKoreanDateStringWithOffset } = await import('@/lib/utils');
             const dates = new Set<string>();
             
-            // 1. IndexedDB에서 실제 데이터가 있는 날짜들 조회
-            availableDatesFromDB.forEach(date => dates.add(date));
-            
-            // 2. 오늘 기준 최근 7일 날짜들 추가 (데이터가 없어도 표시) - 한국 시간 기준
+            // 1. 오늘 기준 최근 7일 날짜들만 추가 (데이터가 없어도 표시) - 한국 시간 기준
             for (let i = 0; i < 7; i++) {
               const date = getKoreanDateStringWithOffset(-i); // i일 전
               dates.add(date);
             }
+            
+            // 2. 실제 데이터가 있는 날짜들 중 7일 범위 내의 것만 추가
+            const today = new Date();
+            const sevenDaysAgo = new Date(today);
+            sevenDaysAgo.setDate(today.getDate() - 6);
+            
+            availableDatesFromDB.forEach(date => {
+              const dateObj = new Date(date);
+              if (dateObj >= sevenDaysAgo && dateObj <= today) {
+                dates.add(date);
+              }
+            });
             
             // 3. 날짜 정렬 (최신순)
             const sortedDates = Array.from(dates).sort((a, b) => b.localeCompare(a));
@@ -383,15 +392,24 @@ const DataClassification = () => {
         const { getKoreanDateString, getKoreanDateStringWithOffset } = await import('@/lib/utils');
         const dates = new Set<string>();
         
-        // 1. 하이브리드 서비스에서 실제 데이터가 있는 날짜들 조회
-        const availableDatesFromDB = await hybridService.getAvailableDates();
-        availableDatesFromDB.forEach(date => dates.add(date));
-        
-        // 2. 오늘 기준 최근 7일 날짜들 추가 (데이터가 없어도 표시) - 한국 시간 기준
+        // 1. 오늘 기준 최근 7일 날짜들만 추가 (데이터가 없어도 표시) - 한국 시간 기준
         for (let i = 0; i < 7; i++) {
           const date = getKoreanDateStringWithOffset(-i); // i일 전
           dates.add(date);
         }
+        
+        // 2. 하이브리드 서비스에서 실제 데이터가 있는 날짜들 중 7일 범위 내의 것만 추가
+        const availableDatesFromDB = await hybridService.getAvailableDates();
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 6);
+        
+        availableDatesFromDB.forEach(date => {
+          const dateObj = new Date(date);
+          if (dateObj >= sevenDaysAgo && dateObj <= today) {
+            dates.add(date);
+          }
+        });
         
         // 3. 날짜 정렬 (최신순)
         const sortedDates = Array.from(dates).sort((a, b) => b.localeCompare(a));
