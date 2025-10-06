@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ChunkErrorBoundary from "@/components/ChunkErrorBoundary";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -28,9 +29,10 @@ const App = () => {
   }, []);
 
   return (
-    <BrowserRouter basename="/" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <AuthProvider>
-      <TooltipProvider>
+    <ChunkErrorBoundary>
+      <BrowserRouter basename="/" future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <AuthProvider>
+        <TooltipProvider>
         <Toaster />
         <Sonner />
         <Routes>
@@ -54,9 +56,10 @@ const App = () => {
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </TooltipProvider>
-    </AuthProvider>
-  </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
+    </ChunkErrorBoundary>
   );
 };
 

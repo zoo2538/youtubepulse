@@ -25,9 +25,17 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: undefined,
+        manualChunks: {
+          // 핵심 모듈들을 안정적인 청크로 분리
+          'vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui': ['lucide-react'],
+          'utils': ['@/lib/utils', '@/lib/auto-classification-service'],
+          'services': ['@/lib/hybrid-service', '@/lib/indexeddb-service', '@/lib/api-service']
+        },
       },
     },
+    // 청크 크기 경고 제한 증가
+    chunkSizeWarningLimit: 1000,
   },
   plugins: [
     react(),
