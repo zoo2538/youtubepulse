@@ -639,6 +639,7 @@ const DataClassification = () => {
             
             // 날짜 정렬 (최신순)
             const sortedDates = dates.sort((a, b) => b.localeCompare(a));
+            console.log('📅 데이터 로드 후 날짜 그리드 재생성:', sortedDates);
             setAvailableDates(sortedDates);
             console.log(`📅 사용 가능한 날짜 목록 업데이트: ${sortedDates.length}개`);
             
@@ -700,8 +701,10 @@ const DataClassification = () => {
         // utils 함수들은 이미 정적 import됨
         const dates = [];
         for (let i = 0; i < 7; i++) {
-          dates.push(getKoreanDateStringWithOffset(-i));
+          const date = getKoreanDateStringWithOffset(-i);
+          dates.push(date);
         }
+        console.log('📅 날짜 그리드 생성:', dates);
         setAvailableDates(dates);
       }
     };
