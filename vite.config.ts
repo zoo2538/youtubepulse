@@ -33,10 +33,39 @@ export default defineConfig({
     react(),
     {
       name: 'generate-404',
-      closeBundle() {
+      writeBundle() {
         const distPath = path.resolve(__dirname, 'dist');
         const indexHtml = path.join(distPath, 'index.html');
         const notFoundHtml = path.join(distPath, '404.html');
+
+        // index.html 파일 존재 확인
+        if (!fs.existsSync(indexHtml)) {
+          console.warn('⚠️ index.html 파일이 아직 생성되지 않았습니다. 404.html만 생성합니다.');
+          // 404.html만 생성
+          const notFoundContent = `<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Redirecting...</title>
+  </head>
+  <body>
+    <script>
+      // GitHub Pages SPA 라우팅을 위한 404.html 리다이렉트
+      console.log('🔄 404.html에서 SPA 리다이렉트 시작');
+      console.log('📍 현재 URL:', location.href);
+      
+      // 현재 URL을 sessionStorage에 저장하고 메인 페이지로 리다이렉트
+      sessionStorage.redirect = location.href;
+      console.log('💾 리다이렉트 URL 저장:', location.href);
+      
+      // 루트 경로로 리다이렉트 (커스텀 도메인용)
+      window.location.href = "/";
+    </script>
+  </body>
+</html>`;
+          fs.writeFileSync(notFoundHtml, notFoundContent, 'utf-8');
+          return;
+        }
 
         // index.html에 redirect 보정 스크립트 삽입
         let html = fs.readFileSync(indexHtml, 'utf-8');
