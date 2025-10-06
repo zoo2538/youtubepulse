@@ -63,8 +63,16 @@ export default defineConfig({
   </head>
   <body>
     <script>
+      // GitHub Pages SPA 라우팅을 위한 404.html 리다이렉트
+      console.log('🔄 404.html에서 SPA 리다이렉트 시작');
+      console.log('📍 현재 URL:', location.href);
+      
+      // 현재 URL을 sessionStorage에 저장하고 메인 페이지로 리다이렉트
       sessionStorage.redirect = location.href;
-      window.location.href = "/";
+      console.log('💾 리다이렉트 URL 저장:', location.href);
+      
+      // /youtubepulse/ 경로로 리다이렉트
+      window.location.href = "/youtubepulse/";
     </script>
   </body>
 </html>`;
