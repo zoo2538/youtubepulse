@@ -28,7 +28,7 @@ export function getKoreanDateTimeString(): string {
 export function getKoreanDateStringWithOffset(daysOffset: number): string {
   const koreanDate = getKoreanDate();
   koreanDate.setDate(koreanDate.getDate() + daysOffset);
-  return koreanDate.toISOString().split('T')[0];
+  return koreanDate.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
 }
 
 export function formatKoreanDate(dateString: string): string {
