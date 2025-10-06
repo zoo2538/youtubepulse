@@ -434,8 +434,27 @@ const DataClassification = () => {
           // 3. 날짜별 통계 계산
           const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
           savedData?.forEach(item => {
-            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            
+            // dayKeyLocal의 대시 문제 해결
+            if (item.dayKeyLocal) {
+              date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
+            }
+            
             if (date) {
+              // 10월 6일 데이터 디버깅
+              if (date === '2025-10-06') {
+                console.log('🔍 10월 6일 데이터 발견:', {
+                  id: item.id,
+                  dayKeyLocal: item.dayKeyLocal,
+                  collectionDate: item.collectionDate,
+                  uploadDate: item.uploadDate,
+                  normalizedDate: date,
+                  status: item.status,
+                  videoTitle: item.videoTitle
+                });
+              }
+              
               if (!newDateStats[date]) {
                 newDateStats[date] = { total: 0, classified: 0, progress: 0 };
               }
@@ -454,6 +473,13 @@ const DataClassification = () => {
           
           setDateStats(newDateStats);
           console.log('📊 날짜별 통계 업데이트:', newDateStats);
+          
+          // 10월 6일 통계 특별 확인
+          if (newDateStats['2025-10-06']) {
+            console.log('✅ 10월 6일 통계 확인:', newDateStats['2025-10-06']);
+          } else {
+            console.log('❌ 10월 6일 통계 없음 - 사용 가능한 날짜들:', Object.keys(newDateStats));
+          }
           
           if (savedData && savedData.length > 0) {
             // utils 함수들은 이미 정적 import됨
