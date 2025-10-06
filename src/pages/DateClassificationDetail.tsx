@@ -538,9 +538,12 @@ const DateClassificationDetail = () => {
         
         console.log('📁 백업 파일 로드:', backupData);
         
-        // 백업 데이터 검증
-        if (!backupData.data || !Array.isArray(backupData.data)) {
-          throw new Error('유효하지 않은 백업 파일입니다.');
+        // 백업 데이터 검증 (하이브리드 형식 지원)
+        if (!backupData.allData || !Array.isArray(backupData.allData)) {
+          // 기존 형식도 지원
+          if (!backupData.data || !Array.isArray(backupData.data)) {
+            throw new Error('유효하지 않은 백업 파일입니다.');
+          }
         }
         
         // 현재 날짜와 백업 날짜가 일치하는지 확인 (한국 시간 기준)
@@ -555,11 +558,12 @@ const DateClassificationDetail = () => {
           if (!confirmRestore) return;
         }
         
-        // 데이터 복원
-        setUnclassifiedData(backupData.data);
+        // 데이터 복원 (하이브리드 형식 지원)
+        const restoreData = backupData.allData || backupData.data;
+        setUnclassifiedData(restoreData);
         
         // IndexedDB에 저장 (해당 날짜의 데이터만 업데이트)
-        await indexedDBService.updateUnclassifiedDataByDate(backupData.data, selectedDate);
+        await indexedDBService.updateUnclassifiedDataByDate(restoreData, selectedDate);
         
         // 카테고리 정보도 복원 (있는 경우)
         if (backupData.categories) {
@@ -569,14 +573,14 @@ const DateClassificationDetail = () => {
         }
         
         // 분류 완료된 데이터를 IndexedDB에 저장 (대시보드용)
-        const classifiedData = backupData.data.filter(item => item.status === 'classified');
+        const classifiedData = restoreData.filter(item => item.status === 'classified');
         await indexedDBService.updateClassifiedDataByDate(classifiedData, selectedDate);
         
         // 일별 요약 데이터 계산 및 저장
         const dailySummary = {
-          totalItems: backupData.data.length,
+          totalItems: restoreData.length,
           classifiedItems: classifiedData.length,
-          unclassifiedItems: backupData.data.length - classifiedData.length,
+          unclassifiedItems: restoreData.length - classifiedData.length,
           categories: {} as any
         };
         
