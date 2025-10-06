@@ -38,6 +38,7 @@ import { hybridService } from "@/lib/hybrid-service";
 import { dataMigrationService } from "@/lib/data-migration-service";
 import { autoClassificationService } from "@/lib/auto-classification-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
+import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -625,7 +626,7 @@ const System = () => {
       console.log(`🤖 자동 분류 시스템 활성화: 키워드 기반 자동 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
-      const { getKoreanDateString, getKoreanDateTimeString } = await import('@/lib/utils');
+      // utils 함수들은 이미 정적 import됨
       const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜 (YYYY-MM-DD 형식)
       console.log('🔥 데이터 수집 날짜 (한국시간):', today);
       console.log('🔥 현재 시간 (한국시간):', new Date(getKoreanDateTimeString()).toLocaleString('ko-KR'));
