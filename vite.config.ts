@@ -64,6 +64,16 @@ export default defineConfig({
       console.log('🔄 404.html에서 SPA 리다이렉트 시작');
       console.log('📍 현재 URL:', location.href);
       
+      // 리다이렉트 루프 방지
+      if (sessionStorage.getItem('redirecting')) {
+        console.log('⚠️ 리다이렉트 루프 감지, 중단');
+        sessionStorage.removeItem('redirecting');
+        return;
+      }
+      
+      // 리다이렉트 플래그 설정
+      sessionStorage.setItem('redirecting', 'true');
+      
       // 현재 URL을 sessionStorage에 저장하고 메인 페이지로 리다이렉트
       sessionStorage.redirect = location.href;
       console.log('💾 리다이렉트 URL 저장:', location.href);

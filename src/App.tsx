@@ -23,9 +23,15 @@ import SubcategorySettings from "@/pages/SubcategorySettings";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
-  // GitHub Pages 리다이렉트 플래그 초기화
+  // GitHub Pages 리다이렉트 플래그 초기화 (페이지 로드 후)
   React.useEffect(() => {
-    sessionStorage.removeItem('redirecting');
+    // 페이지가 완전히 로드된 후 리다이렉트 플래그 정리
+    const timer = setTimeout(() => {
+      sessionStorage.removeItem('redirecting');
+      console.log('🧹 리다이렉트 플래그 정리 완료');
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, []);
 
   return (
