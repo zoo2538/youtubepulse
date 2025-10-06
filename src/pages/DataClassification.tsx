@@ -164,8 +164,8 @@ const DataClassification = () => {
       } else {
         console.log('🤖 자동수집 API 호출 실패');
         setAutoCollectedStats({});
-      }
-    } catch (error) {
+        }
+      } catch (error) {
       console.error('🤖 자동수집 데이터 로드 실패:', error);
       setAutoCollectedStats({});
     }
@@ -234,42 +234,42 @@ const DataClassification = () => {
           console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
         } else {
           // 6. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
-          const channelsData = localStorage.getItem('youtubepulse_channels');
-          const videosData = localStorage.getItem('youtubepulse_videos');
+        const channelsData = localStorage.getItem('youtubepulse_channels');
+        const videosData = localStorage.getItem('youtubepulse_videos');
+        
+        if (channelsData && videosData) {
+          const channels = JSON.parse(channelsData);
+          const videos = JSON.parse(videosData);
           
-          if (channelsData && videosData) {
-            const channels = JSON.parse(channelsData);
-            const videos = JSON.parse(videosData);
+          // 채널과 비디오 데이터를 결합하여 UnclassifiedData 형태로 변환
+          const combinedData: UnclassifiedData[] = [];
+          let id = 1;
+          
+          Object.values(channels).forEach((channel: any) => {
+            const channelVideos = videos[channel.id] || [];
             
-            // 채널과 비디오 데이터를 결합하여 UnclassifiedData 형태로 변환
-            const combinedData: UnclassifiedData[] = [];
-            let id = 1;
-            
-            Object.values(channels).forEach((channel: any) => {
-              const channelVideos = videos[channel.id] || [];
-              
-              channelVideos.forEach((video: any) => {
-                combinedData.push({
-                  id: id++,
-                  channelId: channel.id,
-                  channelName: channel.name,
-                  description: channel.description || "설명 없음",
-                  videoId: video.id,
-                  videoTitle: video.title,
-                  videoDescription: video.description || "설명 없음",
-                  viewCount: video.viewCount || 0,
-                  uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
-                  category: "",
-                  subCategory: "",
-                  status: "unclassified" as const
-                });
+            channelVideos.forEach((video: any) => {
+              combinedData.push({
+                id: id++,
+                channelId: channel.id,
+                channelName: channel.name,
+                description: channel.description || "설명 없음",
+                videoId: video.id,
+                videoTitle: video.title,
+                videoDescription: video.description || "설명 없음",
+                viewCount: video.viewCount || 0,
+                uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
+                category: "",
+                subCategory: "",
+                status: "unclassified" as const
               });
             });
-            
-            if (combinedData.length > 0) {
+          });
+          
+          if (combinedData.length > 0) {
               console.log('🔄 localStorage 데이터를 하이브리드 저장소로 마이그레이션:', combinedData.length, '개');
               await hybridService.saveUnclassifiedData(combinedData);
-              setUnclassifiedData(combinedData);
+            setUnclassifiedData(combinedData);
             } else {
               console.log('📊 실제 데이터가 없습니다. 데이터 수집을 먼저 진행해주세요.');
               setUnclassifiedData([]);
@@ -321,9 +321,30 @@ const DataClassification = () => {
     const handleDataUpdate = (event: CustomEvent) => {
       console.log('🔄 데이터 업데이트 이벤트 감지:', event.detail);
       
-      // 백업 데이터 보존 플래그 확인
-      if (event.detail?.preserveBackupData) {
-        console.log('🔒 백업 데이터 보존 모드 - 데이터 로드 차단');
+      // 백업 데이터 보존 플래그 확인 (단, 현재 UI에 데이터가 없으면 강제 로드)
+      if (event.detail?.preserveBackupData && unclassifiedData.length > 0) {
+        console.log('🔒 백업 데이터 보존 모드 - 데이터 로드 차단 (UI에 데이터 있음)');
+        return;
+      }
+      
+      // 현재 UI에 데이터가 없으면 강제로 데이터 로드
+      if (unclassifiedData.length === 0) {
+        console.log('🔄 UI에 데이터 없음 - 강제 데이터 로드 실행');
+      }
+      
+      // 불필요한 데이터 로드 방지: 이벤트가 없거나 빈 이벤트인 경우 차단
+      if (!event.detail || Object.keys(event.detail).length === 0) {
+        console.log('🔒 빈 이벤트 감지 - 데이터 로드 차단');
+        return;
+      }
+      
+      // 페이지 포커스 이벤트인 경우에만 데이터 로드 (다른 불필요한 이벤트 차단)
+      if (event.detail.type === 'pageFocus') {
+        console.log('🔄 페이지 포커스 이벤트 - 데이터 로드 허용');
+      } else if (event.detail.type === 'dataUpdated') {
+        console.log('🔄 데이터 업데이트 이벤트 - 데이터 로드 허용');
+      } else {
+        console.log('🔒 알 수 없는 이벤트 타입 - 데이터 로드 차단:', event.detail.type);
         return;
       }
       
@@ -1021,9 +1042,9 @@ const DataClassification = () => {
         
         // 통계 정보
         summary: {
-          totalVideos: unclassifiedData.length,
-          classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
-          unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
+        totalVideos: unclassifiedData.length,
+        classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
+        unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
           manualCollected: unclassifiedData.filter(item => item.collectionType === 'manual').length,
           autoCollected: unclassifiedData.filter(item => item.collectionType === 'auto').length
         },
@@ -1636,7 +1657,7 @@ const DataClassification = () => {
                   console.log('✅ IndexedDB upsert 완료');
                   
                   // 3. UI 상태 업데이트 (트랜잭션 완료 후)
-                  setUnclassifiedData(allData);
+                setUnclassifiedData(allData);
                   console.log('✅ UI 상태 업데이트 완료');
                 } catch (dbError) {
                   console.error('❌ IndexedDB 저장 실패:', dbError);
@@ -2189,29 +2210,29 @@ const DataClassification = () => {
             <div>
               <h3 className="text-sm font-medium text-white mb-2">수동수집</h3>
               <div className="grid grid-cols-7 gap-3">
-                {availableDates.slice(0, 7).map(date => {
+            {availableDates.slice(0, 7).map(date => {
                   // 수동수집 데이터 (실제 데이터 기반)
-                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-                  const total = stats.total;
-                  const classified = stats.classified;
-                  const progress = stats.progress;
-                  const hasData = total > 0;
-                  
-                  return (
-                    <div 
+              const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+              const total = stats.total;
+              const classified = stats.classified;
+              const progress = stats.progress;
+              const hasData = total > 0;
+              
+              return (
+                <div 
                       key={`manual-${date}`}
-                      className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
-                      onClick={() => handleDateClick(date)}
-                      title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
-                          {new Date(date).toLocaleDateString('ko-KR', { 
-                            month: 'short', 
-                            day: 'numeric',
-                            weekday: 'short'
-                          })}
-                        </h3>
+                  className="border rounded-lg p-3 space-y-2 cursor-pointer hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 active:scale-95"
+                  onClick={() => handleDateClick(date)}
+                  title={`${date} 날짜 데이터 분류하기 - 클릭하여 상세 페이지로 이동`}
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-sm text-blue-600 hover:text-blue-800">
+                      {new Date(date).toLocaleDateString('ko-KR', { 
+                        month: 'short', 
+                        day: 'numeric',
+                        weekday: 'short'
+                      })}
+                    </h3>
                         {hasData ? (
                           <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
                             {Math.round(progress)}%
@@ -2280,16 +2301,16 @@ const DataClassification = () => {
                             weekday: 'short'
                           })}
                         </h3>
-                        {hasData ? (
-                          <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
-                            {Math.round(progress)}%
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-xs text-gray-500">
-                            데이터 없음
-                          </Badge>
-                        )}
-                      </div>
+                      {hasData ? (
+                        <Badge variant={progress === 100 ? 'default' : progress > 50 ? 'secondary' : 'destructive'} className="text-xs">
+                          {Math.round(progress)}%
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-gray-500">
+                          데이터 없음
+                        </Badge>
+                      )}
+                    </div>
                       
                       {hasData ? (
                         <>
@@ -2301,7 +2322,7 @@ const DataClassification = () => {
                               }`}
                               style={{ width: `${progress}%` }}
                             />
-                          </div>
+          </div>
                           <div className="text-xs text-muted-foreground">
                             {classified}/{total} 완료
                           </div>
@@ -2361,37 +2382,37 @@ const DataClassification = () => {
                         )}
                       </div>
                       
-                      {hasData ? (
-                        <>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`h-2 rounded-full transition-all ${
-                                progress === 100 ? 'bg-green-500' : 
-                                progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
-                              }`}
-                              style={{ width: `${progress}%` }}
-                            />
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            {classified}/{total} 완료
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-xs text-gray-400">
-                          수집된 데이터 없음
+                  {hasData ? (
+                    <>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full transition-all ${
+                            progress === 100 ? 'bg-green-500' : 
+                            progress > 50 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${progress}%` }}
+                        />
                         </div>
-                      )}
-                      
-                      <div className="text-xs text-purple-500 font-medium text-center mt-2">
-                        클릭하여 분류하기
+                      <div className="text-xs text-muted-foreground">
+                        {classified}/{total} 완료
                       </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-gray-400">
+                      수집된 데이터 없음
                     </div>
-                  );
-                })}
+                  )}
+                  
+                      <div className="text-xs text-purple-500 font-medium text-center mt-2">
+                    클릭하여 분류하기
+                  </div>
+                    </div>
+              );
+            })}
               </div>
             </div>
-          </div>
-        </Card>
+                    </div>
+                  </Card>
 
 
         {/* 14일 데이터 관리 */}

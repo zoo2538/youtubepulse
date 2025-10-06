@@ -537,3 +537,48 @@ export const collectDailyData = async (db: any, maxVideos: number = 10000) => {
     throw error;
   }
 };
+
+// 데이터 수집 시작 함수 (System 페이지에서 사용)
+export const startDataCollection = async () => {
+  try {
+    console.log('🔄 데이터 수집 시작...');
+    
+    // 트렌딩 영상 수집 (200개)
+    console.log('📊 트렌딩 영상 수집 중...');
+    const trendingVideos = await collectTrendingVideos(200);
+    console.log(`✅ 트렌딩 영상 수집 완료: ${trendingVideos.length}개`);
+    
+    // 고유 채널 ID 추출
+    const uniqueChannelIds = [...new Set(trendingVideos.map(video => video.snippet.channelId))];
+    console.log(`📊 고유 채널 수: ${uniqueChannelIds.length}개`);
+    
+    // 채널 상세정보 수집
+    console.log('📊 채널 상세정보 수집 중...');
+    const channelDetails = await collectChannelDetails(uniqueChannelIds);
+    console.log(`✅ 채널 상세정보 수집 완료: ${channelDetails.length}개`);
+    
+    // 각 채널의 비디오 수집
+    console.log('📊 채널별 비디오 수집 중...');
+    let totalChannelVideos = 0;
+    for (const channel of channelDetails) {
+      const channelVideos = await collectChannelVideos(channel.id, 20); // 채널당 20개씩
+      totalChannelVideos += channelVideos.length;
+    }
+    console.log(`✅ 채널별 비디오 수집 완료: ${totalChannelVideos}개`);
+    
+    console.log('✅ 데이터 수집 완료');
+    
+    return {
+      success: true,
+      collectedVideos: trendingVideos.length + totalChannelVideos,
+      processedChannels: channelDetails.length
+    };
+    
+  } catch (error) {
+    console.error('❌ 데이터 수집 실패:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    };
+  }
+};

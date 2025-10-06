@@ -771,7 +771,7 @@ const System = () => {
 
       const newChannels = newData.filter(item => !classifiedChannelMap.has(item.channelId)).length;
       const autoClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
-      
+
       // 자동 분류 통계
       const autoClassifiedByAI = newData.filter(item => item.autoClassified).length;
       const manualClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
@@ -1097,7 +1097,7 @@ const System = () => {
                             • 14일간 분류 이력 우선 적용<br/>
                             • 하이브리드 저장 (IndexedDB + PostgreSQL)
                           </p>
-                        </div>
+                          </div>
                       </div>
                     </Card>
 
@@ -1120,14 +1120,14 @@ const System = () => {
                               <p className="text-xs text-blue-600 font-medium">📺 트렌드 영상</p>
                               <p className="text-sm font-bold text-blue-900">상위 200개</p>
                               <p className="text-xs text-muted-foreground">YouTube 공식 (한글만)</p>
-                        </div>
+                          </div>
                             <div className="bg-white p-2 rounded border border-blue-200">
                               <p className="text-xs text-blue-600 font-medium">🔍 키워드 영상</p>
                               <p className="text-sm font-bold text-blue-900">{EXPANDED_KEYWORDS.length}개 × 50개</p>
                               <p className="text-xs text-muted-foreground">조회수 상위</p>
                           </div>
-                          </div>
-                          
+                        </div>
+
                           {/* 수집 설정 상세 정보 */}
                           <div className="mt-3 p-3 bg-green-50 rounded-lg border border-green-200">
                             <h4 className="font-medium text-sm mb-2 text-green-800">수집 설정 상세</h4>
@@ -1135,27 +1135,27 @@ const System = () => {
                               <div className="flex justify-between">
                                 <span>트렌드 수집량:</span>
                                 <span className="font-medium">200개 (50개씩 4페이지)</span>
-                              </div>
+                          </div>
                               <div className="flex justify-between">
                                 <span>키워드 수집량:</span>
                                 <span className="font-medium">{EXPANDED_KEYWORDS.length * 50}개 ({EXPANDED_KEYWORDS.length}개 키워드 × 50개)</span>
-                              </div>
+                          </div>
                               <div className="flex justify-between">
                                 <span>예상 총 수집량:</span>
                                 <span className="font-medium text-green-600">{200 + (EXPANDED_KEYWORDS.length * 50)}개</span>
-                              </div>
+                        </div>
                               <div className="flex justify-between">
                                 <span>중복 제거:</span>
                                 <span className="font-medium text-green-600">조회수 높은 것 유지</span>
-                              </div>
-                            </div>
                           </div>
-                          
+                      </div>
+                      </div>
+                      
                           <div className="text-xs text-blue-700 space-y-1 bg-blue-100/50 p-2 rounded">
                             <p>✓ 조회수 높은 순 자동 정렬</p>
                             <p>✓ 중복 시 조회수 높은 것 유지</p>
                             <p>✓ 예상 수집: <strong>약 2,000~2,500개</strong></p>
-                          </div>
+                        </div>
                         </div>
 
                         {/* 언어 필터 설정 */}
@@ -1237,7 +1237,7 @@ const System = () => {
                             {apiConfig.customApiEnabled ? "연결됨" : "연결 안됨"}
                           </Badge>
                         </div>
-                        
+
                         {/* API 상태 상세 정보 */}
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
                           <h4 className="font-medium text-sm mb-2 text-blue-800">API 설정 상세</h4>
@@ -1247,17 +1247,17 @@ const System = () => {
                               <span className={apiConfig.youtubeApiKey ? "text-green-600 font-medium" : "text-red-600"}>
                                 {apiConfig.youtubeApiKey ? "설정됨" : "미설정"}
                               </span>
-                            </div>
+                          </div>
                             <div className="flex justify-between">
                               <span>커스텀 API URL:</span>
                               <span className="text-blue-600 font-mono text-xs">{apiConfig.customApiUrl}</span>
-                            </div>
+                        </div>
                             <div className="flex justify-between">
                               <span>커스텀 API 키:</span>
                               <span className={apiConfig.customApiKey ? "text-green-600 font-medium" : "text-red-600"}>
                                 {apiConfig.customApiKey ? "설정됨" : "미설정"}
                               </span>
-                            </div>
+                          </div>
                           </div>
                         </div>
 
