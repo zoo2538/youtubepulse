@@ -331,13 +331,13 @@ const DataClassification = () => {
             }
             
             // 2. 실제 데이터가 있는 날짜들 중 7일 범위 내의 것만 추가
-            const today = new Date();
-            const sevenDaysAgo = new Date(today);
-            sevenDaysAgo.setDate(today.getDate() - 6);
+            const todayDate = new Date();
+            const sevenDaysAgo = new Date(todayDate);
+            sevenDaysAgo.setDate(todayDate.getDate() - 6);
             
             availableDatesFromDB.forEach(date => {
               const dateObj = new Date(date);
-              if (dateObj >= sevenDaysAgo && dateObj <= today) {
+              if (dateObj >= sevenDaysAgo && dateObj <= todayDate) {
                 dates.add(date);
               }
             });
@@ -400,13 +400,13 @@ const DataClassification = () => {
         
         // 2. 하이브리드 서비스에서 실제 데이터가 있는 날짜들 중 7일 범위 내의 것만 추가
         const availableDatesFromDB = await hybridService.getAvailableDates();
-        const today = new Date();
-        const sevenDaysAgo = new Date(today);
-        sevenDaysAgo.setDate(today.getDate() - 6);
+        const todayDate = new Date();
+        const sevenDaysAgo = new Date(todayDate);
+        sevenDaysAgo.setDate(todayDate.getDate() - 6);
         
         availableDatesFromDB.forEach(date => {
           const dateObj = new Date(date);
-          if (dateObj >= sevenDaysAgo && dateObj <= today) {
+          if (dateObj >= sevenDaysAgo && dateObj <= todayDate) {
             dates.add(date);
           }
         });
