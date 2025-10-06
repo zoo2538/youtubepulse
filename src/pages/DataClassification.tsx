@@ -431,36 +431,40 @@ const DataClassification = () => {
           console.log('🔄 사용 가능한 날짜 새로고침:', dates);
           setAvailableDates(dates);
           
-          // 3. 날짜별 통계 계산
+          // 3. 날짜별 통계 계산 (수동수집 데이터만 - collectionType이 'manual'이거나 없는 경우)
           const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
           savedData?.forEach(item => {
-            let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            
-            // dayKeyLocal의 대시 문제 해결
-            if (item.dayKeyLocal) {
-              date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
-            }
-            
-            if (date) {
-              // 10월 6일 데이터 디버깅
-              if (date === '2025-10-06') {
-                console.log('🔍 10월 6일 데이터 발견:', {
-                  id: item.id,
-                  dayKeyLocal: item.dayKeyLocal,
-                  collectionDate: item.collectionDate,
-                  uploadDate: item.uploadDate,
-                  normalizedDate: date,
-                  status: item.status,
-                  videoTitle: item.videoTitle
-                });
+            // 수동수집 데이터만 필터링 (collectionType이 'manual'이거나 없는 경우)
+            if (!item.collectionType || item.collectionType === 'manual') {
+              let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              
+              // dayKeyLocal의 대시 문제 해결
+              if (item.dayKeyLocal) {
+                date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
               }
               
-              if (!newDateStats[date]) {
-                newDateStats[date] = { total: 0, classified: 0, progress: 0 };
-              }
-              newDateStats[date].total++;
-              if (item.status === 'classified') {
-                newDateStats[date].classified++;
+              if (date) {
+                // 10월 6일 데이터 디버깅
+                if (date === '2025-10-06') {
+                  console.log('🔍 10월 6일 수동수집 데이터 발견:', {
+                    id: item.id,
+                    dayKeyLocal: item.dayKeyLocal,
+                    collectionDate: item.collectionDate,
+                    uploadDate: item.uploadDate,
+                    normalizedDate: date,
+                    status: item.status,
+                    collectionType: item.collectionType,
+                    videoTitle: item.videoTitle
+                  });
+                }
+                
+                if (!newDateStats[date]) {
+                  newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+                }
+                newDateStats[date].total++;
+                if (item.status === 'classified') {
+                  newDateStats[date].classified++;
+                }
               }
             }
           });
@@ -479,6 +483,46 @@ const DataClassification = () => {
             console.log('✅ 10월 6일 통계 확인:', newDateStats['2025-10-06']);
           } else {
             console.log('❌ 10월 6일 통계 없음 - 사용 가능한 날짜들:', Object.keys(newDateStats));
+          }
+          
+          // 자동수집 통계 계산 (collectionType이 'auto'인 데이터만)
+          const autoCollectedStats: {[date: string]: {total: number; classified: number; progress: number}} = {};
+          savedData?.forEach(item => {
+            // 자동수집 데이터만 필터링
+            if (item.collectionType === 'auto') {
+              let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              
+              // dayKeyLocal의 대시 문제 해결
+              if (item.dayKeyLocal) {
+                date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
+              }
+              
+              if (date) {
+                if (!autoCollectedStats[date]) {
+                  autoCollectedStats[date] = { total: 0, classified: 0, progress: 0 };
+                }
+                autoCollectedStats[date].total++;
+                if (item.status === 'classified') {
+                  autoCollectedStats[date].classified++;
+                }
+              }
+            }
+          });
+          
+          // 자동수집 진행률 계산
+          Object.keys(autoCollectedStats).forEach(date => {
+            const stats = autoCollectedStats[date];
+            stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+          });
+          
+          setAutoCollectedStats(autoCollectedStats);
+          console.log('📊 자동수집 통계 업데이트:', autoCollectedStats);
+          
+          // 10월 6일 자동수집 통계 특별 확인
+          if (autoCollectedStats['2025-10-06']) {
+            console.log('✅ 10월 6일 자동수집 통계 확인:', autoCollectedStats['2025-10-06']);
+          } else {
+            console.log('❌ 10월 6일 자동수집 통계 없음 - 자동수집 데이터가 없거나 날짜 매칭 실패');
           }
           
           if (savedData && savedData.length > 0) {
