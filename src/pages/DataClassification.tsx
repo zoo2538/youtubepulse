@@ -558,7 +558,23 @@ const DataClassification = () => {
     // 자정 전환 감지 등록
     const unregisterRollover = dateRolloverService.onRollover((dateKey) => {
       console.log('🔄 자정 전환 감지 - 날짜 그리드 재생성:', dateKey);
-      loadDates(); // 날짜 그리드 재생성
+      
+      // 상태 갱신 → 렌더 타이밍 고정 (동기적 배치 업데이트)
+      console.time('rollover-render');
+      
+      // 날짜 그리드 재계산
+      const dates = new Set<string>();
+      for (let i = 0; i < 7; i++) {
+        const date = getKoreanDateStringWithOffset(-i);
+        dates.add(date);
+      }
+      const sortedDates = Array.from(dates).sort((a, b) => b.localeCompare(a));
+      
+      // 모든 관련 상태를 동시에 업데이트
+      setAvailableDates(sortedDates);
+      
+      console.timeEnd('rollover-render');
+      console.log('✅ 날짜 그리드 재생성 완료:', sortedDates);
     });
 
     // 서비스 초기화 (전역 객체에 등록)
@@ -870,8 +886,19 @@ const DataClassification = () => {
       setIsLoading(true);
       console.log('💾 진행률 일괄 저장 시작...');
       
-      // 분류된 데이터만 추출
-      const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
+      // 모든 데이터 추출 (분류 여부와 상관없이) - 백업 데이터 포함
+      const currentUIData = unclassifiedData; // 현재 UI에 표시된 데이터
+      const existingData = await hybridService.loadUnclassifiedData();
+      
+      // 현재 UI 데이터와 기존 데이터를 모두 포함
+      const allData = [...currentUIData];
+      
+      // 기존 데이터에서 현재 UI에 없는 데이터 추가 (백업 데이터 포함)
+      if (existingData && existingData.length > 0) {
+        const existingIds = new Set(currentUIData.map(item => item.id));
+        const additionalData = existingData.filter(item => !existingIds.has(item.id));
+        allData.push(...additionalData);
+      }
       
       // 7일간 모든 날짜 생성 (한국 시간 기준)
       // utils 함수들은 이미 정적 import됨
@@ -885,68 +912,71 @@ const DataClassification = () => {
       }
       
       console.log('📊 일괄저장 - 7일간 날짜들:', sevenDays);
-      console.log('📊 일괄저장 - 전체 데이터:', unclassifiedData.length);
-      console.log('📊 일괄저장 - 분류된 데이터:', classifiedData.length);
-      console.log('📊 일괄저장 - 분류된 데이터 날짜 분포:', 
-        classifiedData.reduce((acc, item) => {
+      console.log('📊 일괄저장 - 현재 UI 데이터:', currentUIData.length);
+      console.log('📊 일괄저장 - 기존 데이터:', existingData?.length || 0);
+      console.log('📊 일괄저장 - 전체 데이터 (백업 포함):', allData.length);
+      console.log('📊 일괄저장 - 전체 데이터 날짜 분포:', 
+        allData.reduce((acc, item) => {
           const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           acc[date] = (acc[date] || 0) + 1;
           return acc;
         }, {} as Record<string, number>)
       );
 
-      // 7일간 모든 날짜에 대해 분류된 데이터 생성 (없는 날은 빈 배열)
+      // 7일간 모든 날짜에 대해 전체 데이터 생성 (없는 날은 빈 배열)
       const allClassifiedData = [];
       sevenDays.forEach(date => {
-        const dateClassifiedData = classifiedData.filter(item => {
+        const dateData = allData.filter(item => {
           const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
         });
-        allClassifiedData.push(...dateClassifiedData);
+        allClassifiedData.push(...dateData);
       });
 
-      // 안전한 분류된 데이터 저장 (기존 데이터 보존)
-      if (allClassifiedData.length > 0) {
-        console.log('📊 분류된 데이터 개수:', allClassifiedData.length, '개');
+      // 백업 데이터를 포함한 전체 데이터 저장
+      const mergedData = [...allData];
+      
+      console.log('📊 병합 기준 데이터:', {
+        currentUI: currentUIData.length,
+        existing: existingData?.length || 0,
+        merged: mergedData.length
+      });
+      
+      // 안전한 전체 데이터 저장 (기존 데이터 보존)
+      if (allData.length > 0) {
+        console.log('📊 전체 데이터 개수:', allData.length, '개');
         
-        // 기존 데이터와 분류된 데이터 병합 (덮어쓰기 방지)
-        // 현재 UI에 표시된 데이터를 우선 사용 (백업 복원 데이터 보존)
-        const currentUIData = unclassifiedData; // 현재 UI에 표시된 데이터
-        const existingData = await hybridService.loadUnclassifiedData();
-        
-        // 현재 UI 데이터가 있으면 우선 사용 (백업 복원 데이터 보존)
-        const baseData = currentUIData && currentUIData.length > 0 ? currentUIData : existingData;
-        const mergedData = [...baseData];
-        
-        console.log('📊 병합 기준 데이터:', {
-          currentUI: currentUIData.length,
-          existing: existingData.length,
-          using: baseData.length
-        });
-        
-        // 분류된 데이터만 업데이트 (기존 데이터 보존)
-        allClassifiedData.forEach(classifiedItem => {
-          const existingIndex = mergedData.findIndex(item => item.id === classifiedItem.id);
+        // 전체 데이터 업데이트 (백업 데이터 포함)
+        allClassifiedData.forEach(dataItem => {
+          const existingIndex = mergedData.findIndex(item => item.id === dataItem.id);
           if (existingIndex >= 0) {
-            // 기존 데이터 업데이트 (분류 정보만)
+            // 기존 데이터 업데이트 (전체 정보)
             mergedData[existingIndex] = { 
               ...mergedData[existingIndex], 
-              status: 'classified',
-              category: classifiedItem.category,
-              subCategory: classifiedItem.subCategory
+              ...dataItem
             };
+          } else {
+            // 새로운 데이터 추가
+            mergedData.push(dataItem);
           }
         });
         
-        // 병합된 데이터 저장
-        await hybridService.saveUnclassifiedData(mergedData);
-        console.log('✅ 분류된 데이터 병합 저장 완료');
+        // 병합된 데이터 저장 (백업 데이터 포함)
+        try {
+          await hybridService.saveUnclassifiedData(mergedData);
+          console.log('✅ 전체 데이터 병합 저장 완료 (백업 데이터 포함)');
+        } catch (saveError) {
+          console.error('❌ 데이터 저장 실패:', saveError);
+          throw new Error(`데이터 저장 실패: ${saveError instanceof Error ? saveError.message : '알 수 없는 오류'}`);
+        }
+      } else {
+        console.log('⚠️ 저장할 데이터가 없습니다.');
       }
       
-      // 진행률 데이터 생성 (7일간 모든 날짜) - 현재 UI 데이터 사용
+      // 진행률 데이터 생성 (7일간 모든 날짜) - 전체 데이터 사용
       const progressData = sevenDays.map(date => {
-        // 현재 UI에 표시된 데이터에서 해당 날짜 데이터 필터링
-        const dateData = unclassifiedData.filter(item => {
+        // 전체 데이터에서 해당 날짜 데이터 필터링
+        const dateData = allData.filter(item => {
           const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
         });
@@ -966,10 +996,16 @@ const DataClassification = () => {
       });
 
       // 하이브리드 저장 - 진행률 데이터
-      await hybridService.saveDailyProgress(progressData);
+      try {
+        await hybridService.saveDailyProgress(progressData);
+        console.log('✅ 진행률 데이터 저장 완료');
+      } catch (progressError) {
+        console.error('❌ 진행률 데이터 저장 실패:', progressError);
+        throw new Error(`진행률 데이터 저장 실패: ${progressError instanceof Error ? progressError.message : '알 수 없는 오류'}`);
+      }
       
       // 로컬 상태 업데이트 (백업 데이터 보존)
-      if (allClassifiedData.length > 0) {
+      if (mergedData.length > 0) {
         // 현재 UI 데이터를 병합된 데이터로 업데이트
         setUnclassifiedData(mergedData as UnclassifiedData[]);
         
@@ -1000,10 +1036,14 @@ const DataClassification = () => {
       
       console.log('✅ 진행률 일괄 저장 완료, 백업 데이터 보존하며 로컬 상태 업데이트');
       
-      alert(`✅ 7일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n현재 페이지가 자동으로 업데이트됩니다.`);
+      alert(`✅ 7일간의 분류 진행률과 ${allData.length}개의 전체 데이터가 저장되었습니다.\n\n현재 페이지가 자동으로 업데이트됩니다.`);
     } catch (error) {
       console.error('진행률 저장 실패:', error);
-      alert('❌ 진행률 저장에 실패했습니다.');
+      console.error('오류 상세:', error);
+      
+      // 구체적인 오류 메시지 표시
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+      alert(`❌ 진행률 저장에 실패했습니다.\n\n오류: ${errorMessage}\n\n콘솔을 확인하여 자세한 정보를 확인하세요.`);
     } finally {
       setIsLoading(false);
     }
