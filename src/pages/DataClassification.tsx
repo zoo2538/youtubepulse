@@ -2433,11 +2433,6 @@ const DataClassification = () => {
                 </tbody>
               </table>
             </div>
-            <div className="mt-4 text-xs text-muted-foreground space-y-1">
-              <p>• 자동수집: 시스템이 자동으로 수집한 데이터</p>
-              <p>• 수동수집: 사용자가 직접 추가한 데이터</p>
-              <p>• 합계: 자동수집 + 수동수집 전체 데이터</p>
-            </div>
           </CardContent>
         </Card>
 
