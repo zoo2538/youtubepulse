@@ -1942,7 +1942,7 @@ const DataClassification = () => {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-2">
               <Calendar className="w-5 h-5 text-green-600" />
-              <h2 className="text-xl font-semibold text-foreground">일별 분류 진행률</h2>
+              <h2 className="text-xl font-semibold text-foreground">일별 분류 진행</h2>
               </div>
             <div className="flex items-center space-x-2">
                     <Button
@@ -2249,8 +2249,8 @@ const DataClassification = () => {
             })}
               </div>
             </div>
-                    </div>
-                  </Card>
+          </div>
+        </Card>
 
 
         {/* 14일 데이터 관리 */}
@@ -2350,7 +2350,7 @@ const DataClassification = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5" />
-              일별 분류 진행률
+              일별 분류 진행
             </CardTitle>
             <CardDescription>
               자동수집, 수동수집, 합계별 분류 진행률을 확인하세요
