@@ -1045,12 +1045,12 @@ async function autoCollectData() {
       '썰', '밈', '힐링', '커뮤니티', '짤'
     ];
 
-    // 1단계: 트렌드 영상 100개 수집
+    // 1단계: 트렌드 영상 200개 수집 (50개씩 4페이지)
     console.log('📺 1단계: 트렌드 영상 수집 중...');
     let trendingVideos = [];
     let nextPageToken = '';
     
-    for (let page = 0; page < 2; page++) {
+    for (let page = 0; page < 4; page++) {
       const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
       const response = await fetch(trendingUrl);
       
@@ -1064,7 +1064,7 @@ async function autoCollectData() {
         }
       }
       
-      if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
+      if (page < 4) await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     // 한글 필터링
