@@ -118,7 +118,7 @@ const DateClassificationDetail = () => {
         }
         
         // 선택된 날짜의 데이터만 필터링 (다양한 날짜 필드 확인)
-        const dateData = allData.filter(item => {
+        const filteredData = allData.filter(item => {
           console.log('🔍 데이터 필터링 확인:', {
             id: item.id,
             dayKeyLocal: item.dayKeyLocal,
@@ -169,7 +169,25 @@ const DateClassificationDetail = () => {
           
           console.log('❌ 매치되지 않음');
           return false;
-        }).map(item => ({
+        });
+
+        // 중복 제거 로직 추가 (videoId 기준으로 중복 제거)
+        console.log('📊 필터링된 데이터 개수:', filteredData.length);
+        const seenVideoIds = new Set<string>();
+        const dateData = filteredData.filter(item => {
+          const videoId = item.videoId;
+          if (seenVideoIds.has(videoId)) {
+            console.log('🔄 중복 데이터 제거:', videoId, '제목:', item.videoTitle);
+            return false;
+          }
+          seenVideoIds.add(videoId);
+          return true;
+        });
+        
+        console.log('📊 중복 제거 후 데이터 개수:', dateData.length);
+        console.log('📊 제거된 중복 개수:', filteredData.length - dateData.length);
+        
+        const finalData = dateData.map(item => ({
           ...item,
           channelName: item.channelName || 'N/A',
           videoTitle: item.videoTitle || 'N/A',
@@ -181,37 +199,9 @@ const DateClassificationDetail = () => {
           status: item.status || 'unclassified'
         }));
         
-        console.log(`📊 ${selectedDate} 날짜 데이터: ${dateData.length}개`);
+        console.log(`📊 ${selectedDate} 날짜 데이터: ${finalData.length}개`);
         
-        // 키 일관성 검증 및 중복 제거
-        console.log('🔄 중복 제거 전:', dateData.length, '개 항목');
-        
-        // 1. 키 일관성 검증 (디버깅)
-        const keyStats = new Map<string, number>();
-        dateData.forEach((item, index) => {
-          const dayKey = item.dayKeyLocal || 
-                        (item.collectionDate ? new Date(item.collectionDate).toISOString().split('T')[0] : null) ||
-                        (item.uploadDate ? new Date(item.uploadDate).toISOString().split('T')[0] : null);
-          const key = `${item.videoId}|${dayKey}`;
-          keyStats.set(key, (keyStats.get(key) || 0) + 1);
-          
-          if (index < 5) { // 처음 5개 항목만 로그
-            console.log(`🔍 항목 ${index}: videoId=${item.videoId}, dayKey=${dayKey}, key=${key}`);
-          }
-        });
-        
-        // 중복 키 통계
-        const duplicateKeys = Array.from(keyStats.entries()).filter(([key, count]) => count > 1);
-        if (duplicateKeys.length > 0) {
-          console.warn(`⚠️ 중복 키 발견: ${duplicateKeys.length}개`, duplicateKeys.slice(0, 3));
-        }
-        
-        // 2. 강화된 중복 제거 (dayKeyLocal 우선)
-        const dedupedData = dedupeByDate(dateData as VideoItem[], selectedDate);
-        console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
-        console.log('📊 제거된 중복:', dateData.length - dedupedData.length, '개');
-        
-        setUnclassifiedData(dedupedData as UnclassifiedData[]);
+        setUnclassifiedData(finalData);
       } catch (error) {
         console.error('데이터 로드 실패:', error);
         setUnclassifiedData([]);
