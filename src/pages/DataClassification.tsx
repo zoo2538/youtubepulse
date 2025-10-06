@@ -321,6 +321,12 @@ const DataClassification = () => {
     const handleDataUpdate = (event: CustomEvent) => {
       console.log('🔄 데이터 업데이트 이벤트 감지:', event.detail);
       
+      // 백업 데이터 보존 플래그 확인
+      if (event.detail?.preserveBackupData) {
+        console.log('🔒 백업 데이터 보존 모드 - 데이터 로드 차단');
+        return;
+      }
+      
       // 데이터 다시 로드 (페이지 새로고침 대신 데이터만 새로고침)
       const loadData = async () => {
         try {
@@ -812,6 +818,12 @@ const DataClassification = () => {
       return;
     }
     
+    // 백업 복원 중이면 일괄 저장 차단 (데이터 손실 방지)
+    if (window.restoreLock || sessionStorage.getItem('restoreInProgress')) {
+      alert('⚠️ 백업 복원 중입니다. 복원이 완료된 후 다시 시도해주세요.');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       console.log('💾 진행률 일괄 저장 시작...');
@@ -856,8 +868,19 @@ const DataClassification = () => {
         console.log('📊 분류된 데이터 개수:', allClassifiedData.length, '개');
         
         // 기존 데이터와 분류된 데이터 병합 (덮어쓰기 방지)
+        // 현재 UI에 표시된 데이터를 우선 사용 (백업 복원 데이터 보존)
+        const currentUIData = unclassifiedData; // 현재 UI에 표시된 데이터
         const existingData = await hybridService.loadUnclassifiedData();
-        const mergedData = [...existingData];
+        
+        // 현재 UI 데이터가 있으면 우선 사용 (백업 복원 데이터 보존)
+        const baseData = currentUIData && currentUIData.length > 0 ? currentUIData : existingData;
+        const mergedData = [...baseData];
+        
+        console.log('📊 병합 기준 데이터:', {
+          currentUI: currentUIData.length,
+          existing: existingData.length,
+          using: baseData.length
+        });
         
         // 분류된 데이터만 업데이트 (기존 데이터 보존)
         allClassifiedData.forEach(classifiedItem => {
@@ -902,16 +925,17 @@ const DataClassification = () => {
       // 하이브리드 저장 - 진행률 데이터
       await hybridService.saveDailyProgress(progressData);
       
-      // 안전한 데이터 업데이트 이벤트 발생
+      // 안전한 데이터 업데이트 이벤트 발생 (백업 데이터 보존)
       window.dispatchEvent(new CustomEvent('dataUpdated', { 
         detail: { 
           type: 'bulkSave', 
           dataCount: allClassifiedData.length,
+          preserveBackupData: true, // 백업 데이터 보존 플래그
           timestamp: new Date().toISOString()
         }
       }));
       
-      console.log('✅ 진행률 일괄 저장 완료, 데이터 업데이트 이벤트 발생');
+      console.log('✅ 진행률 일괄 저장 완료, 백업 데이터 보존하며 데이터 업데이트 이벤트 발생');
       
       alert(`✅ 14일간의 분류 진행률과 ${allClassifiedData.length}개의 분류된 데이터가 저장되었습니다.\n\n대시보드가 자동으로 업데이트됩니다.`);
     } catch (error) {
