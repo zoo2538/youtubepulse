@@ -32,7 +32,7 @@ class HybridService {
     this.config = { ...this.config, ...config };
   }
 
-  // 부트스트랩 동기화: 로컬 데이터를 서버로 일회성 업로드
+  // 부트스트랩 동기화: 로컬 데이터를 서버로 일회성 업로드 (고도화)
   async bootstrapSync(): Promise<{
     success: boolean;
     uploaded: number;
@@ -41,42 +41,129 @@ class HybridService {
     try {
       console.log('🔄 부트스트랩 동기화 시작 - 로컬 데이터를 서버로 업로드...');
       
-      // 로컬 IndexedDB에서 모든 데이터 가져오기
-      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
-      const classifiedData = await indexedDBService.getClassifiedData();
+      // 1) 로컬 IndexedDB에서 모든 데이터 가져오기
+      const [localUnclassified, localClassified] = await Promise.all([
+        indexedDBService.loadUnclassifiedData(),
+        indexedDBService.getClassifiedData()
+      ]);
       
-      console.log(`📊 로컬 데이터: 미분류 ${unclassifiedData?.length || 0}개, 분류 ${classifiedData?.length || 0}개`);
+      const totalLocal = (localUnclassified?.length || 0) + (localClassified?.length || 0);
+      console.log(`📊 로컬 데이터: 미분류 ${localUnclassified?.length || 0}개, 분류 ${localClassified?.length || 0}개, 총 ${totalLocal}개`);
+      
+      if (totalLocal === 0) {
+        return {
+          success: true,
+          uploaded: 0,
+          message: '업로드할 로컬 데이터가 없습니다.'
+        };
+      }
       
       let totalUploaded = 0;
+      const chunkSize = 500; // 배치 크기
       
-      // 미분류 데이터 업로드
-      if (unclassifiedData && unclassifiedData.length > 0) {
-        const result = await apiService.saveUnclassifiedData(unclassifiedData);
-        if (result.success) {
-          totalUploaded += unclassifiedData.length;
-          console.log(`✅ 미분류 데이터 ${unclassifiedData.length}개 서버 업로드 완료`);
+      // 2) 미분류 데이터 배치 업로드 (청크 단위)
+      if (localUnclassified && localUnclassified.length > 0) {
+        console.log(`📤 미분류 데이터 업로드 시작: ${localUnclassified.length}개`);
+        
+        for (let i = 0; i < localUnclassified.length; i += chunkSize) {
+          const chunk = localUnclassified.slice(i, i + chunkSize);
+          const chunkNum = Math.floor(i / chunkSize) + 1;
+          const totalChunks = Math.ceil(localUnclassified.length / chunkSize);
+          
+          console.log(`📦 미분류 청크 ${chunkNum}/${totalChunks} 업로드 중... (${chunk.length}개)`);
+          
+          try {
+            const result = await apiService.saveUnclassifiedData(chunk);
+            if (result.success) {
+              totalUploaded += chunk.length;
+              console.log(`✅ 미분류 청크 ${chunkNum}/${totalChunks} 업로드 완료`);
+            } else {
+              console.error(`❌ 미분류 청크 ${chunkNum} 업로드 실패:`, result.error);
+            }
+            
+            // 청크 간 지연 (서버 부하 방지)
+            if (i + chunkSize < localUnclassified.length) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          } catch (chunkError) {
+            console.error(`❌ 미분류 청크 ${chunkNum} 업로드 오류:`, chunkError);
+            // 재시도 로직 (1회)
+            console.log(`🔄 청크 ${chunkNum} 재시도 중...`);
+            try {
+              const retryResult = await apiService.saveUnclassifiedData(chunk);
+              if (retryResult.success) {
+                totalUploaded += chunk.length;
+                console.log(`✅ 미분류 청크 ${chunkNum} 재시도 성공`);
+              }
+            } catch (retryError) {
+              console.error(`❌ 청크 ${chunkNum} 재시도 실패, 건너뜀`);
+            }
+          }
         }
+        
+        console.log(`✅ 미분류 데이터 전체 업로드 완료: ${totalUploaded}개`);
       }
       
-      // 분류 데이터 업로드
-      if (classifiedData && classifiedData.length > 0) {
-        const result = await apiService.saveClassifiedData(classifiedData);
-        if (result.success) {
-          totalUploaded += classifiedData.length;
-          console.log(`✅ 분류 데이터 ${classifiedData.length}개 서버 업로드 완료`);
+      // 3) 분류 데이터 배치 업로드 (청크 단위)
+      if (localClassified && localClassified.length > 0) {
+        console.log(`📤 분류 데이터 업로드 시작: ${localClassified.length}개`);
+        
+        for (let i = 0; i < localClassified.length; i += chunkSize) {
+          const chunk = localClassified.slice(i, i + chunkSize);
+          const chunkNum = Math.floor(i / chunkSize) + 1;
+          const totalChunks = Math.ceil(localClassified.length / chunkSize);
+          
+          console.log(`📦 분류 청크 ${chunkNum}/${totalChunks} 업로드 중... (${chunk.length}개)`);
+          
+          try {
+            const result = await apiService.saveClassifiedData(chunk);
+            if (result.success) {
+              totalUploaded += chunk.length;
+              console.log(`✅ 분류 청크 ${chunkNum}/${totalChunks} 업로드 완료`);
+            } else {
+              console.error(`❌ 분류 청크 ${chunkNum} 업로드 실패:`, result.error);
+            }
+            
+            // 청크 간 지연
+            if (i + chunkSize < localClassified.length) {
+              await new Promise(resolve => setTimeout(resolve, 300));
+            }
+          } catch (chunkError) {
+            console.error(`❌ 분류 청크 ${chunkNum} 업로드 오류:`, chunkError);
+            // 재시도 로직 (1회)
+            console.log(`🔄 청크 ${chunkNum} 재시도 중...`);
+            try {
+              const retryResult = await apiService.saveClassifiedData(chunk);
+              if (retryResult.success) {
+                totalUploaded += chunk.length;
+                console.log(`✅ 분류 청크 ${chunkNum} 재시도 성공`);
+              }
+            } catch (retryError) {
+              console.error(`❌ 청크 ${chunkNum} 재시도 실패, 건너뜀`);
+            }
+          }
         }
+        
+        console.log(`✅ 분류 데이터 전체 업로드 완료`);
       }
       
-      // 서버에서 최신 데이터 가져와서 캐시 갱신
-      console.log('🔄 서버 데이터로 로컬 캐시 갱신 중...');
-      const serverUnclassified = await this.loadUnclassifiedData();
-      const serverClassified = await this.getClassifiedData();
+      // 4) 서버에서 최신 스냅샷 가져와서 로컬 캐시 갱신
+      console.log('🔄 서버 스냅샷으로 로컬 캐시 갱신 중...');
+      try {
+        const [serverUnclassified, serverClassified] = await Promise.all([
+          this.loadUnclassifiedData(),
+          this.getClassifiedData()
+        ]);
+        console.log(`✅ 서버 스냅샷 재적재 완료: 미분류 ${serverUnclassified?.length || 0}개, 분류 ${serverClassified?.length || 0}개`);
+      } catch (cacheError) {
+        console.warn('⚠️ 캐시 갱신 실패 (데이터는 업로드됨):', cacheError);
+      }
       
       console.log('✅ 부트스트랩 동기화 완료!');
       return {
         success: true,
         uploaded: totalUploaded,
-        message: `${totalUploaded}개의 로컬 데이터를 서버로 업로드했습니다.`
+        message: `${totalUploaded.toLocaleString()}개의 로컬 데이터를 서버로 업로드했습니다.`
       };
       
     } catch (error) {
