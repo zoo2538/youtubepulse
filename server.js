@@ -1524,18 +1524,19 @@ app.post('/api/backup/import', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
   
-  // 자동 수집 cron job 설정 (매일 오전 9시 KST)
+  // 자동 수집 cron job 설정 (매일 자정 00:00 KST)
   // cron 표현식: '분 시 일 월 요일'
-  // '0 0 * * *' = 매일 오전 9시 (서버 시간 기준)
-  // Railway는 UTC를 사용하므로 KST 오전 9시 = UTC 00:00 (같은 날)
+  // '0 0 * * *' = 매일 00:00 (자정)
   cron.schedule('0 0 * * *', () => {
-    console.log('⏰ 자동 수집 스케줄 실행 (매일 오전 9시 KST)');
+    console.log('⏰ 자동 수집 스케줄 실행 (매일 자정 00:00 KST)');
+    console.log('🕐 실행 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
     autoCollectData();
   }, {
     timezone: 'Asia/Seoul'
   });
   
-  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 09:00 (한국시간)');
+  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 00:00 (한국시간 자정)');
+  console.log('⏰ 다음 실행 예정:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
 });
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
