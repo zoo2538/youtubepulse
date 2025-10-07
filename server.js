@@ -1556,7 +1556,8 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
-app.use(express.static(path.join(__dirname, 'dist')));
+// __dirname은 /app/dist/server이므로, 한 단계 위의 dist로 이동
+app.use(express.static(path.join(__dirname, '..')));
 
 // 동기화 API 엔드포인트
 app.post('/api/sync/upload', async (req, res) => {
@@ -2061,5 +2062,6 @@ app.use((req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  // __dirname은 /app/dist/server이므로, 한 단계 위로 이동
+  res.sendFile(path.join(__dirname, '..', 'index.html'));
 });
