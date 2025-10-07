@@ -154,6 +154,18 @@ class DateRolloverService {
     return getKoreanDateString();
   }
 
+  // 14일 데이터 자동 정리 콜백 등록
+  async performDailyCleanup(): Promise<void> {
+    try {
+      console.log('🗑️ 로컬 14일 데이터 정리 시작...');
+      const { indexedDBService } = await import('./indexeddb-service');
+      const deletedCount = await indexedDBService.cleanupOldData(14);
+      console.log(`✅ 로컬 ${deletedCount}개의 오래된 데이터 삭제 완료`);
+    } catch (error) {
+      console.error('❌ 로컬 데이터 정리 실패:', error);
+    }
+  }
+
   // 강제 재평가 API (디버그용)
   forceEvaluateNow(): boolean {
     console.log('🔄 강제 재평가 시작');
@@ -174,6 +186,9 @@ class DateRolloverService {
     
     // 상태 업데이트
     this.state.lastCheckedDate = todayKST;
+    
+    // 14일 데이터 자동 정리 실행
+    this.performDailyCleanup();
     
     // 콜백 실행 (동기적으로)
     this.callbacks.forEach(callback => {

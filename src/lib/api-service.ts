@@ -96,6 +96,11 @@ class ApiService {
     return this.request('/api/unclassified');
   }
 
+  // 서버 데이터 ID 목록 조회 (차분 업로드용)
+  async getDataIds(): Promise<ApiResponse<{ unclassifiedIds: string[]; classifiedIds: string[] }>> {
+    return this.request('/api/data/ids');
+  }
+
   // 시스템 설정 저장
   async saveSystemConfig(key: string, value: any): Promise<ApiResponse<any>> {
     return this.request('/api/system/config', {

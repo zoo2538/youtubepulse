@@ -625,6 +625,87 @@ app.post('/api/unclassified', async (req, res) => {
   }
 });
 
+// 서버 데이터 ID 목록 조회 API (차분 업로드용)
+app.get('/api/data/ids', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const client = await pool.connect();
+    
+    // 미분류 데이터 ID 목록
+    const unclassifiedResult = await client.query(`
+      SELECT data->>'id' as id 
+      FROM classification_data 
+      WHERE data_type = 'unclassified'
+    `);
+    
+    // 분류 데이터 ID 목록
+    const classifiedResult = await client.query(`
+      SELECT data->>'id' as id 
+      FROM classification_data 
+      WHERE data_type = 'classified'
+    `);
+    
+    client.release();
+    
+    const unclassifiedIds = unclassifiedResult.rows.map(row => row.id).filter(Boolean);
+    const classifiedIds = classifiedResult.rows.map(row => row.id).filter(Boolean);
+    
+    console.log(`📊 서버 데이터 ID: 미분류 ${unclassifiedIds.length}개, 분류 ${classifiedIds.length}개`);
+    
+    res.json({ 
+      success: true, 
+      data: { unclassifiedIds, classifiedIds }
+    });
+  } catch (error) {
+    console.error('데이터 ID 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get data IDs' });
+  }
+});
+
+// 14일 이상된 오래된 데이터 삭제 API
+app.post('/api/data/cleanup', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { retentionDays = 14 } = req.body;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    const cutoffDateString = cutoffDate.toISOString().split('T')[0];
+    
+    console.log(`🗑️ ${retentionDays}일 이상된 데이터 삭제 시작 (기준: ${cutoffDateString} 이전)`);
+    
+    const client = await pool.connect();
+    
+    // classification_data 테이블에서 오래된 데이터 삭제
+    const result = await client.query(`
+      DELETE FROM classification_data
+      WHERE (data->>'collectionDate')::date < $1
+         OR (data->>'uploadDate')::date < $1
+      RETURNING data_type
+    `, [cutoffDateString]);
+    
+    client.release();
+    
+    const deletedCount = result.rowCount || 0;
+    console.log(`✅ ${deletedCount}개의 오래된 데이터 삭제 완료`);
+    
+    res.json({ 
+      success: true, 
+      message: `${deletedCount}개의 오래된 데이터를 삭제했습니다.`,
+      deletedCount,
+      cutoffDate: cutoffDateString
+    });
+  } catch (error) {
+    console.error('데이터 정리 실패:', error);
+    res.status(500).json({ error: 'Failed to cleanup old data' });
+  }
+});
+
 app.get('/api/unclassified', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });
@@ -1886,6 +1967,76 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
     res.status(500).json({ error: 'Failed to cleanup duplicates' });
   }
 });
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 14일 데이터 자동 정리 스케줄러
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function autoCleanupOldData() {
+  if (!pool) {
+    console.log('⚠️ PostgreSQL 연결 없음, 자동 정리 건너뜀');
+    return;
+  }
+  
+  try {
+    const retentionDays = 14;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+    const cutoffDateString = cutoffDate.toISOString().split('T')[0];
+    
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🗑️ 자동 데이터 정리 시작 (${retentionDays}일 보관)`);
+    console.log(`🗑️ 삭제 기준: ${cutoffDateString} 이전 데이터`);
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    const client = await pool.connect();
+    
+    // classification_data 테이블에서 오래된 데이터 삭제
+    const result = await client.query(`
+      DELETE FROM classification_data
+      WHERE (data->>'collectionDate')::date < $1
+         OR (data->>'uploadDate')::date < $1
+      RETURNING data_type, data->>'id' as id
+    `, [cutoffDateString]);
+    
+    client.release();
+    
+    const deletedCount = result.rowCount || 0;
+    
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🗑️ 자동 정리 완료: ${deletedCount}개 삭제`);
+    console.log(`🗑️ 시간: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    return deletedCount;
+  } catch (error) {
+    console.error('❌ 자동 데이터 정리 실패:', error);
+    return 0;
+  }
+}
+
+// 매일 자정(KST) 14일 데이터 정리 실행
+setInterval(() => {
+  const now = new Date();
+  const kstHour = parseInt(now.toLocaleString('en-US', { 
+    timeZone: 'Asia/Seoul', 
+    hour: '2-digit', 
+    hour12: false 
+  }));
+  const kstMinute = parseInt(now.toLocaleString('en-US', { 
+    timeZone: 'Asia/Seoul', 
+    minute: '2-digit' 
+  }));
+  
+  // 자정(00:00~00:05)에 실행
+  if (kstHour === 0 && kstMinute < 5) {
+    console.log('🕛 KST 자정 감지 - 14일 데이터 자동 정리 실행');
+    autoCleanupOldData();
+  }
+}, 5 * 60 * 1000); // 5분마다 체크
+
+// 서버 시작 시 1회 실행
+console.log('🧹 서버 시작 시 14일 데이터 정리 1회 실행...');
+autoCleanupOldData();
 
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
 app.use((req, res) => {

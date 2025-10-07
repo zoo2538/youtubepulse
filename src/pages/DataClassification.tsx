@@ -912,8 +912,11 @@ const DataClassification = () => {
     }
     
     try {
+      console.log('🚀 부트스트랩 동기화 핸들러 시작...');
       setIsLoading(true);
+      
       const result = await hybridService.bootstrapSync();
+      console.log('📊 부트스트랩 동기화 결과:', result);
       
       if (result.success) {
         alert(`✅ 부트스트랩 동기화 완료!\n\n${result.message}`);
@@ -925,8 +928,12 @@ const DataClassification = () => {
         alert(`❌ 부트스트랩 동기화 실패\n\n${result.message}`);
       }
     } catch (error) {
-      console.error('부트스트랩 동기화 오류:', error);
-      alert('부트스트랩 동기화 중 오류가 발생했습니다.');
+      console.error('❌ 부트스트랩 동기화 오류:', error);
+      console.error('❌ 오류 상세:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      alert(`부트스트랩 동기화 중 오류가 발생했습니다.\n\n${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setIsLoading(false);
     }

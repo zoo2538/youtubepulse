@@ -32,19 +32,19 @@ class HybridService {
     this.config = { ...this.config, ...config };
   }
 
-  // 부트스트랩 동기화: 로컬 데이터를 서버로 일회성 업로드 (고도화)
+  // 부트스트랩 동기화: 로컬 데이터를 서버로 차분 업로드 (고도화)
   async bootstrapSync(): Promise<{
     success: boolean;
     uploaded: number;
     message: string;
   }> {
     try {
-      console.log('🔄 부트스트랩 동기화 시작 - 로컬 데이터를 서버로 업로드...');
+      console.log('🔄 부트스트랩 동기화 시작 - 차분 업로드 방식...');
       
       // 1) 로컬 IndexedDB에서 모든 데이터 가져오기
       const [localUnclassified, localClassified] = await Promise.all([
         indexedDBService.loadUnclassifiedData(),
-        indexedDBService.getClassifiedData()
+        indexedDBService.loadClassifiedData()
       ]);
       
       const totalLocal = (localUnclassified?.length || 0) + (localClassified?.length || 0);
@@ -58,17 +58,53 @@ class HybridService {
         };
       }
       
+      // 2) 서버에 있는 데이터 ID 목록 가져오기
+      console.log('🔍 서버 데이터 ID 목록 조회 중...');
+      const idsResult = await apiService.getDataIds();
+      
+      let serverUnclassifiedIds: Set<string> = new Set();
+      let serverClassifiedIds: Set<string> = new Set();
+      
+      if (idsResult.success && idsResult.data) {
+        serverUnclassifiedIds = new Set(idsResult.data.unclassifiedIds);
+        serverClassifiedIds = new Set(idsResult.data.classifiedIds);
+        console.log(`📊 서버 기존 데이터: 미분류 ${serverUnclassifiedIds.size}개, 분류 ${serverClassifiedIds.size}개`);
+      } else {
+        console.log('⚠️ 서버 데이터 ID 조회 실패, 전체 업로드 진행');
+      }
+      
+      // 3) 차분 계산: 서버에 없는 데이터만 필터링
+      const newUnclassified = localUnclassified?.filter(item => 
+        !serverUnclassifiedIds.has(String(item.id))
+      ) || [];
+      
+      const newClassified = localClassified?.filter(item => 
+        !serverClassifiedIds.has(String(item.id))
+      ) || [];
+      
+      const totalNew = newUnclassified.length + newClassified.length;
+      console.log(`📊 차분 계산 결과: 새로운 데이터 ${totalNew}개 (미분류: ${newUnclassified.length}개, 분류: ${newClassified.length}개)`);
+      console.log(`📊 중복 제외: 미분류 ${(localUnclassified?.length || 0) - newUnclassified.length}개, 분류 ${(localClassified?.length || 0) - newClassified.length}개`);
+      
+      if (totalNew === 0) {
+        return {
+          success: true,
+          uploaded: 0,
+          message: '서버에 이미 모든 데이터가 있습니다. 업로드할 새 데이터가 없습니다.'
+        };
+      }
+      
       let totalUploaded = 0;
       const chunkSize = 500; // 배치 크기
       
-      // 2) 미분류 데이터 배치 업로드 (청크 단위)
-      if (localUnclassified && localUnclassified.length > 0) {
-        console.log(`📤 미분류 데이터 업로드 시작: ${localUnclassified.length}개`);
+      // 4) 새로운 미분류 데이터만 배치 업로드 (청크 단위)
+      if (newUnclassified && newUnclassified.length > 0) {
+        console.log(`📤 새로운 미분류 데이터 업로드 시작: ${newUnclassified.length}개`);
         
-        for (let i = 0; i < localUnclassified.length; i += chunkSize) {
-          const chunk = localUnclassified.slice(i, i + chunkSize);
+        for (let i = 0; i < newUnclassified.length; i += chunkSize) {
+          const chunk = newUnclassified.slice(i, i + chunkSize);
           const chunkNum = Math.floor(i / chunkSize) + 1;
-          const totalChunks = Math.ceil(localUnclassified.length / chunkSize);
+          const totalChunks = Math.ceil(newUnclassified.length / chunkSize);
           
           console.log(`📦 미분류 청크 ${chunkNum}/${totalChunks} 업로드 중... (${chunk.length}개)`);
           
@@ -104,14 +140,14 @@ class HybridService {
         console.log(`✅ 미분류 데이터 전체 업로드 완료: ${totalUploaded}개`);
       }
       
-      // 3) 분류 데이터 배치 업로드 (청크 단위)
-      if (localClassified && localClassified.length > 0) {
-        console.log(`📤 분류 데이터 업로드 시작: ${localClassified.length}개`);
+      // 5) 새로운 분류 데이터만 배치 업로드 (청크 단위)
+      if (newClassified && newClassified.length > 0) {
+        console.log(`📤 새로운 분류 데이터 업로드 시작: ${newClassified.length}개`);
         
-        for (let i = 0; i < localClassified.length; i += chunkSize) {
-          const chunk = localClassified.slice(i, i + chunkSize);
+        for (let i = 0; i < newClassified.length; i += chunkSize) {
+          const chunk = newClassified.slice(i, i + chunkSize);
           const chunkNum = Math.floor(i / chunkSize) + 1;
-          const totalChunks = Math.ceil(localClassified.length / chunkSize);
+          const totalChunks = Math.ceil(newClassified.length / chunkSize);
           
           console.log(`📦 분류 청크 ${chunkNum}/${totalChunks} 업로드 중... (${chunk.length}개)`);
           
@@ -163,7 +199,7 @@ class HybridService {
       return {
         success: true,
         uploaded: totalUploaded,
-        message: `${totalUploaded.toLocaleString()}개의 로컬 데이터를 서버로 업로드했습니다.`
+        message: `${totalUploaded.toLocaleString()}개의 새로운 데이터를 서버로 업로드했습니다.\n\n중복 제외: ${totalLocal - totalNew}개`
       };
       
     } catch (error) {
