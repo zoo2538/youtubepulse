@@ -169,7 +169,7 @@ export function ChannelTrendingTable() {
                 changeAmount: changeAmount,
                 changePercent: changePercent,
                 topVideoUrl: latestVideo?.videoId ? `https://www.youtube.com/watch?v=${latestVideo.videoId}` : '',
-                topVideoTitle: latestVideo?.title || ''
+                topVideoTitle: latestVideo?.videoTitle || latestVideo?.title || ''
               };
             })
             .sort((a, b) => b.todayViews - a.todayViews) // 조회수 기준 내림차순 정렬
