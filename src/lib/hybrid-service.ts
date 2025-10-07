@@ -173,20 +173,29 @@ class HybridService {
     }
   }
 
-  // 분류 데이터 조회
+  // 분류 데이터 조회 (서버 우선 + 캐시 갱신)
   async getClassifiedData(): Promise<any[]> {
     try {
       if (this.config.useApiServer) {
         const result = await apiService.getClassifiedData();
         if (result.success && result.data) {
-          console.log('✅ API 서버에서 분류 데이터 조회 완료');
+          console.log('✅ API 서버에서 분류 데이터 조회 완료:', result.data.length, '개');
+          
+          // 서버에서 받은 데이터로 IndexedDB 캐시 갱신
+          try {
+            await indexedDBService.saveClassifiedData(result.data);
+            console.log('✅ IndexedDB 캐시 갱신 완료');
+          } catch (cacheError) {
+            console.warn('⚠️ IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
+          }
+          
           return result.data;
         }
       }
 
       if (this.config.fallbackToLocal) {
         const localData = await indexedDBService.getClassifiedData();
-        console.log('⚠️ 로컬 IndexedDB에서 분류 데이터 조회');
+        console.log('⚠️ 로컬 IndexedDB에서 분류 데이터 조회 (서버 연결 실패)');
         return localData;
       }
 
@@ -195,7 +204,9 @@ class HybridService {
       console.error('❌ 분류 데이터 조회 실패:', error);
       
       if (this.config.fallbackToLocal) {
-        return await indexedDBService.getClassifiedData();
+        const localData = await indexedDBService.getClassifiedData();
+        console.log('⚠️ 오류 발생, 로컬 IndexedDB 폴백');
+        return localData;
       }
       
       return [];

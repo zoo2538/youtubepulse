@@ -97,8 +97,8 @@ const TrendingVideosDetail = () => {
     try {
       setLoading(true);
       
-      // IndexedDB에서 분류된 데이터 로드
-      const classifiedData = await indexedDBService.loadClassifiedData();
+      // 서버 우선 로드 (hybridService 사용)
+      const classifiedData = await hybridService.getClassifiedData();
       
       console.log(`📊 조회수 급등 동영상 상세 - 전체 분류된 데이터: ${classifiedData.length}개`);
       

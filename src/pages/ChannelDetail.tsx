@@ -69,7 +69,7 @@ const ChannelDetail = () => {
   useEffect(() => {
     const loadChannelData = async () => {
       try {
-        const storedData = await indexedDBService.loadClassifiedData();
+        const storedData = await hybridService.getClassifiedData();
         if (storedData && channelId) {
           const data = storedData;
           

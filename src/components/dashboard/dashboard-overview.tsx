@@ -227,9 +227,9 @@ export function DashboardOverview() {
   useEffect(() => {
     const loadClassifiedData = async () => {
       try {
-        // 1) IndexedDB에서 우선 로드
-        let data = await indexedDBService.loadClassifiedData();
-        // localStorage 폴백 제거: IndexedDB만 사용
+        // 1) 서버 우선 로드 (hybridService 사용)
+        let data = await hybridService.getClassifiedData();
+        // localStorage 폴백 제거: hybridService 사용 (서버 → IndexedDB 폴백)
         if (!Array.isArray(data)) data = [];
 
         console.log(`📊 전체 분류된 데이터: ${data.length}개`);

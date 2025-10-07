@@ -65,8 +65,8 @@ const CategoryDailyDetail = () => {
     const loadClassifiedData = async () => {
       try {
         if (category) {
-          // IndexedDB에서 분류된 데이터 로드
-          const data = await indexedDBService.loadClassifiedData();
+          // 서버 우선 로드 (hybridService 사용)
+          const data = await hybridService.getClassifiedData();
           setClassifiedData(data);
           
           // 해당 카테고리의 데이터만 필터링

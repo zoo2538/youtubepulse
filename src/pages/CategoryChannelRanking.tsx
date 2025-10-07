@@ -74,8 +74,8 @@ const CategoryChannelRanking = () => {
   useEffect(() => {
     const loadClassifiedData = async () => {
       try {
-        // IndexedDB에서 분류된 데이터 로드
-        const data = await indexedDBService.loadClassifiedData();
+        // 서버 우선 로드 (hybridService 사용)
+        const data = await hybridService.getClassifiedData();
         
         console.log(`📊 카테고리 채널 순위 - 전체 분류된 데이터: ${data.length}개`);
         console.log(`📊 카테고리 채널 순위 - 데이터 날짜 분포:`, data.reduce((acc: any, item: any) => {
