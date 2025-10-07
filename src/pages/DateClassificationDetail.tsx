@@ -330,10 +330,19 @@ const DateClassificationDetail = () => {
     try {
       console.log('💾 데이터 저장 시작 - 동적 세부카테고리 사용:', dynamicSubCategories);
       
-      // IndexedDB에만 저장 (서버는 "서버 업로드" 버튼으로 별도 동기화)
+      // 하이브리드 저장 (IndexedDB + 서버)
       const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
       
-      // IndexedDB 날짜별 업데이트
+      // 1. 하이브리드 저장 (서버 우선)
+      console.log('💾 하이브리드 저장 - 미분류 데이터');
+      await hybridService.saveUnclassifiedData(unclassifiedData);
+      
+      console.log('💾 하이브리드 저장 - 분류 데이터');
+      if (classifiedData.length > 0) {
+        await hybridService.saveClassifiedData(classifiedData);
+      }
+      
+      // 2. IndexedDB 날짜별 업데이트 (호환성)
       await indexedDBService.updateUnclassifiedDataByDate(unclassifiedData, selectedDate);
       await indexedDBService.updateClassifiedDataByDate(classifiedData, selectedDate);
       
