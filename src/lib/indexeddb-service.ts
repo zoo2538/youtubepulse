@@ -455,6 +455,12 @@ class IndexedDBService {
   async saveClassifiedData(data: any[]): Promise<void> {
     if (!this.db) await this.init();
     
+    // 데이터가 배열인지 확인
+    if (!Array.isArray(data)) {
+      console.error('❌ saveClassifiedData: data가 배열이 아닙니다:', typeof data, data);
+      return Promise.reject(new Error('Data must be an array'));
+    }
+    
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
       const store = transaction.objectStore('classifiedData');
