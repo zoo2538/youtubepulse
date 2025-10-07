@@ -32,6 +32,63 @@ class HybridService {
     this.config = { ...this.config, ...config };
   }
 
+  // 부트스트랩 동기화: 로컬 데이터를 서버로 일회성 업로드
+  async bootstrapSync(): Promise<{
+    success: boolean;
+    uploaded: number;
+    message: string;
+  }> {
+    try {
+      console.log('🔄 부트스트랩 동기화 시작 - 로컬 데이터를 서버로 업로드...');
+      
+      // 로컬 IndexedDB에서 모든 데이터 가져오기
+      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+      const classifiedData = await indexedDBService.getClassifiedData();
+      
+      console.log(`📊 로컬 데이터: 미분류 ${unclassifiedData?.length || 0}개, 분류 ${classifiedData?.length || 0}개`);
+      
+      let totalUploaded = 0;
+      
+      // 미분류 데이터 업로드
+      if (unclassifiedData && unclassifiedData.length > 0) {
+        const result = await apiService.saveUnclassifiedData(unclassifiedData);
+        if (result.success) {
+          totalUploaded += unclassifiedData.length;
+          console.log(`✅ 미분류 데이터 ${unclassifiedData.length}개 서버 업로드 완료`);
+        }
+      }
+      
+      // 분류 데이터 업로드
+      if (classifiedData && classifiedData.length > 0) {
+        const result = await apiService.saveClassifiedData(classifiedData);
+        if (result.success) {
+          totalUploaded += classifiedData.length;
+          console.log(`✅ 분류 데이터 ${classifiedData.length}개 서버 업로드 완료`);
+        }
+      }
+      
+      // 서버에서 최신 데이터 가져와서 캐시 갱신
+      console.log('🔄 서버 데이터로 로컬 캐시 갱신 중...');
+      const serverUnclassified = await this.loadUnclassifiedData();
+      const serverClassified = await this.getClassifiedData();
+      
+      console.log('✅ 부트스트랩 동기화 완료!');
+      return {
+        success: true,
+        uploaded: totalUploaded,
+        message: `${totalUploaded}개의 로컬 데이터를 서버로 업로드했습니다.`
+      };
+      
+    } catch (error) {
+      console.error('❌ 부트스트랩 동기화 실패:', error);
+      return {
+        success: false,
+        uploaded: 0,
+        message: `동기화 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+      };
+    }
+  }
+
   // 채널 데이터 저장
   async saveChannels(channels: Record<string, any>): Promise<void> {
     try {

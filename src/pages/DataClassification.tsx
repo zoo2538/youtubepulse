@@ -905,6 +905,33 @@ const DataClassification = () => {
     alert('✅ 자동 정리가 완료되었습니다.');
   };
 
+  // 부트스트랩 동기화 핸들러 (로컬 데이터를 서버로 강제 업로드)
+  const handleBootstrapSync = async () => {
+    if (!window.confirm('로컬 IndexedDB의 모든 데이터를 서버로 업로드하시겠습니까?\n\n이미 서버에 있는 데이터와 병합됩니다.')) {
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const result = await hybridService.bootstrapSync();
+      
+      if (result.success) {
+        alert(`✅ 부트스트랩 동기화 완료!\n\n${result.message}`);
+        // 데이터 새로고침
+        window.dispatchEvent(new CustomEvent('dataUpdated', { 
+          detail: { type: 'bootstrapSync', timestamp: Date.now() } 
+        }));
+      } else {
+        alert(`❌ 부트스트랩 동기화 실패\n\n${result.message}`);
+      }
+    } catch (error) {
+      console.error('부트스트랩 동기화 오류:', error);
+      alert('부트스트랩 동기화 중 오류가 발생했습니다.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 하이브리드 동기화 핸들러
   const handleHybridSync = async () => {
     try {
@@ -2356,6 +2383,17 @@ const DataClassification = () => {
               >
                 <Upload className="w-4 h-4" />
                 <span>백업 복원하기</span>
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleBootstrapSync}
+                className="flex items-center space-x-1 border-green-500 text-green-600 hover:bg-green-50"
+                title="로컬 데이터를 서버로 강제 업로드 (최초 1회)"
+              >
+                <Upload className="w-4 h-4" />
+                <span>서버 업로드</span>
               </Button>
               
               <Button 
