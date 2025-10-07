@@ -142,7 +142,11 @@ const DataClassification = () => {
           // 자동수집 데이터 통계 계산
           const autoStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
           autoCollectedData.forEach((item: any) => {
-            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            // ISO 타임스탬프 형식이면 날짜만 추출 (YYYY-MM-DD)
+            if (date && typeof date === 'string' && date.includes('T')) {
+              date = date.split('T')[0];
+            }
             if (date) {
               if (!autoStats[date]) {
                 autoStats[date] = { total: 0, classified: 0, progress: 0 };
