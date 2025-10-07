@@ -1059,11 +1059,10 @@ const DataClassification = () => {
   };
 
   // Feature flag for bulk save progress
-  // TODO: Re-enable after server-authoritative flow is fully validated
-  // Tracking issue: https://github.com/zoo2538/youtubepulse/issues/bulk-save-data-loss
+  // 진행률 일괄 저장은 IndexedDB 전용 (서버 저장은 "서버 업로드" 사용)
   const BULK_PROGRESS_ENABLED = true;
   
-  // 일별 분류 진행률 일괄 저장 (데이터 손실 방지를 위해 비활성화)
+  // 일별 분류 진행률 일괄 저장 (IndexedDB 전용 - 서버는 "서버 업로드" 사용)
   const handleBulkSaveProgress = async () => {
     if (!BULK_PROGRESS_ENABLED) {
       alert('⚠️ 진행률 일괄 저장 기능은 데이터 손실 위험이 있어 현재 비활성화되었습니다.\n\n진행률은 자동으로 계산되어 표시됩니다.');
@@ -1155,10 +1154,10 @@ const DataClassification = () => {
           }
         });
         
-        // 병합된 데이터 저장 (백업 데이터 포함)
+        // IndexedDB에만 저장 (서버는 "서버 업로드" 버튼 사용)
         try {
-          await hybridService.saveUnclassifiedData(mergedData);
-          console.log('✅ 전체 데이터 병합 저장 완료 (백업 데이터 포함)');
+          await indexedDBService.saveUnclassifiedData(mergedData);
+          console.log('✅ IndexedDB에 전체 데이터 병합 저장 완료 (백업 데이터 포함)');
         } catch (saveError) {
           console.error('❌ 데이터 저장 실패:', saveError);
           throw new Error(`데이터 저장 실패: ${saveError instanceof Error ? saveError.message : '알 수 없는 오류'}`);
@@ -1189,10 +1188,10 @@ const DataClassification = () => {
         };
       });
 
-      // 하이브리드 저장 - 진행률 데이터
+      // IndexedDB에만 저장 - 진행률 데이터
       try {
-        await hybridService.saveDailyProgress(progressData);
-        console.log('✅ 진행률 데이터 저장 완료');
+        await indexedDBService.saveDailyProgress(progressData);
+        console.log('✅ IndexedDB에 진행률 데이터 저장 완료');
       } catch (progressError) {
         console.error('❌ 진행률 데이터 저장 실패:', progressError);
         throw new Error(`진행률 데이터 저장 실패: ${progressError instanceof Error ? progressError.message : '알 수 없는 오류'}`);
@@ -1228,9 +1227,9 @@ const DataClassification = () => {
         console.log('📊 로컬 상태 업데이트 완료:', updatedDateStats);
       }
       
-      console.log('✅ 진행률 일괄 저장 완료, 백업 데이터 보존하며 로컬 상태 업데이트');
+      console.log('✅ 진행률 일괄 저장 완료 (IndexedDB만), 백업 데이터 보존하며 로컬 상태 업데이트');
       
-      alert(`✅ 7일간의 분류 진행률과 ${allData.length}개의 전체 데이터가 저장되었습니다.\n\n현재 페이지가 자동으로 업데이트됩니다.`);
+      alert(`✅ 7일간의 분류 진행률과 ${allData.length.toLocaleString()}개의 데이터가 IndexedDB에 저장되었습니다.\n\n💡 서버 동기화는 "서버 업로드" 버튼을 사용하세요.`);
     } catch (error) {
       console.error('진행률 저장 실패:', error);
       console.error('오류 상세:', error);
