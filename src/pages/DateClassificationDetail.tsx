@@ -28,6 +28,7 @@ import {
   Trash2
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
 import { dedupeByDate, dedupeByVideoDay, type VideoItem } from "@/lib/dedupe-utils";
 import { subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
