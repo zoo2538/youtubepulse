@@ -453,7 +453,7 @@ export function DashboardOverview() {
         />
         <StatsCard
           title="분류된 영상"
-          value={classifiedData.length.toString()}
+          value={Object.values(categoryStats).reduce((sum: number, stat: any) => sum + (stat.count || 0), 0).toString()}
           change={-2.1}
           trend="down"
         />
