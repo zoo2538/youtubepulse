@@ -3,6 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, Crown, Medal, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
+import { hybridService } from "@/lib/hybrid-service";
 
 interface CategoryRankingData {
   rank: number;
@@ -159,6 +161,120 @@ function getRankBadgeVariant(rank: number) {
 }
 
 export function CategoryDailyRanking() {
+  const [rankingData, setRankingData] = useState<CategoryRankingData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<string>('');
+
+  // 날짜 변경 이벤트 리스너
+  useEffect(() => {
+    const handleDateChange = (event: CustomEvent) => {
+      setSelectedDate(event.detail.selectedDate);
+    };
+
+    window.addEventListener('dashboardDateChanged', handleDateChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('dashboardDateChanged', handleDateChange as EventListener);
+    };
+  }, []);
+
+  // 데이터 업데이트 이벤트 리스너
+  useEffect(() => {
+    const handleDataUpdate = (event: CustomEvent) => {
+      console.log('🔄 카테고리 랭킹 데이터 업데이트 이벤트 감지:', event.detail);
+      // 날짜 변경 이벤트 발생시켜 데이터 다시 로드
+      window.dispatchEvent(new CustomEvent('dashboardDateChanged', { 
+        detail: { selectedDate: selectedDate } 
+      }));
+    };
+
+    window.addEventListener('dataUpdated', handleDataUpdate as EventListener);
+    
+    return () => {
+      window.removeEventListener('dataUpdated', handleDataUpdate as EventListener);
+    };
+  }, [selectedDate]);
+
+  // 카테고리별 조회수 랭킹 데이터 로드
+  useEffect(() => {
+    const loadCategoryRanking = async () => {
+      try {
+        setLoading(true);
+        const classifiedData = await hybridService.getClassifiedData();
+        
+        if (classifiedData && classifiedData.length > 0) {
+          // 선택된 날짜의 데이터 필터링
+          const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+          const todayData = classifiedData.filter((item: any) => {
+            const itemDate = item.collectionDate || item.uploadDate;
+            return itemDate && itemDate.split('T')[0] === targetDate && item.category;
+          });
+
+          // 어제 데이터
+          const yesterdayStr = new Date(new Date(targetDate).getTime() - 24 * 60 * 60 * 1000)
+            .toISOString().split('T')[0];
+          const yesterdayData = classifiedData.filter((item: any) => {
+            const itemDate = item.collectionDate || item.uploadDate;
+            return itemDate && itemDate.split('T')[0] === yesterdayStr && item.category;
+          });
+
+          // 카테고리별 조회수 집계
+          const todayCategories: any = {};
+          todayData.forEach((item: any) => {
+            const category = item.category;
+            if (!todayCategories[category]) {
+              todayCategories[category] = 0;
+            }
+            todayCategories[category] += item.viewCount || 0;
+          });
+
+          const yesterdayCategories: any = {};
+          yesterdayData.forEach((item: any) => {
+            const category = item.category;
+            if (!yesterdayCategories[category]) {
+              yesterdayCategories[category] = 0;
+            }
+            yesterdayCategories[category] += item.viewCount || 0;
+          });
+
+          // 랭킹 데이터 생성
+          const rankings: CategoryRankingData[] = Object.entries(todayCategories)
+            .map(([category, todayViews]: [string, any]) => {
+              const yesterdayViews = yesterdayCategories[category] || 0;
+              const changeAmount = todayViews - yesterdayViews;
+              const changePercent = yesterdayViews > 0 ? (changeAmount / yesterdayViews) * 100 : 0;
+
+              return {
+                rank: 0, // 순위는 나중에 설정
+                category,
+                todayViews,
+                yesterdayViews,
+                changeAmount,
+                changePercent
+              };
+            })
+            .sort((a, b) => b.todayViews - a.todayViews) // 조회수 기준 내림차순
+            .slice(0, 10) // 상위 10개만
+            .map((item, index) => ({
+              ...item,
+              rank: index + 1
+            }));
+
+          setRankingData(rankings);
+        } else {
+          setRankingData([]);
+        }
+      } catch (error) {
+        console.error('카테고리 랭킹 데이터 로드 실패:', error);
+        setRankingData([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCategoryRanking();
+  }, [selectedDate]);
+
   return (
     <Card className="p-6">
       <div className="space-y-4">
@@ -177,9 +293,22 @@ export function CategoryDailyRanking() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockRankingData.map((item) => (
-                <TableRow key={item.rank} className="hover:bg-surface-hover transition-colors">
-                  <TableCell>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    데이터 로딩 중...
+                  </TableCell>
+                </TableRow>
+              ) : rankingData.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    데이터가 없습니다
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rankingData.map((item) => (
+                  <TableRow key={item.rank} className="hover:bg-surface-hover transition-colors">
+                    <TableCell>
                     <div className="flex items-center justify-center">
                       {getRankIcon(item.rank)}
                     </div>

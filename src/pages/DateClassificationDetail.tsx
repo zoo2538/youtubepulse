@@ -553,8 +553,8 @@ const DateClassificationDetail = () => {
         // 백업 데이터 검증 (하이브리드 형식 지원)
         if (!backupData.allData || !Array.isArray(backupData.allData)) {
           // 기존 형식도 지원
-          if (!backupData.data || !Array.isArray(backupData.data)) {
-            throw new Error('유효하지 않은 백업 파일입니다.');
+        if (!backupData.data || !Array.isArray(backupData.data)) {
+          throw new Error('유효하지 않은 백업 파일입니다.');
           }
         }
         
@@ -669,7 +669,7 @@ const DateClassificationDetail = () => {
             date: selectedDate, 
             dataCount: backupData.data.length,
             preserveBackupData: true // 백업 데이터 보존 플래그
-          }
+          } 
         }));
         
         console.log(`🔄 ${selectedDate} 날짜 데이터 복원 완료:`, backupData);
@@ -963,11 +963,11 @@ const DateClassificationDetail = () => {
                         }
                         
                         // 4. UI 상태 초기화
-                        setSelectedItems(new Set());
-                        setShowBulkActions(false);
+                      setSelectedItems(new Set());
+                      setShowBulkActions(false);
                         
-                        console.log(`✅ 대량 삭제 완료: ${selectedItems.size}개 항목 삭제`);
-                        alert(`✅ ${selectedItems.size}개 항목이 성공적으로 삭제되었습니다!`);
+                      console.log(`✅ 대량 삭제 완료: ${selectedItems.size}개 항목 삭제`);
+                      alert(`✅ ${selectedItems.size}개 항목이 성공적으로 삭제되었습니다!`);
                         
                       } catch (error) {
                         console.error('❌ 삭제 실패:', error);

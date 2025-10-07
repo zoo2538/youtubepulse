@@ -444,7 +444,7 @@ const DataClassification = () => {
                 date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
               }
               
-              if (date) {
+            if (date) {
                 // 10월 6일 데이터 디버깅
                 if (date === '2025-10-06') {
                   console.log('🔍 10월 6일 수동수집 데이터 발견:', {
@@ -459,12 +459,12 @@ const DataClassification = () => {
                   });
                 }
                 
-                if (!newDateStats[date]) {
-                  newDateStats[date] = { total: 0, classified: 0, progress: 0 };
-                }
-                newDateStats[date].total++;
-                if (item.status === 'classified') {
-                  newDateStats[date].classified++;
+              if (!newDateStats[date]) {
+                newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+              }
+              newDateStats[date].total++;
+              if (item.status === 'classified') {
+                newDateStats[date].classified++;
                 }
               }
             }
@@ -2378,14 +2378,14 @@ const DataClassification = () => {
 
         {/* 일별 분류 진행률 */}
         <Card className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2">
               <Calendar className="w-5 h-5 text-green-600" />
               <h2 className="text-xl font-semibold text-foreground">일별 분류 진행</h2>
-            </div>
+              </div>
             <div className="flex items-center space-x-2">
-              <Button 
-                variant="outline" 
+                    <Button
+                      variant="outline"
                 size="sm" 
                 onClick={handleBulkSaveProgress}
                 disabled={!BULK_PROGRESS_ENABLED}
@@ -2394,28 +2394,28 @@ const DataClassification = () => {
               >
                 <SaveAll className="w-4 h-4" />
                 <span>진행률 일괄 저장</span>
-              </Button>
-              
-              <Button 
+                    </Button>
+                  
+                          <Button
                 variant="outline" 
-                size="sm" 
+                            size="sm"
                 onClick={handleRestoreBackup}
                 className="flex items-center space-x-1"
-              >
+                          >
                 <Upload className="w-4 h-4" />
                 <span>백업 복원하기</span>
-              </Button>
+                          </Button>
               
-              <Button 
+                          <Button
                 variant="outline" 
-                size="sm" 
+                            size="sm"
                 onClick={handleBootstrapSync}
                 className="flex items-center space-x-1 border-green-500 text-green-600 hover:bg-green-50"
                 title="로컬 데이터를 서버로 강제 업로드 (최초 1회)"
               >
                 <Upload className="w-4 h-4" />
                 <span>서버 업로드</span>
-              </Button>
+                          </Button>
               
               <Button 
                 variant="outline" 

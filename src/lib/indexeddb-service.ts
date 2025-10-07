@@ -236,21 +236,21 @@ class IndexedDBService {
           const putRequest = store.put(item);
           
           putRequest.onsuccess = () => {
-            completed++;
+              completed++;
             if (completed + errors === total) {
               console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-              resolve();
-            }
-          };
+                resolve();
+              }
+            };
           
           putRequest.onerror = () => {
             console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
             errors++;
             if (completed + errors === total) {
               console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-              resolve();
-            }
-          };
+                  resolve();
+                }
+              };
         });
       };
       
@@ -302,10 +302,10 @@ class IndexedDBService {
     
     return new Promise((resolve, reject) => {
       try {
-        const transaction = this.db!.transaction(['unclassifiedData'], 'readonly');
-        const store = transaction.objectStore('unclassifiedData');
-        const request = store.getAll();
-        
+      const transaction = this.db!.transaction(['unclassifiedData'], 'readonly');
+      const store = transaction.objectStore('unclassifiedData');
+      const request = store.getAll();
+      
         request.onsuccess = () => {
           console.log('✅ IndexedDB에서 미분류 데이터 로드:', request.result.length, '개');
           resolve(request.result);
@@ -349,13 +349,13 @@ class IndexedDBService {
     
     return new Promise((resolve, reject) => {
       try {
-        const dates = new Set<string>();
-        let completedRequests = 0;
-        const totalRequests = 3; // unclassifiedData, classifiedData, dailyProgress
-        
-        const checkCompletion = () => {
-          completedRequests++;
-          if (completedRequests === totalRequests) {
+      const dates = new Set<string>();
+      let completedRequests = 0;
+      const totalRequests = 3; // unclassifiedData, classifiedData, dailyProgress
+      
+      const checkCompletion = () => {
+        completedRequests++;
+        if (completedRequests === totalRequests) {
           // 7일 범위의 날짜 자동 생성 (한국 시간 기준)
           // 한국 시간으로 오늘 날짜 계산
           const now = new Date();

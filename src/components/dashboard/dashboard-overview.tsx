@@ -7,6 +7,7 @@ import { TrendingUp, TrendingDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useEffect, useState } from "react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
 import { categoryColors, subCategories } from "@/lib/subcategories";
 
 // localStorage에서 분류 데이터를 로드 (청크 저장 지원)
