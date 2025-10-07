@@ -1236,7 +1236,15 @@ const DataClassification = () => {
       
       console.log('✅ 진행률 일괄 저장 완료 (IndexedDB + 서버), 백업 데이터 보존하며 로컬 상태 업데이트');
       
-      alert(`✅ 7일간의 분류 진행률과 ${allData.length.toLocaleString()}개의 데이터가 저장되었습니다.\n\n📊 IndexedDB + PostgreSQL 서버에 모두 저장되었습니다.`);
+      // 다른 페이지들에 데이터 업데이트 알림
+      window.dispatchEvent(new CustomEvent('dataUpdated', { 
+        detail: { type: 'bulkSaveProgress', timestamp: Date.now() } 
+      }));
+      window.dispatchEvent(new CustomEvent('dashboardDateChanged', { 
+        detail: { selectedDate: today } 
+      }));
+      
+      alert(`✅ 7일간의 분류 진행률과 ${allData.length.toLocaleString()}개의 데이터가 저장되었습니다.\n\n📊 IndexedDB + PostgreSQL 서버에 모두 저장되었습니다.\n\n🔄 모든 페이지가 자동으로 업데이트됩니다.`);
     } catch (error) {
       console.error('진행률 저장 실패:', error);
       console.error('오류 상세:', error);
