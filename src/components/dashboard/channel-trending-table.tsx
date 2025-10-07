@@ -146,12 +146,6 @@ export function ChannelTrendingTable() {
                 return dateB.getTime() - dateA.getTime();
               })[0];
               
-              // 디버깅용 로그
-              console.log(`채널 ${channel.channelName}의 마지막 영상:`, latestVideo);
-              console.log(`채널 ${channel.channelName}의 모든 영상들:`, channel.videos);
-              console.log(`채널 ${channel.channelName}의 videoId:`, latestVideo?.videoId);
-              console.log(`채널 ${channel.channelName}의 title:`, latestVideo?.title);
-              
               // 실제 썸네일이 있는 영상 찾기
               const thumbnailVideo = channel.videos.find((video: any) => 
                 video.thumbnailUrl && !video.thumbnailUrl.includes('placeholder')
