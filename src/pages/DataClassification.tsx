@@ -263,7 +263,7 @@ const DataClassification = () => {
                 videoTitle: video.title,
                 videoDescription: video.description || "설명 없음",
                 viewCount: video.viewCount || 0,
-                uploadDate: video.uploadDate || new Date().toISOString().split('T')[0],
+                uploadDate: video.uploadDate || getKoreanDateString(),
                 category: "",
                 subCategory: "",
                 status: "unclassified" as const
@@ -1364,7 +1364,7 @@ const DataClassification = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `youtubepulse_full_backup_${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `youtubepulse_full_backup_${getKoreanDateString()}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1788,7 +1788,7 @@ const DataClassification = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `auto-collected-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `auto-collected-${getKoreanDateString()}.json`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);

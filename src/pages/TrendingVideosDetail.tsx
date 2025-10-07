@@ -15,6 +15,8 @@ import {
   Users
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
+import { getKoreanDateString } from "@/lib/utils";
 import { subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -103,8 +105,8 @@ const TrendingVideosDetail = () => {
       console.log(`📊 조회수 급등 동영상 상세 - 전체 분류된 데이터: ${classifiedData.length}개`);
       
       if (classifiedData && classifiedData.length > 0) {
-        // 선택된 날짜 또는 오늘 날짜 기준으로 데이터 필터링
-        const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+        // 선택된 날짜 또는 오늘 날짜 기준으로 데이터 필터링 (한국 시간 기준)
+        const targetDate = selectedDate || getKoreanDateString();
         const filteredData = classifiedData
           .filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
