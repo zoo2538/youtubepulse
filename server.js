@@ -181,8 +181,8 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-// OPTIONS 요청에 대한 명시적 처리 (모든 경로)
-app.options('/*', cors());
+// OPTIONS 요청에 대한 명시적 처리 (모든 경로) - Express 5 호환
+app.options('/*splat', cors());
 
 // JSON 파싱 (크기 제한 증가: 50MB)
 app.use(express.json({ limit: '50mb' }));
