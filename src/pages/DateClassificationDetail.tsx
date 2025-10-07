@@ -334,18 +334,21 @@ const DateClassificationDetail = () => {
       // 하이브리드 저장 (IndexedDB + 서버)
       const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
       
-      // 1. 하이브리드 저장 (서버 우선)
-      console.log('💾 하이브리드 저장 - 미분류 데이터');
+      // 1. IndexedDB 날짜별 업데이트 (다른 날짜 데이터 보존) ✅
+      console.log('💾 IndexedDB 날짜별 업데이트 - 미분류 데이터');
+      await indexedDBService.updateUnclassifiedDataByDate(unclassifiedData, selectedDate);
+      
+      console.log('💾 IndexedDB 날짜별 업데이트 - 분류 데이터');
+      await indexedDBService.updateClassifiedDataByDate(classifiedData, selectedDate);
+      
+      // 2. 서버에 저장 (API 서버)
+      console.log('💾 서버 저장 - 미분류 데이터');
       await hybridService.saveUnclassifiedData(unclassifiedData);
       
-      console.log('💾 하이브리드 저장 - 분류 데이터');
+      console.log('💾 서버 저장 - 분류 데이터');
       if (classifiedData.length > 0) {
         await hybridService.saveClassifiedData(classifiedData);
       }
-      
-      // 2. IndexedDB 날짜별 업데이트 (호환성)
-      await indexedDBService.updateUnclassifiedDataByDate(unclassifiedData, selectedDate);
-      await indexedDBService.updateClassifiedDataByDate(classifiedData, selectedDate);
       
       // 일별 요약 데이터 생성 및 저장 (대시보드용)
       const dailySummary = {
