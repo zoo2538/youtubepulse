@@ -5,6 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Star, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
+import { getKoreanDateString } from "@/lib/utils";
 import { subCategories, categoryColors } from "@/lib/subcategories";
 
 interface PerformanceVideoData {
@@ -190,8 +192,8 @@ export function PerformanceVideosList() {
         }, {}));
         
         if (classifiedData && classifiedData.length > 0) {
-          // 선택된 날짜 또는 오늘 데이터 필터링
-          const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+          // 선택된 날짜 또는 오늘 데이터 필터링 (한국 시간 기준)
+          const targetDate = selectedDate || getKoreanDateString();
           const filteredData = classifiedData.filter((item: any) => 
             (item.collectionDate || item.uploadDate)?.split('T')[0] === targetDate &&
             item.category && item.videoTitle

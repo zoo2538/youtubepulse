@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getKoreanDateString } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { subCategories, categoryColors } from "@/lib/subcategories";
@@ -86,8 +86,8 @@ export function ChannelTrendingTable() {
         }, {}));
         
         if (classifiedData && classifiedData.length > 0) {
-          // 선택된 날짜의 수집일 기준 데이터 필터링
-          const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+          // 선택된 날짜의 수집일 기준 데이터 필터링 (한국 시간 기준)
+          const targetDate = selectedDate || getKoreanDateString();
           const filteredData = classifiedData.filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
             return itemDate && itemDate.split('T')[0] === targetDate;

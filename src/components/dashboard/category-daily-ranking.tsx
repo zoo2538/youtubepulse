@@ -2,7 +2,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, TrendingDown, Crown, Medal, Award } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, getKoreanDateString } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { hybridService } from "@/lib/hybrid-service";
 
@@ -203,8 +203,8 @@ export function CategoryDailyRanking() {
         const classifiedData = await hybridService.getClassifiedData();
         
         if (classifiedData && classifiedData.length > 0) {
-          // 선택된 날짜의 데이터 필터링
-          const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+          // 선택된 날짜의 데이터 필터링 (한국 시간 기준)
+          const targetDate = selectedDate || getKoreanDateString();
           const todayData = classifiedData.filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
             return itemDate && itemDate.split('T')[0] === targetDate && item.category;

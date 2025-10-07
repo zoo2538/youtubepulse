@@ -4,6 +4,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
+import { getKoreanDateString } from "@/lib/utils";
 import { subCategories, categoryColors } from "@/lib/subcategories";
 
 interface VideoData {
@@ -48,8 +50,8 @@ export function TrendingVideosGrid() {
         }, {}));
         
         if (classifiedData && classifiedData.length > 0) {
-          // 오늘 날짜 기준으로만 데이터 필터링하고 조회수 기준 정렬
-          const today = new Date().toISOString().split('T')[0];
+          // 오늘 날짜 기준으로만 데이터 필터링하고 조회수 기준 정렬 (한국 시간 기준)
+          const today = getKoreanDateString();
           const filteredData = classifiedData
             .filter((item: any) => 
               (item.collectionDate || item.uploadDate)?.split('T')[0] === today &&
