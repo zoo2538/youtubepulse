@@ -1215,7 +1215,7 @@ const System = () => {
                           <div className="text-xs text-blue-700 space-y-1 bg-blue-100/50 p-2 rounded">
                             <p>✓ 조회수 높은 순 자동 정렬</p>
                             <p>✓ 중복 시 조회수 높은 것 유지</p>
-                            <p>✓ 예상 수집: <strong>약 2,000~2,500개</strong></p>
+                            <p>✓ 예상 수집: <strong>약 {Math.floor((200 + (EXPANDED_KEYWORDS.length * 50)) * 0.6).toLocaleString()}~{Math.floor((200 + (EXPANDED_KEYWORDS.length * 50)) * 0.7).toLocaleString()}개</strong> (중복 제거 후)</p>
                         </div>
                         </div>
 
@@ -1263,6 +1263,44 @@ const System = () => {
                               <SelectItem value="loose">느슨 (하나라도 한국어 포함)</SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+                      </div>
+                    </Card>
+
+                    {/* 데이터 수집 키워드 목록 */}
+                    <Card className="p-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-2">
+                          <Filter className="w-5 h-5 text-purple-600" />
+                          <h2 className="text-xl font-semibold text-foreground">데이터 수집 키워드</h2>
+                        </div>
+                        <Badge variant="secondary" className="text-sm">
+                          총 {EXPANDED_KEYWORDS.length}개
+                        </Badge>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                          <p className="text-sm text-purple-900 mb-2">
+                            💡 현재 설정된 키워드 목록입니다. 각 키워드당 50개씩 수집됩니다.
+                          </p>
+                          <div className="flex flex-wrap gap-2 mt-3">
+                            {EXPANDED_KEYWORDS.map((keyword, index) => (
+                              <Badge 
+                                key={index} 
+                                variant="outline" 
+                                className="bg-white text-purple-700 border-purple-300"
+                              >
+                                {keyword}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div className="text-xs text-purple-700 bg-purple-100/50 p-2 rounded">
+                          <p>✓ 키워드별 조회수 상위 50개 수집</p>
+                          <p>✓ 전체 키워드 수집량: {EXPANDED_KEYWORDS.length} × 50 = {EXPANDED_KEYWORDS.length * 50}개</p>
+                          <p>✓ 중복 제거 후 최종 수집량: 약 {Math.floor((EXPANDED_KEYWORDS.length * 50) * 0.6).toLocaleString()}~{Math.floor((EXPANDED_KEYWORDS.length * 50) * 0.7).toLocaleString()}개</p>
                         </div>
                       </div>
                     </Card>
