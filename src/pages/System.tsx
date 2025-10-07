@@ -724,7 +724,7 @@ const System = () => {
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
           category: existingClassification?.category || autoClassification.category,
           collectionType: 'manual', // 수동 수집으로 명시
-          collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
+          collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
           subCategory: existingClassification?.subCategory || autoClassification.subCategory,
           status: existingClassification ? "classified" as const : 

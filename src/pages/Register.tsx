@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff, ArrowLeft, CheckCircle } from "lucide-react";
+import { getKoreanDateString } from "@/lib/utils";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -55,7 +56,7 @@ const Register = () => {
         password: formData.password,
         status: 'pending',
         role: 'user',
-        joinDate: new Date().toISOString().split('T')[0],
+        joinDate: getKoreanDateString(),
         lastLogin: ''
       };
 

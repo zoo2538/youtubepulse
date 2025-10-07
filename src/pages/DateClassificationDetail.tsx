@@ -31,6 +31,7 @@ import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { dedupeByDate, dedupeByVideoDay, type VideoItem } from "@/lib/dedupe-utils";
 import { subCategories } from "@/lib/subcategories";
+import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 interface UnclassifiedData {
@@ -412,7 +413,7 @@ const DateClassificationDetail = () => {
         date: selectedDate,
         dataCount: unclassifiedData.length,
         classifiedCount: classifiedData.length,
-        timestamp: new Date().toISOString()
+        timestamp: getKoreanDateTimeString()
       };
       
       // 여러 이벤트로 다른 페이지들에 알림 (백업 데이터 보존)
@@ -478,8 +479,8 @@ const DateClassificationDetail = () => {
       
       // 하이브리드 백업 형식으로 구성 (DataClassification과 동일)
       const backupData = {
-        // 메타데이터
-        exportDate: new Date().toISOString(),
+        // 메타데이터 (한국 시간)
+        exportDate: getKoreanDateTimeString(),
         version: '2.0', // 하이브리드 버전
         backupType: 'hybrid',
         

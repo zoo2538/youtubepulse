@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getKoreanDateString } from "@/lib/utils";
 import { 
   Select,
   SelectContent,
@@ -99,10 +100,14 @@ const UserManagement = () => {
       password: "test123",
       role: "user",
       status: "active",
-      joinDate: new Date().toISOString().split('T')[0],
+      joinDate: getKoreanDateString(),
       lastLogin: "",
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 30일 후
+      startDate: getKoreanDateString(),
+      endDate: (() => {
+        const date = new Date();
+        date.setDate(date.getDate() + 30);
+        return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+      })() // 30일 후 (한국 시간)
     } : null;
     
     const allUsers = [defaultAdmin, ...storedUsers, ...(testPendingUser ? [testPendingUser] : [])];
@@ -115,9 +120,9 @@ const UserManagement = () => {
     setUsers(allUsers);
     setFilteredUsers(allUsers);
 
-    // 페이지 로드 시 만료된 사용자 체크 (관리자 제외)
+    // 페이지 로드 시 만료된 사용자 체크 (관리자 제외, 한국 시간 기준)
     setTimeout(() => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getKoreanDateString();
       const updatedUsers = allUsers.map(user => {
         // 관리자는 만료 체크에서 제외
         if (user.role === 'admin') return user;
@@ -254,9 +259,9 @@ const UserManagement = () => {
     localStorage.setItem('users', JSON.stringify(storedUsers));
   };
 
-  // 사용기간 만료 체크
+  // 사용기간 만료 체크 (한국 시간 기준)
   const checkExpiredUsers = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getKoreanDateString();
     
     setUsers(currentUsers => {
       const updatedUsers = currentUsers.map(user => {
