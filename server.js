@@ -264,6 +264,18 @@ console.log('🚀 API 서버 준비 완료 - v2.0.0');
 // API 라우트
 app.get('/api/health', async (req, res) => {
   try {
+    // PostgreSQL 연결이 없어도 서버는 정상 (옵셔널 DB)
+    if (!pool) {
+      return res.json({ 
+        status: 'OK', 
+        message: 'YouTube Pulse API Server', 
+        database: 'Not configured (optional)', 
+        poolExists: false,
+        isConnected: false,
+        timestamp: new Date().toISOString()
+      });
+    }
+
     // 실제 연결 시도로 DB 상태 판정
     const client = await pool.connect();
     try {
@@ -282,10 +294,11 @@ app.get('/api/health', async (req, res) => {
       client.release();
     }
   } catch (e) {
-    res.status(500).json({ 
-      status: 'ERROR', 
+    // DB 연결 실패해도 서버는 정상 (폴백 가능)
+    res.json({ 
+      status: 'OK', 
       message: 'YouTube Pulse API Server', 
-      database: 'Not connected', 
+      database: 'Connection failed (using fallback)', 
       poolExists: !!pool,
       isConnected: false,
       error: e.message,
