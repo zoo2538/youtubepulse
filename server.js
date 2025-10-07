@@ -575,13 +575,16 @@ app.get('/api/classified', async (req, res) => {
     const result = await client.query(`
       SELECT data FROM classification_data 
       WHERE data_type = 'classified' 
-      ORDER BY created_at DESC 
-      LIMIT 1
+      ORDER BY created_at DESC
     `);
     
     client.release();
-    const data = result.rows.length > 0 ? result.rows[0].data : [];
-    res.json({ success: true, data });
+    
+    // 모든 행의 data를 합쳐서 반환
+    const allData = result.rows.flatMap(row => row.data || []);
+    console.log(`📊 분류 데이터 조회: ${allData.length}개 (${result.rows.length}개 행)`);
+    
+    res.json({ success: true, data: allData });
   } catch (error) {
     console.error('분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get classified data' });
