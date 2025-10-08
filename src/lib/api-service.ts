@@ -38,7 +38,24 @@ class ApiService {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // 서버 에러 상세 정보 수집
+        let errorDetails = '';
+        try {
+          const errorData = await response.json();
+          errorDetails = JSON.stringify(errorData, null, 2);
+        } catch {
+          errorDetails = `Status: ${response.status}, StatusText: ${response.statusText}`;
+        }
+        
+        console.error('🚨 서버 에러 상세:', {
+          status: response.status,
+          statusText: response.statusText,
+          url: url,
+          details: errorDetails,
+          headers: Object.fromEntries(response.headers.entries())
+        });
+        
+        throw new Error(`HTTP error! status: ${response.status} - ${errorDetails}`);
       }
 
       const data = await response.json();
@@ -49,7 +66,7 @@ class ApiService {
       if (error instanceof Error && error.name === 'AbortError') {
         return { 
           success: false, 
-          error: 'Request timeout (30s)' 
+          error: 'Request timeout (60s)' 
         };
       }
       

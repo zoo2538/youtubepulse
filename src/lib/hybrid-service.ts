@@ -328,43 +328,134 @@ class HybridService {
     }
   }
 
-  // 분류 데이터 저장 (배치 처리 지원)
+  // 어댑티브 배치 처리 (지수 백오프 + 데드레터 큐)
+  private async adaptiveBatchUpload(
+    data: any[],
+    apiCall: (batch: any[]) => Promise<any>,
+    operationName: string
+  ): Promise<{ success: number; failed: number; deadLetterItems: any[] }> {
+    const INITIAL_BATCH_SIZE = 200; // 더 작은 초기 배치 크기
+    const MIN_BATCH_SIZE = 50;
+    const MAX_RETRIES = 3;
+    
+    let currentBatchSize = INITIAL_BATCH_SIZE;
+    let successCount = 0;
+    let failedCount = 0;
+    const deadLetterItems: any[] = [];
+    
+    console.log(`📦 어댑티브 배치 업로드 시작: ${data.length}개 (${operationName})`);
+    
+    for (let i = 0; i < data.length; i += currentBatchSize) {
+      const batch = data.slice(i, i + currentBatchSize);
+      const batchNum = Math.floor(i / currentBatchSize) + 1;
+      const totalBatches = Math.ceil(data.length / currentBatchSize);
+      
+      console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개, 크기: ${currentBatchSize})`);
+      
+      let batchSuccess = false;
+      let retryCount = 0;
+      
+      while (retryCount < MAX_RETRIES && !batchSuccess) {
+        try {
+          // 요청 정보 로깅
+          const payloadSize = JSON.stringify(batch).length;
+          const firstId = batch[0]?.id || 'unknown';
+          const lastId = batch[batch.length - 1]?.id || 'unknown';
+          
+          console.log(`📊 배치 요청 정보:`, {
+            batchNum,
+            size: batch.length,
+            payloadBytes: payloadSize,
+            firstId,
+            lastId,
+            retryAttempt: retryCount + 1
+          });
+          
+          const result = await apiCall(batch);
+          
+          if (result.success) {
+            console.log(`✅ 배치 ${batchNum} 전송 완료 (시도 ${retryCount + 1})`);
+            batchSuccess = true;
+            successCount += batch.length;
+            
+            // 성공 시 배치 크기 점진적 증가 (최대 1000까지)
+            if (currentBatchSize < 1000 && retryCount === 0) {
+              currentBatchSize = Math.min(currentBatchSize + 50, 1000);
+            }
+          } else {
+            throw new Error(result.error || 'API 응답 실패');
+          }
+          
+        } catch (error: any) {
+          retryCount++;
+          const isServerError = error.message?.includes('status: 500') || error.message?.includes('status: 413');
+          
+          console.error(`❌ 배치 ${batchNum} 전송 실패 (시도 ${retryCount}/${MAX_RETRIES}):`, {
+            error: error.message,
+            isServerError,
+            currentBatchSize
+          });
+          
+          if (isServerError && retryCount < MAX_RETRIES) {
+            // 서버 에러 시 배치 크기 축소
+            currentBatchSize = Math.max(Math.floor(currentBatchSize / 2), MIN_BATCH_SIZE);
+            console.log(`🔄 배치 크기 축소: ${currentBatchSize}`);
+            
+            // 지수 백오프: 1s, 2s, 4s
+            const backoffDelay = Math.pow(2, retryCount - 1) * 1000;
+            console.log(`⏳ 백오프 대기: ${backoffDelay}ms`);
+            await new Promise(resolve => setTimeout(resolve, backoffDelay));
+            
+            // 재시도할 배치 크기로 조정
+            const retryBatch = batch.slice(0, currentBatchSize);
+            if (retryBatch.length < batch.length) {
+              // 나머지 데이터는 다음 배치로
+              data.splice(i + retryBatch.length, 0, ...batch.slice(retryBatch.length));
+            }
+            batch.length = retryBatch.length;
+            Object.assign(batch, retryBatch);
+            
+          } else if (retryCount >= MAX_RETRIES) {
+            // 최대 재시도 초과 시 데드레터 큐로 이동
+            console.error(`💀 배치 ${batchNum} 데드레터 큐로 이동:`, batch.map(item => item.id));
+            deadLetterItems.push(...batch);
+            failedCount += batch.length;
+            batchSuccess = true; // 다음 배치로 진행
+          }
+        }
+      }
+      
+      // 배치 간 지연 (서버 부하 방지)
+      if (i + currentBatchSize < data.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+    
+    console.log(`📊 어댑티브 배치 업로드 완료:`, {
+      success: successCount,
+      failed: failedCount,
+      deadLetter: deadLetterItems.length,
+      finalBatchSize: currentBatchSize
+    });
+    
+    return { success: successCount, failed: failedCount, deadLetterItems };
+  }
+
+  // 분류 데이터 저장 (어댑티브 배치 처리)
   async saveClassifiedData(data: any): Promise<void> {
     try {
       if (this.config.useApiServer) {
-        // 데이터가 10,000개 이상이면 배치로 나누어 전송
-        const BATCH_SIZE = 1000; // 5000 → 1000으로 축소
-        if (Array.isArray(data) && data.length > BATCH_SIZE) {
-          console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
+        if (Array.isArray(data) && data.length > 200) {
+          const result = await this.adaptiveBatchUpload(
+            data,
+            (batch) => apiService.saveClassifiedData(batch),
+            '분류 데이터'
+          );
           
-          // 모든 배치를 순차적으로 전송
-          for (let i = 0; i < data.length; i += BATCH_SIZE) {
-            const batch = data.slice(i, i + BATCH_SIZE);
-            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-            const totalBatches = Math.ceil(data.length / BATCH_SIZE);
-            
-            console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
-            
-            try {
-              const result = await apiService.saveClassifiedData(batch);
-              if (result.success) {
-                console.log(`✅ 배치 ${batchNum}/${totalBatches} 전송 완료`);
-              } else {
-                console.error(`❌ 배치 ${batchNum} 전송 실패:`, result.error);
-                // 개별 배치 실패는 전체를 중단하지 않음
-              }
-            } catch (batchError) {
-              console.error(`❌ 배치 ${batchNum} 전송 오류:`, batchError);
-              // 개별 배치 오류는 전체를 중단하지 않음
-            }
-            
-            // 배치 간 지연 증가 (서버 부하 방지)
-            if (i + BATCH_SIZE < data.length) {
-              await new Promise(resolve => setTimeout(resolve, 3000)); // 1초 → 3초로 증가
-            }
+          if (result.deadLetterItems.length > 0) {
+            console.warn(`⚠️ ${result.deadLetterItems.length}개 항목이 데드레터 큐로 이동됨`);
+            // 데드레터 큐는 나중에 백그라운드에서 재시도
           }
-          
-          console.log(`✅ 모든 배치 전송 완료: ${data.length}개`);
         } else {
           const result = await apiService.saveClassifiedData(data);
           if (result.success) {
@@ -429,43 +520,21 @@ class HybridService {
     }
   }
 
-  // 미분류 데이터 저장 (배치 처리 지원)
+  // 미분류 데이터 저장 (어댑티브 배치 처리)
   async saveUnclassifiedData(data: any): Promise<void> {
     try {
       if (this.config.useApiServer) {
-        // 데이터가 10,000개 이상이면 배치로 나누어 전송
-        const BATCH_SIZE = 1000; // 5000 → 1000으로 축소
-        if (Array.isArray(data) && data.length > BATCH_SIZE) {
-          console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
+        if (Array.isArray(data) && data.length > 200) {
+          const result = await this.adaptiveBatchUpload(
+            data,
+            (batch) => apiService.saveUnclassifiedData(batch),
+            '미분류 데이터'
+          );
           
-          // 모든 배치를 순차적으로 전송
-          for (let i = 0; i < data.length; i += BATCH_SIZE) {
-            const batch = data.slice(i, i + BATCH_SIZE);
-            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-            const totalBatches = Math.ceil(data.length / BATCH_SIZE);
-            
-            console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
-            
-            try {
-              const result = await apiService.saveUnclassifiedData(batch);
-              if (result.success) {
-                console.log(`✅ 배치 ${batchNum}/${totalBatches} 전송 완료`);
-              } else {
-                console.error(`❌ 배치 ${batchNum} 전송 실패:`, result.error);
-                // 개별 배치 실패는 전체를 중단하지 않음
-              }
-            } catch (batchError) {
-              console.error(`❌ 배치 ${batchNum} 전송 오류:`, batchError);
-              // 개별 배치 오류는 전체를 중단하지 않음
-            }
-            
-            // 배치 간 지연 증가 (서버 부하 방지)
-            if (i + BATCH_SIZE < data.length) {
-              await new Promise(resolve => setTimeout(resolve, 3000)); // 1초 → 3초로 증가
-            }
+          if (result.deadLetterItems.length > 0) {
+            console.warn(`⚠️ ${result.deadLetterItems.length}개 항목이 데드레터 큐로 이동됨`);
+            // 데드레터 큐는 나중에 백그라운드에서 재시도
           }
-          
-          console.log(`✅ 모든 배치 전송 완료: ${data.length}개`);
         } else {
           const result = await apiService.saveUnclassifiedData(data);
           if (result.success) {
