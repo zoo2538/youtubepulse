@@ -184,9 +184,9 @@ app.use(cors({
 // OPTIONS 요청에 대한 명시적 처리 (모든 경로) - Express 5 호환
 app.options('/*splat', cors());
 
-// JSON 파싱 (크기 제한 증가: 50MB)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// JSON 파싱 (크기 제한 증가: 100MB)
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // PostgreSQL 테이블 생성
 async function createTables() {
@@ -372,6 +372,15 @@ app.get('/api/health-sql', async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
+});
+
+// Railway 헬스 체크 엔드포인트
+app.get('/api/health', async (req, res) => {
+  res.status(200).json({
+    status: 'UP',
+    service: 'YouTube Pulse API',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // 헬스 체크 - DB 상태 및 Pool 정보
@@ -926,7 +935,7 @@ app.patch('/api/videos/:id', async (req, res) => {
     
     // 데이터 업데이트
     const currentData = currentResult.rows[0].data;
-    const updatedData = currentData.map((item: any) => {
+    const updatedData = currentData.map((item) => {
       if (item.id === id) {
         return {
           ...item,
@@ -948,7 +957,7 @@ app.patch('/api/videos/:id', async (req, res) => {
     
     client.release();
     
-    const updatedItem = updatedData.find((item: any) => item.id === id);
+    const updatedItem = updatedData.find((item) => item.id === id);
     
     console.log(`✅ 비디오 수정 완료: ${id}`, {
       updated_at: updatedItem?.updatedAt,
@@ -999,7 +1008,7 @@ app.delete('/api/videos/:id', async (req, res) => {
     
     // 데이터에서 해당 항목 제거
     const currentData = currentResult.rows[0].data;
-    const filteredData = currentData.filter((item: any) => item.id !== id);
+    const filteredData = currentData.filter((item) => item.id !== id);
     
     if (filteredData.length === currentData.length) {
       client.release();
@@ -1066,7 +1075,7 @@ app.delete('/api/videos/batch', async (req, res) => {
       
       if (currentResult.rows.length > 0) {
         const currentData = currentResult.rows[0].data;
-        const filteredData = currentData.filter((item: any) => !ids.includes(item.id));
+        const filteredData = currentData.filter((item) => !ids.includes(item.id));
         const deletedCount = currentData.length - filteredData.length;
         
         if (deletedCount > 0) {
