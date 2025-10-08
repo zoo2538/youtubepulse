@@ -97,31 +97,60 @@ const DateClassificationDetail = () => {
         setIsLoading(true);
         console.log('📅 날짜별 데이터 로드 시작:', selectedDate);
         
-        // 1. IndexedDB를 우선으로 로드 (백업 복원 데이터 포함)
+        // 1. 서버 우선 하이브리드 로드 (서버 권위성 보장)
         let allData = [];
+        let dataSource = '';
+        
         try {
-          console.log('📊 IndexedDB에서 데이터 로드 시도...');
-          allData = await indexedDBService.loadUnclassifiedData();
-          console.log('✅ IndexedDB에서 데이터 로드:', allData.length, '개');
-          
-          // IndexedDB에 데이터가 없으면 API 서버에서 시도
-          if (allData.length === 0) {
-            console.log('📊 IndexedDB에 데이터 없음, API 서버에서 시도...');
-            try {
-              const response = await fetch(`https://api.youthbepulse.com/api/unclassified?date=${selectedDate}`);
-              if (response.ok) {
-                const serverData = await response.json();
-                allData = serverData.data || [];
-                console.log('✅ API 서버에서 데이터 로드:', allData.length, '개');
+          // 자동수집 데이터인 경우 별도 API 사용
+          if (collectionType === 'auto') {
+            console.log('📊 자동수집 데이터 - 전용 API 사용...');
+            const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+            if (response.ok) {
+              const serverData = await response.json();
+              if (serverData.success && serverData.data && serverData.data.length > 0) {
+                // 선택된 날짜의 자동수집 데이터만 필터링
+                allData = serverData.data.filter(item => {
+                  const itemDate = item.collectionDate || item.dayKeyLocal || item.uploadDate;
+                  const dateStr = itemDate ? itemDate.split('T')[0] : '';
+                  return dateStr === selectedDate;
+                });
+                dataSource = 'server-auto';
+                console.log(`✅ 서버에서 자동수집 데이터 로드 (${selectedDate}):`, allData.length, '개');
               }
-            } catch (apiError) {
-              console.log('⚠️ API 서버도 실패:', apiError);
+            }
+          } else {
+            // 일반 데이터 (수동수집/전체)
+            console.log('📊 일반 데이터 - unclassified API 사용...');
+            const response = await fetch(`https://api.youthbepulse.com/api/unclassified?date=${selectedDate}`);
+            if (response.ok) {
+              const serverData = await response.json();
+              if (serverData.success && serverData.data && serverData.data.length > 0) {
+                allData = serverData.data;
+                dataSource = 'server';
+                console.log('✅ 서버에서 일반 데이터 로드:', allData.length, '개');
+              }
             }
           }
-        } catch (dbError) {
-          console.error('❌ IndexedDB 로드 실패:', dbError);
-          allData = [];
+        } catch (serverError) {
+          console.log('⚠️ 서버 로드 실패:', serverError);
         }
+        
+        // 서버에 데이터가 없으면 IndexedDB에서 시도 (백업 복원 데이터 포함)
+        if (allData.length === 0) {
+          try {
+            console.log('📊 서버에 데이터 없음, IndexedDB에서 시도...');
+            allData = await indexedDBService.loadUnclassifiedData();
+            dataSource = 'indexeddb';
+            console.log('✅ IndexedDB에서 데이터 로드:', allData.length, '개');
+          } catch (dbError) {
+            console.error('❌ IndexedDB 로드 실패:', dbError);
+            allData = [];
+            dataSource = 'none';
+          }
+        }
+        
+        console.log(`📊 데이터 소스: ${dataSource}, 로드된 데이터: ${allData.length}개`);
         
         // 선택된 날짜의 데이터만 필터링 (다양한 날짜 필드 확인)
         const filteredData = allData.filter(item => {
@@ -192,8 +221,14 @@ const DateClassificationDetail = () => {
             // 수동수집 데이터만 (collectionType이 없거나 'manual' 또는 undefined)
             typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual' || item.collectionType === undefined);
           } else if (collectionType === 'auto') {
-            // 자동수집 데이터만 (명시적으로 'auto'로 설정된 것만)
-            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
+            // 자동수집 데이터만 (서버 데이터는 collectionType이 undefined)
+            if (dataSource === 'server-auto') {
+              // 서버 자동수집 데이터는 이미 필터링됨
+              typeFilteredData = filteredData;
+            } else {
+              // 로컬 데이터에서는 명시적으로 'auto'로 설정된 것만
+              typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
+            }
           }
           // 'total'인 경우 모든 데이터 (필터링 없음)
           console.log('📊 수집 타입 필터링 후:', typeFilteredData.length, '개');
@@ -1381,3 +1416,4 @@ const TableCell = ({ className, children, ...props }: any) => (
 );
 
 export default DateClassificationDetail;
+
