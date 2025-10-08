@@ -309,43 +309,43 @@ export function CategoryDailyRanking() {
                 rankingData.map((item) => (
                   <TableRow key={item.rank} className="hover:bg-surface-hover transition-colors">
                     <TableCell>
-                    <div className="flex items-center justify-center">
-                      {getRankIcon(item.rank)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant={getRankBadgeVariant(item.rank)}
-                      className="font-medium"
-                    >
-                      {item.category}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatNumber(item.todayViews)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatNumber(item.yesterdayViews)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {item.changeAmount > 0 ? '+' : ''}{formatNumber(item.changeAmount)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className={cn(
-                      "flex items-center justify-end space-x-1",
-                      item.changePercent > 0 ? "text-success" : "text-danger"
-                    )}>
-                      {item.changePercent > 0 ? (
-                        <TrendingUp className="w-4 h-4" />
-                      ) : (
-                        <TrendingDown className="w-4 h-4" />
-                      )}
-                      <span className="font-medium">
-                        {item.changePercent > 0 ? '+' : ''}{Math.floor(item.changePercent)}%
-                      </span>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                      <div className="flex items-center justify-center">
+                        {getRankIcon(item.rank)}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={getRankBadgeVariant(item.rank)}
+                        className="font-medium"
+                      >
+                        {item.category}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {formatNumber(item.todayViews)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {formatNumber(item.yesterdayViews)}
+                    </TableCell>
+                    <TableCell className="text-right text-muted-foreground">
+                      {item.changeAmount > 0 ? '+' : ''}{formatNumber(item.changeAmount)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className={cn(
+                        "flex items-center justify-end space-x-1",
+                        item.changePercent > 0 ? "text-success" : "text-danger"
+                      )}>
+                        {item.changePercent > 0 ? (
+                          <TrendingUp className="w-4 h-4" />
+                        ) : (
+                          <TrendingDown className="w-4 h-4" />
+                        )}
+                        <span className="font-medium">
+                          {item.changePercent > 0 ? '+' : ''}{Math.floor(item.changePercent)}%
+                        </span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
               ))}
             </TableBody>
           </Table>
