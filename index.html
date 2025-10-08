@@ -1,1 +1,114 @@
-<h1>YouthBePulse API</h1>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- SPA 라우팅 복원 스크립트 (1회만 실행) -->
+    <script>
+      (function() {
+        // 이미 복원이 실행되었는지 확인
+        if (sessionStorage.getItem('spa-restored')) {
+          return;
+        }
+        
+        // ?p= 파라미터 감지 및 복원
+        const urlParams = new URLSearchParams(location.search);
+        const pathToRestore = urlParams.get('p');
+        
+        if (pathToRestore) {
+          console.log('🔄 SPA 라우팅 복원:', pathToRestore);
+          
+          // history.replaceState로 원경로 복원 (페이지 새로고침 없음)
+          history.replaceState(null, null, pathToRestore);
+          
+          // 복원 완료 플래그 설정 (중복 실행 방지)
+          sessionStorage.setItem('spa-restored', 'true');
+          
+          console.log('✅ SPA 라우팅 복원 완료');
+        }
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YouTube Pulse Dashboard - 유튜브 통계 분석</title>
+    <meta name="description" content="실시간 유튜브 조회수 급등 채널과 영상 분석 대시보드. 트렌딩 비디오, 채널 순위, 카테고리별 분석을 제공합니다." />
+    <meta name="keywords" content="유튜브, 통계, 분석, 트렌딩, 조회수, 채널, 랭킹, 대시보드" />
+    <meta name="author" content="YouTube Pulse" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://youthbepulse.com" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://youthbepulse.com" />
+    <meta property="og:title" content="YouTube Pulse Dashboard - 유튜브 통계 분석" />
+    <meta property="og:description" content="실시간 유튜브 조회수 급등 채널과 영상 분석 대시보드" />
+    <meta property="og:image" content="https://youthbepulse.com/og-image.png" />
+    <meta property="og:site_name" content="YouTube Pulse" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://youthbepulse.com" />
+    <meta property="twitter:title" content="YouTube Pulse Dashboard - 유튜브 통계 분석" />
+    <meta property="twitter:description" content="실시간 유튜브 조회수 급등 채널과 영상 분석 대시보드" />
+    <meta property="twitter:image" content="https://youthbepulse.com/og-image.png" />
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#1f2937" />
+    <meta name="msapplication-TileColor" content="#1f2937" />
+    
+    <!-- PWA Icons -->
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+    
+    <!-- PWA Display -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="YouTube Pulse" />
+    <script type="module" crossorigin src="/assets/index.jj-xnUOr.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor.BJmwU9vg.js">
+    <link rel="modulepreload" crossorigin href="/assets/utils.DGiCKZQ1.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui.CnROHb0x.js">
+    <link rel="modulepreload" crossorigin href="/assets/services.DAYWq4f4.js">
+    <link rel="modulepreload" crossorigin href="/assets/auto-classification.4ssXwZd2.js">
+    <link rel="modulepreload" crossorigin href="/assets/scheduler.BYEiQVCj.js">
+    <link rel="stylesheet" crossorigin href="/assets/index.DtMDBJac.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script>
+      console.log('🚀 index.html 로드됨');
+      console.log('📍 현재 URL:', location.href);
+      
+      // GitHub Pages SPA 라우팅을 위한 리다이렉트 처리
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+      
+      // 404.html에서 리다이렉트된 URL 처리
+      if (sessionStorage.redirect) {
+        var redirectUrl = sessionStorage.redirect;
+        console.log('🔄 404.html에서 리다이렉트된 URL:', redirectUrl);
+        sessionStorage.removeItem('redirect');
+        
+        // 무한 루프 방지: 같은 URL이면 리다이렉트하지 않음
+        if (redirectUrl !== location.href) {
+          console.log('🔄 다른 URL로 리다이렉트:', redirectUrl);
+          window.location.replace(redirectUrl);
+        } else {
+          console.log('⚠️ 같은 URL - 리다이렉트 건너뜀');
+        }
+      } else {
+        console.log('✅ 정상적인 index.html 로드');
+      }
+    </script>
+  </body>
+</html>

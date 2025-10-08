@@ -1,0 +1,19 @@
+# GitHub Pages SPA 리다이렉트 설정
+# 모든 경로를 index.html로 리다이렉트 (SPA 라우팅 지원)
+
+# API 요청은 제외
+/api/* 200
+
+# 정적 자산은 원본 서빙
+/assets/* 200
+/*.js 200
+/*.css 200
+/*.png 200
+/*.jpg 200
+/*.ico 200
+/*.svg 200
+/*.woff 200
+/*.woff2 200
+
+# 나머지 모든 경로는 index.html로 리다이렉트
+/*    /index.html   200
