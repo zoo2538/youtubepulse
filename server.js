@@ -1152,19 +1152,21 @@ async function autoCollectData() {
   console.log('🤖 자동 데이터 수집 시작');
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  
+  try {
 
     const apiKey = process.env.VITE_YOUTUBE_API_KEY;
     if (!apiKey) {
-    console.error('❌ YouTube API Key가 설정되지 않았습니다.');
-    return;
-  }
+      console.error('❌ YouTube API Key가 설정되지 않았습니다.');
+      return false;
+    }
+    console.log('✅ YouTube API Key 확인됨');
 
-  if (!pool) {
-    console.error('❌ PostgreSQL 연결이 없습니다.');
-    return;
-  }
-
-  try {
+    if (!pool) {
+      console.error('❌ PostgreSQL 연결이 없습니다.');
+      return false;
+    }
+    console.log('✅ PostgreSQL 연결 확인됨');
     let requestCount = 0;
     const keywords = [
       '브이로그', '리뷰', '언박싱', '튜토리얼', '케이팝', '인터뷰', '예능',
@@ -1361,10 +1363,12 @@ async function autoCollectData() {
     });
 
     // PostgreSQL에 저장
+    console.log(`💾 PostgreSQL 저장 시작: ${newData.length}개 데이터`);
     await client.query(`
       INSERT INTO classification_data (data_type, data)
       VALUES ($1, $2)
     `, ['auto_collected', JSON.stringify(newData)]);
+    console.log('✅ PostgreSQL 저장 완료');
     
     client.release();
 
