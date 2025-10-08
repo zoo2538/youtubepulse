@@ -374,6 +374,15 @@ app.get('/api/health-sql', async (req, res) => {
   }
 });
 
+// Railway 헬스 체크 엔드포인트
+app.get('/api/health', async (req, res) => {
+  res.status(200).json({
+    status: 'UP',
+    service: 'YouTube Pulse API',
+    timestamp: new Date().toISOString()
+  });
+});
+
 // 헬스 체크 - DB 상태 및 Pool 정보
 app.get('/health/db', async (req, res) => {
   try {
