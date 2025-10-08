@@ -374,7 +374,7 @@ class HybridService {
       }
 
       if (this.config.fallbackToLocal) {
-        const localData = await indexedDBService.getClassifiedData();
+        const localData = await indexedDBService.loadClassifiedData();
         console.log('⚠️ 로컬 IndexedDB에서 분류 데이터 조회 (서버 연결 실패)');
         return localData;
       }
@@ -384,7 +384,7 @@ class HybridService {
       console.error('❌ 분류 데이터 조회 실패:', error);
       
       if (this.config.fallbackToLocal) {
-        const localData = await indexedDBService.getClassifiedData();
+        const localData = await indexedDBService.loadClassifiedData();
         console.log('⚠️ 오류 발생, 로컬 IndexedDB 폴백');
         return localData;
       }
