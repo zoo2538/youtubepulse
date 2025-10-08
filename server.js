@@ -1187,16 +1187,30 @@ async function autoCollectData() {
     
     for (let page = 0; page < 4; page++) {
       const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
+      console.log(`📺 페이지 ${page + 1} 요청: ${trendingUrl.substring(0, 100)}...`);
+      
       const response = await fetch(trendingUrl);
+      console.log(`📺 페이지 ${page + 1} 응답 상태: ${response.status}`);
       
       if (response.ok) {
-    const data = await response.json();
+        const data = await response.json();
+        console.log(`📺 페이지 ${page + 1} 응답 데이터: items=${data.items?.length || 0}, nextPageToken=${data.nextPageToken ? '있음' : '없음'}`);
+        
+        if (data.error) {
+          console.error(`❌ YouTube API 오류:`, data.error);
+          throw new Error(`YouTube API 오류: ${data.error.message}`);
+        }
+        
         requestCount++;
         if (data.items) {
           trendingVideos = [...trendingVideos, ...data.items];
           nextPageToken = data.nextPageToken;
           if (!nextPageToken) break;
         }
+      } else {
+        const errorText = await response.text();
+        console.error(`❌ YouTube API 요청 실패: ${response.status} - ${errorText}`);
+        throw new Error(`YouTube API 요청 실패: ${response.status}`);
       }
       
       if (page < 4) await new Promise(resolve => setTimeout(resolve, 500));
@@ -1216,11 +1230,19 @@ async function autoCollectData() {
     let keywordVideos = [];
     
     for (const keyword of keywords) {
+      console.log(`🔍 키워드 검색: "${keyword}"`);
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
       const searchResponse = await fetch(searchUrl);
       
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
+        console.log(`🔍 키워드 "${keyword}" 검색 결과: ${searchData.items?.length || 0}개`);
+        
+        if (searchData.error) {
+          console.error(`❌ 키워드 검색 오류:`, searchData.error);
+          continue; // 다음 키워드로 계속
+        }
+        
         requestCount++;
         
         if (searchData.items && searchData.items.length > 0) {
@@ -1230,12 +1252,25 @@ async function autoCollectData() {
           
           if (videosResponse.ok) {
             const videosData = await videosResponse.json();
+            console.log(`🔍 키워드 "${keyword}" 비디오 상세: ${videosData.items?.length || 0}개`);
+            
+            if (videosData.error) {
+              console.error(`❌ 비디오 상세 오류:`, videosData.error);
+              continue; // 다음 키워드로 계속
+            }
+            
             requestCount++;
             if (videosData.items) {
               keywordVideos = [...keywordVideos, ...videosData.items];
             }
+          } else {
+            const errorText = await videosResponse.text();
+            console.error(`❌ 비디오 상세 요청 실패: ${videosResponse.status} - ${errorText}`);
           }
         }
+      } else {
+        const errorText = await searchResponse.text();
+        console.error(`❌ 키워드 검색 요청 실패: ${searchResponse.status} - ${errorText}`);
       }
       
       await new Promise(resolve => setTimeout(resolve, 500));
