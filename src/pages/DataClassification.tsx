@@ -1066,16 +1066,83 @@ const DataClassification = () => {
           }
         });
         
-        // 하이브리드 저장 (IndexedDB + 서버)
+        // 하이브리드 저장 (IndexedDB는 전체, 서버는 오늘만)
         try {
-          await hybridService.saveUnclassifiedData(mergedData);
-          console.log('✅ 하이브리드: 전체 데이터 병합 저장 완료 (IndexedDB + 서버)');
+          // 1. IndexedDB에는 전체 데이터 저장
+          await indexedDBService.saveUnclassifiedData(mergedData);
+          console.log('✅ IndexedDB: 전체 데이터 저장 완료 (로컬 캐시)');
           
-          // 분류된 데이터도 별도로 서버 저장
+          // 2. 서버에는 오늘 날짜 데이터만 500개씩 배치 저장
+          const todayData = mergedData.filter(item => {
+            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            return itemDate === today;
+          });
+          
+          console.log(`📊 오늘(${today}) 데이터만 서버 저장: ${todayData.length}개 / 전체 ${mergedData.length}개`);
+          
+          if (todayData.length > 0) {
+            const BATCH_SIZE = 500;
+            const totalBatches = Math.ceil(todayData.length / BATCH_SIZE);
+            
+            console.log(`📦 오늘 데이터 배치 업로드 시작: ${todayData.length}개 → ${totalBatches}개 배치 (500개씩)`);
+            
+            for (let i = 0; i < todayData.length; i += BATCH_SIZE) {
+              const batch = todayData.slice(i, i + BATCH_SIZE);
+              const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+              
+              console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
+              
+              try {
+                await apiService.saveUnclassifiedData(batch);
+                console.log(`✅ 배치 ${batchNum}/${totalBatches} 전송 완료`);
+              } catch (batchError) {
+                console.error(`❌ 배치 ${batchNum} 전송 실패:`, batchError);
+                // 개별 배치 실패해도 계속 진행
+              }
+              
+              // 배치 간 1초 지연 (서버 부하 방지)
+              if (i + BATCH_SIZE < todayData.length) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+            
+            console.log(`✅ 서버: 오늘(${today}) 데이터 저장 완료 (${totalBatches}개 배치)`);
+          }
+          
+          // 3. 분류된 데이터 중 오늘 데이터만 500개씩 배치 저장
           const classifiedItems = mergedData.filter(item => item.status === 'classified');
-          if (classifiedItems.length > 0) {
-            await hybridService.saveClassifiedData(classifiedItems);
-            console.log(`✅ 하이브리드: ${classifiedItems.length}개의 분류 데이터 저장 완료`);
+          const todayClassifiedItems = classifiedItems.filter(item => {
+            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            return itemDate === today;
+          });
+          
+          if (todayClassifiedItems.length > 0) {
+            const BATCH_SIZE = 500;
+            const totalBatches = Math.ceil(todayClassifiedItems.length / BATCH_SIZE);
+            
+            console.log(`📦 오늘 분류 데이터 배치 업로드 시작: ${todayClassifiedItems.length}개 → ${totalBatches}개 배치 (500개씩)`);
+            
+            for (let i = 0; i < todayClassifiedItems.length; i += BATCH_SIZE) {
+              const batch = todayClassifiedItems.slice(i, i + BATCH_SIZE);
+              const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+              
+              console.log(`📦 분류 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
+              
+              try {
+                await apiService.saveClassifiedData(batch);
+                console.log(`✅ 분류 배치 ${batchNum}/${totalBatches} 전송 완료`);
+              } catch (batchError) {
+                console.error(`❌ 분류 배치 ${batchNum} 전송 실패:`, batchError);
+                // 개별 배치 실패해도 계속 진행
+              }
+              
+              // 배치 간 1초 지연 (서버 부하 방지)
+              if (i + BATCH_SIZE < todayClassifiedItems.length) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
+            
+            console.log(`✅ 서버: 오늘(${today}) 분류 데이터 ${todayClassifiedItems.length}개 저장 완료 (${totalBatches}개 배치)`);
             
             // 수동수집과 자동수집 분리 처리
             const autoCollectedCount = classifiedItems.filter(item => 
