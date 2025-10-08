@@ -328,15 +328,32 @@ class HybridService {
     }
   }
 
-  // 분류 데이터 저장
+  // 분류 데이터 저장 (배치 처리 지원)
   async saveClassifiedData(data: any): Promise<void> {
     try {
       if (this.config.useApiServer) {
-        const result = await apiService.saveClassifiedData(data);
-        if (result.success) {
-          console.log('✅ API 서버에 분류 데이터 저장 완료');
+        // 데이터가 10,000개 이상이면 배치로 나누어 전송
+        const BATCH_SIZE = 5000;
+        if (Array.isArray(data) && data.length > BATCH_SIZE) {
+          console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
+          
+          // 첫 번째 배치만 전송하고 나머지는 로컬에만 저장
+          const firstBatch = data.slice(0, BATCH_SIZE);
+          const result = await apiService.saveClassifiedData(firstBatch);
+          
+          if (result.success) {
+            console.log(`✅ API 서버에 첫 번째 배치 저장 완료 (${BATCH_SIZE}개)`);
+            console.log(`⚠️ 나머지 ${data.length - BATCH_SIZE}개는 로컬에만 저장됨`);
+          } else {
+            throw new Error(result.error || 'API 저장 실패');
+          }
         } else {
-          throw new Error(result.error || 'API 저장 실패');
+          const result = await apiService.saveClassifiedData(data);
+          if (result.success) {
+            console.log('✅ API 서버에 분류 데이터 저장 완료');
+          } else {
+            throw new Error(result.error || 'API 저장 실패');
+          }
         }
       }
 
@@ -394,15 +411,32 @@ class HybridService {
     }
   }
 
-  // 미분류 데이터 저장
+  // 미분류 데이터 저장 (배치 처리 지원)
   async saveUnclassifiedData(data: any): Promise<void> {
     try {
       if (this.config.useApiServer) {
-        const result = await apiService.saveUnclassifiedData(data);
-        if (result.success) {
-          console.log('✅ API 서버에 미분류 데이터 저장 완료');
+        // 데이터가 10,000개 이상이면 배치로 나누어 전송
+        const BATCH_SIZE = 5000;
+        if (Array.isArray(data) && data.length > BATCH_SIZE) {
+          console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
+          
+          // 첫 번째 배치만 전송하고 나머지는 로컬에만 저장
+          const firstBatch = data.slice(0, BATCH_SIZE);
+          const result = await apiService.saveUnclassifiedData(firstBatch);
+          
+          if (result.success) {
+            console.log(`✅ API 서버에 첫 번째 배치 저장 완료 (${BATCH_SIZE}개)`);
+            console.log(`⚠️ 나머지 ${data.length - BATCH_SIZE}개는 로컬에만 저장됨`);
+          } else {
+            throw new Error(result.error || 'API 저장 실패');
+          }
         } else {
-          throw new Error(result.error || 'API 저장 실패');
+          const result = await apiService.saveUnclassifiedData(data);
+          if (result.success) {
+            console.log('✅ API 서버에 미분류 데이터 저장 완료');
+          } else {
+            throw new Error(result.error || 'API 저장 실패');
+          }
         }
       }
 

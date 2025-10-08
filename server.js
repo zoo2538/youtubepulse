@@ -184,9 +184,9 @@ app.use(cors({
 // OPTIONS 요청에 대한 명시적 처리 (모든 경로) - Express 5 호환
 app.options('/*splat', cors());
 
-// JSON 파싱 (크기 제한 증가: 50MB)
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// JSON 파싱 (크기 제한 증가: 100MB)
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 // PostgreSQL 테이블 생성
 async function createTables() {
