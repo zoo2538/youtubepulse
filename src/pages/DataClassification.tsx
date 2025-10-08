@@ -2064,14 +2064,29 @@ const DataClassification = () => {
             console.log('📊 날짜별 내보내기 파일 감지, dailyData 처리 중...');
             console.log('📊 dailyData 내용:', restoredData.dailyData);
             
+            // 안전성 검증: 각 항목이 유효한 구조인지 확인
+            const validDailyData = restoredData.dailyData.filter((dayData: any) => {
+              if (!dayData) {
+                console.warn('⚠️ undefined 또는 null 항목 건너뜀');
+                return false;
+              }
+              if (!dayData.data || !Array.isArray(dayData.data)) {
+                console.warn('⚠️ data 배열이 없는 항목 건너뜀:', dayData);
+                return false;
+              }
+              return true;
+            });
+            
+            console.log(`📊 유효한 날짜: ${validDailyData.length}/${restoredData.dailyData.length}`);
+            
             // 모든 날짜의 데이터를 하나의 배열로 합치기
-            const allData = restoredData.dailyData.flatMap((dayData: any) => dayData.data || []);
-            console.log(`📊 ${restoredData.dailyData.length}일간의 데이터를 합쳐서 총 ${allData.length}개 복원`);
+            const allData = validDailyData.flatMap((dayData: any) => dayData.data || []);
+            console.log(`📊 ${validDailyData.length}일간의 데이터를 합쳐서 총 ${allData.length}개 복원`);
             
             if (allData.length > 0) {
               
               const confirmed = confirm(
-                `백업 파일에서 ${restoredData.dailyData.length}일간의 데이터를 복원하시겠습니까?\n\n` +
+                `백업 파일에서 ${validDailyData.length}일간의 데이터를 복원하시겠습니까?\n\n` +
                 `총 ${allData.length}개의 데이터가 복원됩니다.\n\n` +
                 `⚠️ 현재 데이터는 모두 덮어씌워집니다.`
               );
@@ -2100,14 +2115,16 @@ const DataClassification = () => {
                   console.log(`📊 ${classifiedData.length}개의 분류된 데이터도 저장 완료`);
                 }
                 
-                // dailyProgress 데이터 생성 및 하이브리드 저장 (원본 날짜 기준)
-                const progressData = restoredData.dailyData.map((dayData: any) => ({
-                  date: dayData.date,
-                  total: dayData.total,
-                  classified: dayData.classified,
-                  unclassified: dayData.unclassified,
-                  progress: dayData.progress
-                }));
+                // dailyProgress 데이터 생성 및 하이브리드 저장 (원본 날짜 기준, 유효한 데이터만)
+                const progressData = validDailyData
+                  .filter((dayData: any) => dayData.date) // 날짜가 있는 항목만
+                  .map((dayData: any) => ({
+                    date: dayData.date,
+                    total: dayData.total || 0,
+                    classified: dayData.classified || 0,
+                    unclassified: dayData.unclassified || 0,
+                    progress: dayData.progress || 0
+                  }));
                 await hybridService.saveDailyProgress(progressData);
                 console.log(`📊 ${progressData.length}일간의 진행률 데이터 저장 완료`);
                 
@@ -2138,7 +2155,7 @@ const DataClassification = () => {
                 // 4. 완료 신호: transaction.oncomplete 후에만 토스트 표시
                 console.log('🎉 백업 복원 완료 - transaction.oncomplete 감지');
                 alert(`✅ 백업 복원이 완료되었습니다!\n\n` +
-                      `📅 ${restoredData.dailyData.length}일간의 데이터를 원본 날짜로 복원\n` +
+                      `📅 ${validDailyData.length}일간의 데이터를 원본 날짜로 복원\n` +
                       `📊 총 ${allData.length}개 데이터 복원\n` +
                       `✅ ${classifiedData.length}개 분류된 데이터 저장\n` +
                       `📈 ${progressData.length}일간 진행률 데이터 저장\n\n` +
