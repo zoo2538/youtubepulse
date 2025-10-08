@@ -109,7 +109,8 @@ jobs:
         path: logs/
         
     - name: Send Slack notification
-      if: always() && secrets.SLACK_WEBHOOK_URL != ''
+      if: always()
+      continue-on-error: true
       uses: 8398a7/action-slack@v3
       with:
         status: ${{ job.status }}
