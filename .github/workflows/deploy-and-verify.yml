@@ -108,23 +108,25 @@ jobs:
         name: verification-logs
         path: logs/
         
-    - name: Send Slack notification
-      if: always()
-      continue-on-error: true
-      uses: 8398a7/action-slack@v3
-      with:
-        status: ${{ job.status }}
-        channel: '#deployments'
-        text: |
-          🚀 YouTube Pulse 배포 및 검증 완료
-          
-          📊 결과:
-          - 배포: ${{ needs.deploy.result }}
-          - 검증: ${{ job.status }}
-          
-          📋 상세 로그는 아티팩트에서 확인하세요.
-          
-          🌐 프론트엔드: https://zoo2538.github.io/youtubepulse
-          🚂 백엔드 API: https://api.youthbepulse.com
-      env:
-        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    # Slack 알림은 SLACK_WEBHOOK_URL이 설정된 경우에만 실행
+    # 현재는 비활성화 (선택적 기능)
+    # - name: Send Slack notification
+    #   if: always()
+    #   continue-on-error: true
+    #   uses: 8398a7/action-slack@v3
+    #   with:
+    #     status: ${{ job.status }}
+    #     channel: '#deployments'
+    #     text: |
+    #       🚀 YouTube Pulse 배포 및 검증 완료
+    #       
+    #       📊 결과:
+    #       - 배포: ${{ needs.deploy.result }}
+    #       - 검증: ${{ job.status }}
+    #       
+    #       📋 상세 로그는 아티팩트에서 확인하세요.
+    #       
+    #       🌐 프론트엔드: https://zoo2538.github.io/youtubepulse
+    #       🚂 백엔드 API: https://api.youthbepulse.com
+    #   env:
+    #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
