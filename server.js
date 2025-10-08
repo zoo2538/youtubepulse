@@ -1167,12 +1167,12 @@ async function autoCollectData() {
     }
     console.log('✅ PostgreSQL 연결 확인됨');
 
-    // 1단계: 트렌드 영상 200개 수집 (50개씩 4페이지)
-    console.log('📺 1단계: 트렌드 영상 수집 중...');
+    // 1단계: 트렌드 영상 수집 (테스트용으로 1페이지만)
+    console.log('📺 1단계: 트렌드 영상 수집 중... (테스트 모드: 1페이지만)');
     let trendingVideos = [];
     let nextPageToken = '';
     
-    for (let page = 0; page < 4; page++) {
+    for (let page = 0; page < 1; page++) { // 테스트용으로 1페이지만
       const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
       console.log(`📺 페이지 ${page + 1} 요청: ${trendingUrl.substring(0, 100)}...`);
       
@@ -1212,11 +1212,14 @@ async function autoCollectData() {
     });
     console.log(`✅ 트렌드: ${beforeFilter}개 → ${trendingVideos.length}개 (한글 필터링)`);
 
-    // 2단계: 키워드 기반 영상 수집
-    console.log('🔍 2단계: 키워드 영상 수집 중...');
+    // 2단계: 키워드 기반 영상 수집 (테스트용으로 1개 키워드만)
+    console.log('🔍 2단계: 키워드 영상 수집 중... (테스트 모드: 1개 키워드만)');
     let keywordVideos = [];
     
-    for (const keyword of keywords) {
+    // 테스트용으로 1개 키워드만 사용
+    const testKeywords = ['브이로그']; // 첫 번째 키워드만
+    
+    for (const keyword of testKeywords) {
       console.log(`🔍 키워드 검색: "${keyword}"`);
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
       const searchResponse = await fetch(searchUrl);
