@@ -1120,10 +1120,18 @@ app.post('/api/auto-collect', async (req, res) => {
     global.autoCollectionInProgress = true;
     
     console.log('🤖 자동수집 API 호출됨');
-    await autoCollectData();
+    console.log('🤖 요청 본문:', req.body);
+    
+    // 자동수집 함수 실행 및 결과 확인
+    const result = await autoCollectData();
     
     // 자동 수집 완료 플래그 해제
     global.autoCollectionInProgress = false;
+    
+    if (result === false) {
+      console.error('❌ 자동수집 함수에서 실패 반환');
+      return res.status(500).json({ error: 'Auto collection function failed' });
+    }
     
     res.json({ success: true, message: 'Auto collection completed' });
   } catch (error) {
@@ -1132,7 +1140,7 @@ app.post('/api/auto-collect', async (req, res) => {
     // 오류 발생 시에도 플래그 해제
     global.autoCollectionInProgress = false;
     
-    res.status(500).json({ error: 'Auto collection failed' });
+    res.status(500).json({ error: 'Auto collection failed', details: error.message });
   }
 });
 
@@ -1367,8 +1375,12 @@ async function autoCollectData() {
     console.log(`🤖 미분류: ${newData.filter(d => d.status === 'unclassified').length}개`);
     console.log(`🤖 API 요청: ${requestCount}번`);
     console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    return true; // 성공 시 true 반환
   } catch (error) {
     console.error('❌ 자동 수집 실패:', error);
+    console.error('❌ 오류 상세:', error.message);
+    console.error('❌ 오류 스택:', error.stack);
+    return false; // 실패 시 false 반환
   }
 }
 
