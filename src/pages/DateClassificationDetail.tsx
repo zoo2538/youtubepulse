@@ -131,6 +131,7 @@ const DateClassificationDetail = () => {
             collectionDate: item.collectionDate,
             uploadDate: item.uploadDate,
             publishedAt: item.publishedAt,
+            collectionType: item.collectionType,
             selectedDate
           });
           
@@ -196,6 +197,19 @@ const DateClassificationDetail = () => {
           }
           // 'total'인 경우 모든 데이터 (필터링 없음)
           console.log('📊 수집 타입 필터링 후:', typeFilteredData.length, '개');
+          
+          // 자동수집 필터링 시 collectionType 분포 확인
+          if (collectionType === 'auto') {
+            const autoCount = typeFilteredData.filter(item => item.collectionType === 'auto').length;
+            const undefinedCount = typeFilteredData.filter(item => item.collectionType === undefined).length;
+            const manualCount = typeFilteredData.filter(item => item.collectionType === 'manual').length;
+            console.log('📊 자동수집 필터링 결과 분석:', {
+              auto: autoCount,
+              undefined: undefinedCount,
+              manual: manualCount,
+              total: typeFilteredData.length
+            });
+          }
         }
 
         // 중복 제거 로직 추가 (videoId 기준으로 중복 제거)
