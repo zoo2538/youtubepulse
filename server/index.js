@@ -569,50 +569,87 @@ app.post('/api/classified', async (req, res) => {
   }
   
   try {
-    const data = req.body;
-    const dataSize = JSON.stringify(data).length;
+    const newData = req.body;
+    const dataSize = JSON.stringify(newData).length;
     console.log(`👤 수동수집 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
     
     const client = await pool.connect();
     
-    // 대용량 데이터 처리 (10MB 초과 시 청크 단위로 저장)
-    if (dataSize > 10 * 1024 * 1024) {
-      console.log('⚠️ 대용량 데이터 감지, 청크 단위로 저장');
-      const chunkSize = 1000;
-      for (let i = 0; i < data.length; i += chunkSize) {
-        const chunk = data.slice(i, i + chunkSize);
-        await client.query(`INSERT INTO classification_data (data_type, data) VALUES ($1, $2)`, ['manual_classified', JSON.stringify(chunk)]);
-        console.log(`✅ 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
-      }
-    } else {
-      // 웹에서 분류한 데이터는 무조건 덮어쓰기 (분류 정보 우선)
-      // 기존 분류 데이터 삭제 후 새로 저장
-      await client.query(`DELETE FROM classification_data WHERE data_type = 'manual_classified'`);
-      
-      // 새 분류 데이터 저장
-      await client.query(`
-        INSERT INTO classification_data (data_type, data)
-        VALUES ($1, $2)
-      `, ['manual_classified', JSON.stringify(data)]);
-      
-      console.log(`✅ 웹 분류 데이터 덮어쓰기 저장 완료: ${data.length}개 항목`);
-      
-      // 분류된 항목들 로깅
-      const classifiedCount = data.filter(item => item.status === 'classified').length;
-      console.log(`📊 분류 완료: ${classifiedCount}개, 미분류: ${data.length - classifiedCount}개`);
+    // 1. 기존 전체 데이터 조회
+    const existingResult = await client.query(
+      `SELECT data FROM classification_data WHERE data_type = 'manual_classified'`
+    );
+    
+    let existingData = [];
+    if (existingResult.rows.length > 0 && existingResult.rows[0].data) {
+      existingData = existingResult.rows[0].data;
     }
     
+    console.log(`📊 기존 분류 데이터: ${existingData.length}개`);
+    
+    // 2. 새 데이터의 날짜 추출 (한국 시간 기준 dayKeyLocal, collectionDate, uploadDate)
+    const newDates = new Set();
+    newData.forEach(item => {
+      const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+      if (date) {
+        const normalizedDate = date.includes('T') ? date.split('T')[0] : date;
+        newDates.add(normalizedDate);
+      }
+    });
+    
+    console.log(`📊 업데이트할 날짜 (한국 시간): ${Array.from(newDates).join(', ')}`);
+    
+    // 3. 새 데이터의 날짜에 해당하지 않는 기존 데이터만 필터링
+    const otherDatesData = existingData.filter(item => {
+      const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+      if (!date) return true; // 날짜 없는 항목은 유지
+      
+      const normalizedDate = date.includes('T') ? date.split('T')[0] : date;
+      return !newDates.has(normalizedDate);
+    });
+    
+    console.log(`📊 다른 날짜 분류 데이터: ${otherDatesData.length}개`);
+    
+    // 4. 병합: 다른 날짜 데이터 + 새 데이터
+    const mergedData = [...otherDatesData, ...newData];
+    
+    console.log(`📊 병합된 전체 분류 데이터: ${mergedData.length}개 (다른 날짜: ${otherDatesData.length}개 + 새 데이터: ${newData.length}개)`);
+    
+    // 5. 병합된 데이터 저장
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+      ON CONFLICT (data_type) 
+      DO UPDATE SET 
+        data = EXCLUDED.data,
+        created_at = CURRENT_TIMESTAMP
+    `, ['manual_classified', JSON.stringify(mergedData)]);
+    
+    console.log(`✅ 분류 데이터 날짜별 병합 저장 완료: ${mergedData.length}개 항목`);
+    
+    // 분류된 항목들 로깅
+    const classifiedCount = mergedData.filter(item => item.status === 'classified').length;
+    console.log(`📊 분류 완료: ${classifiedCount}개, 미분류: ${mergedData.length - classifiedCount}개`);
+    
     client.release();
-    res.json({ success: true, message: 'Classified data saved' });
+    res.json({ 
+      success: true, 
+      message: 'Classified data saved',
+      stats: {
+        newItems: newData.length,
+        preservedItems: otherDatesData.length,
+        totalItems: mergedData.length,
+        classifiedCount: classifiedCount,
+        updatedDates: Array.from(newDates)
+      }
+    });
   } catch (error) {
     console.error('분류 데이터 저장 실패:', error);
     console.error('에러 상세:', error.message);
     console.error('에러 코드:', error.code);
-    console.error('데이터 크기:', JSON.stringify(data).length / 1024 / 1024, 'MB');
     res.status(500).json({ 
       error: 'Failed to save classified data',
-      details: error.message,
-      dataSize: JSON.stringify(data).length
+      details: error.message
     });
   }
 });
@@ -692,36 +729,75 @@ app.post('/api/unclassified', async (req, res) => {
   }
   
   try {
-    const data = req.body;
-    const dataSize = JSON.stringify(data).length;
+    const newData = req.body;
+    const dataSize = JSON.stringify(newData).length;
     console.log(`📊 미분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
     
     const client = await pool.connect();
     
-    // 대용량 데이터 처리 (10MB 초과 시 청크 단위로 저장)
-    if (dataSize > 10 * 1024 * 1024) {
-      console.log('⚠️ 대용량 미분류 데이터 감지, 청크 단위로 저장');
-      const chunkSize = 1000;
-      for (let i = 0; i < data.length; i += chunkSize) {
-        const chunk = data.slice(i, i + chunkSize);
-        await client.query(`INSERT INTO classification_data (data_type, data) VALUES ($1, $2)`, ['unclassified', JSON.stringify(chunk)]);
-        console.log(`✅ 미분류 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
-      }
-    } else {
-      // 미분류 데이터 저장 시 기존 데이터 덮어쓰기
-      await client.query(`
-        INSERT INTO classification_data (data_type, data)
-        VALUES ($1, $2)
-        ON CONFLICT (data_type) 
-        DO UPDATE SET 
-          data = EXCLUDED.data,
-          created_at = CURRENT_TIMESTAMP
-      `, ['unclassified', JSON.stringify(data)]);
-      console.log(`✅ 미분류 데이터 덮어쓰기 저장 완료: ${data.length}개 항목`);
+    // 1. 기존 전체 데이터 조회
+    const existingResult = await client.query(
+      `SELECT data FROM classification_data WHERE data_type = 'unclassified'`
+    );
+    
+    let existingData = [];
+    if (existingResult.rows.length > 0 && existingResult.rows[0].data) {
+      existingData = existingResult.rows[0].data;
     }
     
+    console.log(`📊 기존 미분류 데이터: ${existingData.length}개`);
+    
+    // 2. 새 데이터의 날짜 추출 (dayKeyLocal, collectionDate, uploadDate 순으로 확인)
+    const newDates = new Set();
+    newData.forEach(item => {
+      const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+      if (date) {
+        const normalizedDate = date.includes('T') ? date.split('T')[0] : date;
+        newDates.add(normalizedDate);
+      }
+    });
+    
+    console.log(`📊 업데이트할 날짜: ${Array.from(newDates).join(', ')}`);
+    
+    // 3. 새 데이터의 날짜에 해당하지 않는 기존 데이터만 필터링
+    const otherDatesData = existingData.filter(item => {
+      const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+      if (!date) return true; // 날짜 없는 항목은 유지
+      
+      const normalizedDate = date.includes('T') ? date.split('T')[0] : date;
+      return !newDates.has(normalizedDate);
+    });
+    
+    console.log(`📊 다른 날짜 데이터: ${otherDatesData.length}개`);
+    
+    // 4. 병합: 다른 날짜 데이터 + 새 데이터
+    const mergedData = [...otherDatesData, ...newData];
+    
+    console.log(`📊 병합된 전체 데이터: ${mergedData.length}개 (다른 날짜: ${otherDatesData.length}개 + 새 데이터: ${newData.length}개)`);
+    
+    // 5. 병합된 데이터 저장
+    await client.query(`
+      INSERT INTO classification_data (data_type, data)
+      VALUES ($1, $2)
+      ON CONFLICT (data_type) 
+      DO UPDATE SET 
+        data = EXCLUDED.data,
+        created_at = CURRENT_TIMESTAMP
+    `, ['unclassified', JSON.stringify(mergedData)]);
+    
+    console.log(`✅ 미분류 데이터 날짜별 병합 저장 완료: ${mergedData.length}개 항목`);
+    
     client.release();
-    res.json({ success: true, message: 'Unclassified data saved' });
+    res.json({ 
+      success: true, 
+      message: 'Unclassified data saved',
+      stats: {
+        newItems: newData.length,
+        preservedItems: otherDatesData.length,
+        totalItems: mergedData.length,
+        updatedDates: Array.from(newDates)
+      }
+    });
   } catch (error) {
     console.error('미분류 데이터 저장 실패:', error);
     res.status(500).json({ error: 'Failed to save unclassified data' });
