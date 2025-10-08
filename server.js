@@ -1166,6 +1166,18 @@ async function autoCollectData() {
       return false;
     }
     console.log('✅ PostgreSQL 연결 확인됨');
+    
+    // PostgreSQL 연결 테스트
+    try {
+      const client = await pool.connect();
+      console.log('✅ PostgreSQL 클라이언트 연결 성공');
+      await client.query('SELECT NOW()');
+      console.log('✅ PostgreSQL 쿼리 테스트 성공');
+      client.release();
+    } catch (pgError) {
+      console.error('❌ PostgreSQL 연결 테스트 실패:', pgError);
+      return false;
+    }
 
     // 1단계: 트렌드 영상 수집 (테스트용으로 1페이지만)
     console.log('📺 1단계: 트렌드 영상 수집 중... (테스트 모드: 1페이지만)');
