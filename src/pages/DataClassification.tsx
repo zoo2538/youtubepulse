@@ -1245,18 +1245,56 @@ const DataClassification = () => {
             console.log(`✅ 하이브리드: ${classifiedItems.length}개의 분류 데이터 저장 완료`);
             
             // 서버 저장 후 재조회 (서버 권위 원칙)
-            try {
-              console.log('🔄 서버 재조회 시작...');
-              const serverData = await hybridService.getClassifiedData();
-              console.log(`📊 서버 재조회 결과: ${serverData.length}개 데이터`);
-              
-              // IndexedDB 덮어쓰기 (서버 데이터 기준)
-              if (serverData.length > 0) {
-                await indexedDBService.saveClassifiedData(serverData);
-                console.log('✅ IndexedDB 덮어쓰기 완료 (서버 데이터 기준)');
+            // 대용량 데이터는 백그라운드 재조회로 전환
+            if (classifiedItems.length < 10000) {
+              try {
+                console.log('🔄 서버 재조회 시작...');
+                const serverData = await hybridService.getClassifiedData();
+                console.log(`📊 서버 재조회 결과: ${serverData.length}개 데이터`);
+                
+                // IndexedDB 덮어쓰기 (서버 데이터 기준)
+                if (serverData.length > 0) {
+                  await indexedDBService.saveClassifiedData(serverData);
+                  console.log('✅ IndexedDB 덮어쓰기 완료 (서버 데이터 기준)');
+                }
+              } catch (reloadError) {
+                console.warn('⚠️ 서버 재조회 실패 (저장은 완료됨):', reloadError);
+                
+                // 5분 후 백그라운드 재시도 예약
+                setTimeout(async () => {
+                  try {
+                    console.log('🔄 백그라운드 재조회 재시도...');
+                    const retryData = await hybridService.getClassifiedData();
+                    if (retryData.length > 0) {
+                      await indexedDBService.saveClassifiedData(retryData);
+                      console.log('✅ 백그라운드 재조회 성공');
+                    }
+                  } catch (retryError) {
+                    console.warn('⚠️ 백그라운드 재조회도 실패 (로컬 데이터 유지)');
+                  }
+                }, 5 * 60 * 1000); // 5분 후
               }
-            } catch (reloadError) {
-              console.warn('⚠️ 서버 재조회 실패 (저장은 완료됨):', reloadError);
+            } else {
+              console.log('📊 대용량 데이터 (26K+) - 즉시 반영, 백그라운드 동기화 예약');
+              
+              // 대용량 데이터는 백그라운드에서 10분 후 재조회
+              setTimeout(async () => {
+                try {
+                  console.log('🔄 백그라운드 대용량 데이터 동기화 시작...');
+                  const bgData = await hybridService.getClassifiedData();
+                  if (bgData.length > 0) {
+                    await indexedDBService.saveClassifiedData(bgData);
+                    console.log('✅ 백그라운드 대용량 동기화 완료');
+                    
+                    // 데이터 업데이트 이벤트 발생
+                    window.dispatchEvent(new CustomEvent('dataUpdated', {
+                      detail: { type: 'backgroundSync', timestamp: Date.now() }
+                    }));
+                  }
+                } catch (bgError) {
+                  console.warn('⚠️ 백그라운드 동기화 실패 (로컬 데이터 유지)');
+                }
+              }, 10 * 60 * 1000); // 10분 후
             }
           }
         } catch (saveError) {

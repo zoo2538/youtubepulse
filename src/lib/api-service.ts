@@ -21,13 +21,21 @@ class ApiService {
   ): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`;
+      
+      // 타임아웃 설정 (30초)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
           ...options.headers,
         },
+        signal: controller.signal,
         ...options,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -37,6 +45,14 @@ class ApiService {
       return { success: true, data };
     } catch (error) {
       console.error('API 요청 실패:', error);
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        return { 
+          success: false, 
+          error: 'Request timeout (30s)' 
+        };
+      }
+      
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error' 
