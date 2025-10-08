@@ -337,16 +337,34 @@ class HybridService {
         if (Array.isArray(data) && data.length > BATCH_SIZE) {
           console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
           
-          // 첫 번째 배치만 전송하고 나머지는 로컬에만 저장
-          const firstBatch = data.slice(0, BATCH_SIZE);
-          const result = await apiService.saveClassifiedData(firstBatch);
-          
-          if (result.success) {
-            console.log(`✅ API 서버에 첫 번째 배치 저장 완료 (${BATCH_SIZE}개)`);
-            console.log(`⚠️ 나머지 ${data.length - BATCH_SIZE}개는 로컬에만 저장됨`);
-          } else {
-            throw new Error(result.error || 'API 저장 실패');
+          // 모든 배치를 순차적으로 전송
+          for (let i = 0; i < data.length; i += BATCH_SIZE) {
+            const batch = data.slice(i, i + BATCH_SIZE);
+            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(data.length / BATCH_SIZE);
+            
+            console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
+            
+            try {
+              const result = await apiService.saveClassifiedData(batch);
+              if (result.success) {
+                console.log(`✅ 배치 ${batchNum}/${totalBatches} 전송 완료`);
+              } else {
+                console.error(`❌ 배치 ${batchNum} 전송 실패:`, result.error);
+                // 개별 배치 실패는 전체를 중단하지 않음
+              }
+            } catch (batchError) {
+              console.error(`❌ 배치 ${batchNum} 전송 오류:`, batchError);
+              // 개별 배치 오류는 전체를 중단하지 않음
+            }
+            
+            // 배치 간 지연 (서버 부하 방지)
+            if (i + BATCH_SIZE < data.length) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
           }
+          
+          console.log(`✅ 모든 배치 전송 완료: ${data.length}개`);
         } else {
           const result = await apiService.saveClassifiedData(data);
           if (result.success) {
@@ -420,16 +438,34 @@ class HybridService {
         if (Array.isArray(data) && data.length > BATCH_SIZE) {
           console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
           
-          // 첫 번째 배치만 전송하고 나머지는 로컬에만 저장
-          const firstBatch = data.slice(0, BATCH_SIZE);
-          const result = await apiService.saveUnclassifiedData(firstBatch);
-          
-          if (result.success) {
-            console.log(`✅ API 서버에 첫 번째 배치 저장 완료 (${BATCH_SIZE}개)`);
-            console.log(`⚠️ 나머지 ${data.length - BATCH_SIZE}개는 로컬에만 저장됨`);
-          } else {
-            throw new Error(result.error || 'API 저장 실패');
+          // 모든 배치를 순차적으로 전송
+          for (let i = 0; i < data.length; i += BATCH_SIZE) {
+            const batch = data.slice(i, i + BATCH_SIZE);
+            const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(data.length / BATCH_SIZE);
+            
+            console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
+            
+            try {
+              const result = await apiService.saveUnclassifiedData(batch);
+              if (result.success) {
+                console.log(`✅ 배치 ${batchNum}/${totalBatches} 전송 완료`);
+              } else {
+                console.error(`❌ 배치 ${batchNum} 전송 실패:`, result.error);
+                // 개별 배치 실패는 전체를 중단하지 않음
+              }
+            } catch (batchError) {
+              console.error(`❌ 배치 ${batchNum} 전송 오류:`, batchError);
+              // 개별 배치 오류는 전체를 중단하지 않음
+            }
+            
+            // 배치 간 지연 (서버 부하 방지)
+            if (i + BATCH_SIZE < data.length) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
           }
+          
+          console.log(`✅ 모든 배치 전송 완료: ${data.length}개`);
         } else {
           const result = await apiService.saveUnclassifiedData(data);
           if (result.success) {
