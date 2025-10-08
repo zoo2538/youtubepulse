@@ -596,6 +596,17 @@ app.get('/api/classified', async (req, res) => {
     // 모든 행의 data를 합쳐서 반환
     const allData = result.rows.flatMap(row => row.data || []);
     console.log(`📊 분류 데이터 조회: ${allData.length}개 (${result.rows.length}개 행)`);
+    console.log(`📊 조회 조건: data_type = 'classified'`);
+    console.log(`📊 데이터 타입별 개수:`, result.rows.reduce((acc, row) => {
+      const dataType = row.data?.[0]?.data_type || 'unknown';
+      acc[dataType] = (acc[dataType] || 0) + (row.data?.length || 0);
+      return acc;
+    }, {}));
+    
+    // 일부 데이터 ID 로깅 (디버깅용)
+    if (allData.length > 0) {
+      console.log(`📊 첫 3개 데이터 ID:`, allData.slice(0, 3).map(item => item.id || item.videoId));
+    }
     
     res.json({ success: true, data: allData });
   } catch (error) {

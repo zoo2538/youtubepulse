@@ -1168,6 +1168,21 @@ const DataClassification = () => {
           if (classifiedItems.length > 0) {
             await hybridService.saveClassifiedData(classifiedItems);
             console.log(`✅ 하이브리드: ${classifiedItems.length}개의 분류 데이터 저장 완료`);
+            
+            // 서버 저장 후 재조회 (서버 권위 원칙)
+            try {
+              console.log('🔄 서버 재조회 시작...');
+              const serverData = await hybridService.getClassifiedData();
+              console.log(`📊 서버 재조회 결과: ${serverData.length}개 데이터`);
+              
+              // IndexedDB 덮어쓰기 (서버 데이터 기준)
+              if (serverData.length > 0) {
+                await indexedDBService.saveClassifiedData(serverData);
+                console.log('✅ IndexedDB 덮어쓰기 완료 (서버 데이터 기준)');
+              }
+            } catch (reloadError) {
+              console.warn('⚠️ 서버 재조회 실패 (저장은 완료됨):', reloadError);
+            }
           }
         } catch (saveError) {
           console.error('❌ 데이터 저장 실패:', saveError);
