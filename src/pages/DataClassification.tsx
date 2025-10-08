@@ -241,7 +241,7 @@ const DataClassification = () => {
         // 3. 자동수집 데이터 로드
         await loadAutoCollectedData();
         
-        // 4. 기존 방식으로도 데이터 로드 (하위 호환성)
+        // 4. 하이브리드 서비스에서 실제 데이터 로드 (일관된 소스 사용)
         const savedData = await hybridService.loadUnclassifiedData();
         if (savedData && savedData.length > 0) {
           // utils 함수들은 이미 정적 import됨
@@ -253,7 +253,8 @@ const DataClassification = () => {
             
             return {
               ...baseItem,
-              collectionDate: baseItem.collectionDate || today
+              collectionDate: baseItem.collectionDate || baseItem.uploadDate || today,
+              dayKeyLocal: baseItem.dayKeyLocal || baseItem.collectionDate || baseItem.uploadDate
             };
           });
           
@@ -264,7 +265,7 @@ const DataClassification = () => {
           console.log('📊 제거된 중복:', sanitized.length - dedupedData.length, '개');
           
           setUnclassifiedData(dedupedData as UnclassifiedData[]);
-          console.log('✅ IndexedDB에서 로드:', savedData.length, '개');
+          console.log('✅ 하이브리드 서비스에서 로드 완료:', dedupedData.length);
         } else {
           // 6. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
         const channelsData = localStorage.getItem('youtubepulse_channels');
@@ -446,15 +447,10 @@ const DataClassification = () => {
         return;
       }
       
-      // 데이터 다시 로드 (페이지 새로고침 대신 데이터만 새로고침)
+      // 데이터 다시 로드 (일관된 소스 사용)
       const loadData = async () => {
         try {
           console.log('🔄 데이터 분류 관리 페이지 - 데이터 새로고침 시작');
-          
-          // 1. 하이브리드 서비스에서 전체 unclassifiedData 로드 (통계용) - 강제 새로고침
-          console.log('🔄 하이브리드 서비스에서 최신 데이터 강제 로드 중...');
-          const savedData = await hybridService.loadUnclassifiedData();
-          console.log(`📊 로드된 데이터 개수: ${savedData?.length || 0}개`);
           
           // 백업 복원 중이면 데이터 로드 차단 (데이터 손실 방지)
           if ((window as any).restoreLock || sessionStorage.getItem('restoreInProgress')) {
@@ -462,309 +458,65 @@ const DataClassification = () => {
             return;
           }
           
-          // 백업 데이터와 분류된 데이터 병합
-          const currentData = unclassifiedData; // 현재 UI에 표시된 데이터
-          if (currentData && currentData.length > 0) {
-            console.log('🔄 백업 데이터와 분류된 데이터 병합 중...');
-            
-            // 분류된 데이터만 추출 (상태가 변경된 데이터)
-            const classifiedUpdates = currentData.filter(item => 
-              item.status === 'classified' && 
-              (item.category || item.subCategory)
-            );
-            
-            if (classifiedUpdates.length > 0) {
-              console.log(`📊 ${classifiedUpdates.length}개의 분류된 데이터 병합`);
-              
-              // 기존 데이터와 분류된 데이터 병합
-              const mergedData = [...savedData];
-              classifiedUpdates.forEach(update => {
-                const existingIndex = mergedData.findIndex(item => item.id === update.id);
-                if (existingIndex >= 0) {
-                  // 기존 데이터 업데이트
-                  mergedData[existingIndex] = { ...mergedData[existingIndex], ...update };
-                } else {
-                  // 새 데이터 추가
-                  mergedData.push(update);
-                }
-              });
-              
-              console.log(`✅ 병합 완료: ${mergedData.length}개 데이터`);
-              
-              // 병합된 데이터의 통계 재계산
-              const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-              mergedData.forEach(item => {
-                const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-                if (date) {
-                  if (!mergedDateStats[date]) {
-                    mergedDateStats[date] = { total: 0, classified: 0, progress: 0 };
-                  }
-                  mergedDateStats[date].total++;
-                  if (item.status === 'classified') {
-                    mergedDateStats[date].classified++;
-                  }
-                }
-              });
-              
-              // 진행률 계산
-              Object.keys(mergedDateStats).forEach(date => {
-                const stats = mergedDateStats[date];
-                stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-              });
-              
-              setDateStats(mergedDateStats);
-              setUnclassifiedData(mergedData as UnclassifiedData[]);
-              console.log('📊 병합된 데이터 통계 업데이트:', mergedDateStats);
-              return; // 병합된 데이터로 UI 업데이트 후 종료
-            }
+          // 1. 서버와 로컬 데이터 병합 (초기 로드와 동일한 로직)
+          console.log('🔄 서버와 로컬 데이터 병합 중...');
+          const mergeResult = await loadAndMergeDays('overwrite');
+          console.log('📊 병합 결과:', mergeResult.stats);
+          
+          if (mergeResult.conflicts.length > 0) {
+            console.log('⚠️ 데이터 충돌 발견:', mergeResult.conflicts);
           }
           
-          // 2. 사용 가능한 날짜 목록 새로고침
-          const dates = await hybridService.getAvailableDates();
-          console.log('🔄 사용 가능한 날짜 새로고침:', dates);
-          setAvailableDates(dates);
+          // 2. 병합된 데이터를 기반으로 통계 계산 (초기 로드와 동일한 로직)
+          const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
           
-          // 3. 날짜별 통계 계산 (수동수집 데이터만 - collectionType이 'manual'이거나 없는 경우)
-          const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-          savedData?.forEach(item => {
-            // 수동수집 데이터만 필터링 (collectionType이 'manual'이거나 없는 경우)
-            if (!item.collectionType || item.collectionType === 'manual') {
-              let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-              
-              // dayKeyLocal의 대시 문제 해결
-              if (item.dayKeyLocal) {
-                date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
-              }
-              
-            if (date) {
-                // 10월 6일 데이터 디버깅
-                if (date === '2025-10-06') {
-                  console.log('🔍 10월 6일 수동수집 데이터 발견:', {
-                    id: item.id,
-                    dayKeyLocal: item.dayKeyLocal,
-                    collectionDate: item.collectionDate,
-                    uploadDate: item.uploadDate,
-                    normalizedDate: date,
-                    status: item.status,
-                    collectionType: item.collectionType,
-                    videoTitle: item.videoTitle
-                  });
-                }
-                
-              if (!newDateStats[date]) {
-                newDateStats[date] = { total: 0, classified: 0, progress: 0 };
-              }
-              newDateStats[date].total++;
-              if (item.status === 'classified') {
-                newDateStats[date].classified++;
-                }
-              }
-            }
+          mergeResult.mergedDays.forEach(dayRow => {
+            mergedDateStats[dayRow.dayKey] = {
+              total: dayRow.total,
+              classified: dayRow.done,
+              progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
+            };
           });
           
-          // 진행률 계산
-          Object.keys(newDateStats).forEach(date => {
-            const stats = newDateStats[date];
-            stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-          });
+          setDateStats(mergedDateStats);
+          console.log('📊 병합된 dateStats:', mergedDateStats);
           
-          setDateStats(newDateStats);
-          console.log('📊 날짜별 통계 업데이트:', newDateStats);
+          // 3. 자동수집 데이터 로드
+          await loadAutoCollectedData();
           
-          // 10월 6일 통계 특별 확인
-          if (newDateStats['2025-10-06']) {
-            console.log('✅ 10월 6일 통계 확인:', newDateStats['2025-10-06']);
-          } else {
-            console.log('❌ 10월 6일 통계 없음 - 사용 가능한 날짜들:', Object.keys(newDateStats));
-          }
-          
-          // 하이브리드 동기화: 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
-          const videoMap = new Map<string, any>();
-          
-          // 모든 데이터를 조회수 기준으로 정렬하여 처리
-          const sortedData = [...(savedData || [])].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
-          
-          sortedData.forEach(item => {
-            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            if (!date) return;
-            
-            const normalizedDate = item.dayKeyLocal ? item.dayKeyLocal.replace(/-$/, '') : date.split('T')[0];
-            const videoKey = `${normalizedDate}_${item.videoId}`;
-            
-            // 같은 날짜의 같은 영상이면 조회수가 높은 것만 저장
-            if (!videoMap.has(videoKey)) {
-              videoMap.set(videoKey, item);
-            }
-          });
-          
-          // 중복 제거된 데이터로 통계 계산
-          const deduplicatedData = Array.from(videoMap.values());
-          
-          // 자동수집 통계 계산 (collectionType이 'auto' 또는 undefined인 데이터)
-          const autoCollectedStats: {[date: string]: {total: number; classified: number; progress: number}} = {};
-          deduplicatedData.forEach(item => {
-            // 자동수집 데이터 필터링 (undefined도 자동수집으로 간주)
-            if (item.collectionType === 'auto' || item.collectionType === undefined) {
-              let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-              
-              // dayKeyLocal의 대시 문제 해결
-              if (item.dayKeyLocal) {
-                date = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
-              }
-              
-              if (date) {
-                if (!autoCollectedStats[date]) {
-                  autoCollectedStats[date] = { total: 0, classified: 0, progress: 0 };
-                }
-                autoCollectedStats[date].total++;
-                if (item.status === 'classified') {
-                  autoCollectedStats[date].classified++;
-                }
-              }
-            }
-          });
-          
-          // 자동수집 진행률 계산
-          Object.keys(autoCollectedStats).forEach(date => {
-            const stats = autoCollectedStats[date];
-            stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-          });
-          
-          setAutoCollectedStats(autoCollectedStats);
-          console.log('📊 자동수집 통계 업데이트:', autoCollectedStats);
-          
-          // 10월 6일 자동수집 통계 특별 확인
-          if (autoCollectedStats['2025-10-06']) {
-            console.log('✅ 10월 6일 자동수집 통계 확인:', autoCollectedStats['2025-10-06']);
-          } else {
-            console.log('❌ 10월 6일 자동수집 통계 없음 - 자동수집 데이터가 없거나 날짜 매칭 실패');
-          }
-          
-          // 전체 데이터의 collectionType 분포 확인
-          const collectionTypeStats = savedData?.reduce((acc, item) => {
-            const type = item.collectionType || 'undefined';
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          }, {} as Record<string, number>) || {};
-          console.log('📊 collectionType 분포:', collectionTypeStats);
-          
-          // 10월 6일 데이터 전체 확인
-          const october6Data = savedData?.filter(item => {
-            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            const normalizedDate = date?.replace(/-$/, '');
-            return normalizedDate === '2025-10-06';
-          }) || [];
-          console.log('🔍 10월 6일 전체 데이터:', october6Data.length, '개');
-          if (october6Data.length > 0) {
-            console.log('🔍 10월 6일 데이터 샘플:', october6Data.slice(0, 3).map(item => ({
-              id: item.id,
-              collectionType: item.collectionType,
-              dayKeyLocal: item.dayKeyLocal,
-              collectionDate: item.collectionDate,
-              uploadDate: item.uploadDate,
-              status: item.status
-            })));
-            
-            // 10월 6일 데이터 정규화 및 저장
-            console.log('🔄 10월 6일 데이터 정규화 시작...');
-            const normalizedData = october6Data.map(item => {
-              const normalizedItem = {
-                ...item,
-                // collectionType이 없으면 'manual'로 설정
-                collectionType: item.collectionType || 'manual',
-                // dayKeyLocal 정규화 (대시 제거)
-                dayKeyLocal: item.dayKeyLocal ? item.dayKeyLocal.replace(/-$/, '') : '2025-10-06',
-                // collectionDate가 없으면 dayKeyLocal 사용
-                collectionDate: item.collectionDate || item.dayKeyLocal?.replace(/-$/, '') || '2025-10-06',
-                // uploadDate가 없으면 collectionDate 사용
-                uploadDate: item.uploadDate || item.collectionDate || '2025-10-06'
-              };
-              return normalizedItem;
-            });
-            
-            console.log('📊 정규화된 10월 6일 데이터:', normalizedData.length, '개');
-            console.log('📊 정규화 샘플:', normalizedData.slice(0, 2).map(item => ({
-              id: item.id,
-              collectionType: item.collectionType,
-              dayKeyLocal: item.dayKeyLocal,
-              collectionDate: item.collectionDate,
-              uploadDate: item.uploadDate
-            })));
-            
-            // 정규화된 데이터로 기존 데이터 업데이트
-            const updatedData = savedData.map(item => {
-              const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-              const normalizedDate = date?.replace(/-$/, '');
-              
-              if (normalizedDate === '2025-10-06') {
-                const normalizedItem = normalizedData.find(nItem => nItem.id === item.id);
-                if (normalizedItem) {
-                  return normalizedItem;
-                }
-              }
-              return item;
-            });
-            
-            // 정규화된 데이터 저장
-            try {
-              await hybridService.saveUnclassifiedData(updatedData);
-              console.log('✅ 10월 6일 데이터 정규화 및 저장 완료');
-              
-              // 저장 후 통계 재계산을 위해 데이터 업데이트 이벤트 발생
-              window.dispatchEvent(new CustomEvent('dataUpdated', { 
-                detail: { 
-                  type: 'dataNormalized', 
-                  timestamp: Date.now(),
-                  normalizedCount: normalizedData.length
-                } 
-              }));
-            } catch (error) {
-              console.error('❌ 10월 6일 데이터 정규화 저장 실패:', error);
-            }
-          }
-          
+          // 4. 하이브리드 서비스에서 실제 데이터 로드 (초기 로드와 동일한 로직)
+          const savedData = await hybridService.loadUnclassifiedData();
           if (savedData && savedData.length > 0) {
             // utils 함수들은 이미 정적 import됨
-            const today = getKoreanDateString(); // 한국 시간 기준 오늘 날짜
-            // 해외채널 카테고리 제거/정리 및 collectionDate 추가
+            const today = getKoreanDateString();
             const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
               const baseItem = it.category === '해외채널'
                 ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
                 : it;
               
-              // collectionDate가 없는 경우 오늘 날짜로 설정
               return {
                 ...baseItem,
-                collectionDate: baseItem.collectionDate || baseItem.uploadDate || today
+                collectionDate: baseItem.collectionDate || baseItem.uploadDate || today,
+                dayKeyLocal: baseItem.dayKeyLocal || baseItem.collectionDate || baseItem.uploadDate
               };
             });
             
-            setUnclassifiedData(sanitized);
-            console.log(`✅ 데이터 분류 관리 페이지 - ${sanitized.length}개 데이터 업데이트 완료`);
+            // 중복 제거 적용
+            console.log('🔄 중복 제거 전:', sanitized.length, '개 항목');
+            const dedupedData = dedupeComprehensive(sanitized as VideoItem[]);
+            console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
+            console.log('📊 제거된 중복:', sanitized.length - dedupedData.length, '개');
             
-            // 사용 가능한 날짜 목록도 새로고침 - 정확히 7일만 생성
-            // utils 함수들은 이미 정적 import됨
-            const dates = [];
-            
-            // 오늘 기준 최근 7일 날짜들만 생성 (중복 없이)
-            for (let i = 0; i < 7; i++) {
-              const date = getKoreanDateStringWithOffset(-i); // i일 전
-              dates.push(date);
-            }
-            
-            // 날짜 정렬 (최신순)
-            const sortedDates = dates.sort((a, b) => b.localeCompare(a));
-            console.log('📅 데이터 로드 후 날짜 그리드 재생성:', sortedDates);
-            setAvailableDates(sortedDates);
-            console.log(`📅 사용 가능한 날짜 목록 업데이트: ${sortedDates.length}개`);
-            
+            setUnclassifiedData(dedupedData as UnclassifiedData[]);
+            console.log('✅ 하이브리드 서비스에서 로드 완료:', dedupedData.length);
           } else {
-            console.log('📊 실제 데이터가 없습니다. 데이터 수집을 먼저 진행해주세요.');
+            console.log('📊 저장된 데이터 없음');
             setUnclassifiedData([]);
           }
+          
+          console.log('✅ 데이터 분류 관리 페이지 - 데이터 새로고침 완료');
         } catch (error) {
-          console.error('데이터 로드 실패:', error);
-          setUnclassifiedData([]);
+          console.error('❌ 데이터 새로고침 실패:', error);
         }
       };
       
