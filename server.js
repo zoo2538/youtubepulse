@@ -1130,17 +1130,26 @@ app.post('/api/auto-collect', async (req, res) => {
     
     if (result === false) {
       console.error('❌ 자동수집 함수에서 실패 반환');
-      return res.status(500).json({ error: 'Auto collection function failed' });
+      return res.status(500).json({ 
+        error: 'Auto collection function failed',
+        details: 'Function returned false'
+      });
     }
     
     res.json({ success: true, message: 'Auto collection completed' });
   } catch (error) {
     console.error('자동수집 실패:', error);
+    console.error('자동수집 오류 상세:', error.message);
+    console.error('자동수집 오류 스택:', error.stack);
     
     // 오류 발생 시에도 플래그 해제
     global.autoCollectionInProgress = false;
     
-    res.status(500).json({ error: 'Auto collection failed', details: error.message });
+    res.status(500).json({ 
+      error: 'Auto collection failed', 
+      details: error.message,
+      stack: error.stack?.substring(0, 500) // 스택 트레이스 일부만 전달
+    });
   }
 });
 
@@ -1421,7 +1430,11 @@ async function autoCollectData() {
     console.error('❌ 자동 수집 실패:', error);
     console.error('❌ 오류 상세:', error.message);
     console.error('❌ 오류 스택:', error.stack);
-    return false; // 실패 시 false 반환
+    console.error('❌ 오류 타입:', typeof error);
+    console.error('❌ 오류 속성:', Object.keys(error));
+    
+    // 오류를 API 응답으로도 전달
+    throw new Error(`자동수집 실패: ${error.message}`);
   }
 }
 
