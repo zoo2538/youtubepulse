@@ -58,6 +58,7 @@ import { startDataCollection } from "@/lib/youtube-api-service";
 import { compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { apiService } from "@/lib/api-service";
 import { fetchAndHydrate } from "@/lib/fetch-and-hydrate";
 import { showToast } from "@/lib/toast-util";
 
