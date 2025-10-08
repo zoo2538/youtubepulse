@@ -1111,10 +1111,19 @@ app.use((req, res, next) => {
 app.post('/api/test-postgresql', async (req, res) => {
   try {
     console.log('🧪 PostgreSQL 연결 테스트 시작');
+    console.log('🧪 DATABASE_URL 존재 여부:', !!process.env.DATABASE_URL);
+    console.log('🧪 pool 상태:', !!pool);
+    console.log('🧪 isConnected 상태:', isConnected);
     
     if (!pool) {
       console.error('❌ PostgreSQL 연결이 없습니다.');
-      return res.status(500).json({ error: 'PostgreSQL connection not available' });
+      console.error('❌ DATABASE_URL:', process.env.DATABASE_URL ? '설정됨' : '설정되지 않음');
+      return res.status(500).json({ 
+        error: 'PostgreSQL connection not available',
+        databaseUrl: !!process.env.DATABASE_URL,
+        pool: !!pool,
+        isConnected: isConnected
+      });
     }
     
     const client = await pool.connect();
