@@ -490,9 +490,31 @@ const DataClassification = () => {
             console.log('❌ 10월 6일 통계 없음 - 사용 가능한 날짜들:', Object.keys(newDateStats));
           }
           
+          // 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
+          const videoMap = new Map<string, any>();
+          
+          // 모든 데이터를 조회수 기준으로 정렬하여 처리
+          const sortedData = [...(savedData || [])].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+          
+          sortedData.forEach(item => {
+            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            if (!date) return;
+            
+            const normalizedDate = item.dayKeyLocal ? item.dayKeyLocal.replace(/-$/, '') : date.split('T')[0];
+            const videoKey = `${normalizedDate}_${item.videoId}`;
+            
+            // 같은 날짜의 같은 영상이면 조회수가 높은 것만 저장
+            if (!videoMap.has(videoKey)) {
+              videoMap.set(videoKey, item);
+            }
+          });
+          
+          // 중복 제거된 데이터로 통계 계산
+          const deduplicatedData = Array.from(videoMap.values());
+          
           // 자동수집 통계 계산 (collectionType이 'auto' 또는 undefined인 데이터)
           const autoCollectedStats: {[date: string]: {total: number; classified: number; progress: number}} = {};
-          savedData?.forEach(item => {
+          deduplicatedData.forEach(item => {
             // 자동수집 데이터 필터링 (undefined도 자동수집으로 간주)
             if (item.collectionType === 'auto' || item.collectionType === undefined) {
               let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
@@ -756,10 +778,33 @@ const DataClassification = () => {
   const calculateDailyProgress = (unclassifiedData: UnclassifiedData[], classifiedData: UnclassifiedData[]): DailyProgressData[] => {
     const progressMap = new Map<string, DailyProgressData>();
     
-    // 모든 데이터를 합쳐서 날짜별로 그룹화
+    // 모든 데이터를 합쳐서 조회수 기준으로 정렬
     const allData = [...unclassifiedData, ...classifiedData];
+    const sortedData = allData.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
     
-    allData.forEach(item => {
+    // 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
+    const videoMap = new Map<string, any>();
+    
+    sortedData.forEach(item => {
+      const dayKey = item.dayKeyLocal || 
+                    (item.collectionDate ? new Date(item.collectionDate).toISOString().split('T')[0] : null) ||
+                    (item.uploadDate ? new Date(item.uploadDate).toISOString().split('T')[0] : null);
+      
+      if (!dayKey) return;
+      
+      const normalizedDate = item.dayKeyLocal ? item.dayKeyLocal.replace(/-$/, '') : dayKey.split('T')[0];
+      const videoKey = `${normalizedDate}_${item.videoId}`;
+      
+      // 같은 날짜의 같은 영상이면 조회수가 높은 것만 저장
+      if (!videoMap.has(videoKey)) {
+        videoMap.set(videoKey, item);
+      }
+    });
+    
+    // 중복 제거된 데이터로 진행률 계산
+    const deduplicatedData = Array.from(videoMap.values());
+    
+    deduplicatedData.forEach(item => {
       const dayKey = item.dayKeyLocal || 
                     (item.collectionDate ? new Date(item.collectionDate).toISOString().split('T')[0] : null) ||
                     (item.uploadDate ? new Date(item.uploadDate).toISOString().split('T')[0] : null);
@@ -1397,28 +1442,61 @@ const DataClassification = () => {
         version: '2.0', // 하이브리드 버전
         backupType: 'hybrid',
         
-        // 통계 정보
-        summary: {
-        totalVideos: unclassifiedData.length,
-        classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
-        unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
-          manualCollected: unclassifiedData.filter(item => item.collectionType === 'manual').length,
-          autoCollected: unclassifiedData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined).length
-        },
+        // 통계 정보 (중복 제거 적용)
+        summary: (() => {
+          // 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
+          const videoMap = new Map<string, any>();
+          const sortedData = [...unclassifiedData].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+          
+          sortedData.forEach(item => {
+            const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            if (!date) return;
+            
+            const normalizedDate = item.dayKeyLocal ? item.dayKeyLocal.replace(/-$/, '') : date.split('T')[0];
+            const videoKey = `${normalizedDate}_${item.videoId}`;
+            
+            if (!videoMap.has(videoKey)) {
+              videoMap.set(videoKey, item);
+            }
+          });
+          
+          const deduplicatedData = Array.from(videoMap.values());
+          
+          return {
+            totalVideos: deduplicatedData.length,
+            classifiedVideos: deduplicatedData.filter(item => item.status === 'classified').length,
+            unclassifiedVideos: deduplicatedData.filter(item => item.status === 'unclassified').length,
+            manualCollected: deduplicatedData.filter(item => item.collectionType === 'manual').length,
+            autoCollected: deduplicatedData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined).length
+          };
+        })(),
         
-        // 일별 데이터 (하이브리드 구조)
+        // 일별 데이터 (하이브리드 구조, 중복 제거 적용)
         dailyData: availableDates.slice(0, 7).map(date => {
           const dateData = unclassifiedData.filter(item => {
             const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
             return itemDate === date;
           });
           
-          // 수동수집/자동수집 구분
-          const manualData = dateData.filter(item => item.collectionType === 'manual');
-          const autoData = dateData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined);
+          // 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
+          const videoMap = new Map<string, any>();
+          const sortedDateData = [...dateData].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
           
-          const total = dateData.length;
-          const classified = dateData.filter(item => item.status === 'classified').length;
+          sortedDateData.forEach(item => {
+            const videoKey = `${date}_${item.videoId}`;
+            if (!videoMap.has(videoKey)) {
+              videoMap.set(videoKey, item);
+            }
+          });
+          
+          const deduplicatedDateData = Array.from(videoMap.values());
+          
+          // 수동수집/자동수집 구분
+          const manualData = deduplicatedDateData.filter(item => item.collectionType === 'manual');
+          const autoData = deduplicatedDateData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined);
+          
+          const total = deduplicatedDateData.length;
+          const classified = deduplicatedDateData.filter(item => item.status === 'classified').length;
           const progress = total > 0 ? (classified / total) * 100 : 0;
           
           return {
