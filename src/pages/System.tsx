@@ -44,6 +44,14 @@ import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { CacheCleanup } from "@/lib/cache-cleanup";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface ApiConfig {
   youtubeApiKey: string;
@@ -132,6 +140,14 @@ const System = () => {
     localStorage: boolean;
   } | null>(null);
 
+  // 저장 상태
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
+
+  // API 키 입력 다이얼로그
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [tempApiKey, setTempApiKey] = useState('');
 
   const [dbInfo, setDbInfo] = useState<any>(null);
   const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false);
@@ -390,10 +406,61 @@ const System = () => {
   };
 
 
+  // API 키 저장 핸들러
+  const handleSaveApiKey = () => {
+    if (!tempApiKey.trim()) {
+      alert('API 키를 입력해주세요.');
+      return;
+    }
+
+    // API 키 저장
+    setApiConfig(prev => ({
+      ...prev,
+      youtubeApiKey: tempApiKey.trim(),
+      youtubeApiEnabled: true
+    }));
+
+    localStorage.setItem('youtubeApiKey', tempApiKey.trim());
+    localStorage.setItem('youtubeApiEnabled', 'true');
+
+    console.log('✅ API 키 저장 완료:', tempApiKey.trim().substring(0, 10) + '...');
+    
+    // 다이얼로그 닫기
+    setShowApiKeyDialog(false);
+    
+    // 저장 상태 표시
+    setSaveStatus('success');
+    setSaveMessage('API 키가 저장되었습니다. 이제 데이터 수집을 시작합니다.');
+    
+    // 3초 후 메시지 제거
+    setTimeout(() => {
+      setSaveStatus('idle');
+      setSaveMessage('');
+    }, 3000);
+
+    // 데이터 수집 시작
+    setTimeout(() => {
+      startDataCollectionProcess();
+    }, 500);
+  };
+
   const handleStartDataCollection = async () => {
+    // API 키 확인
+    if (!apiConfig.youtubeApiKey) {
+      // API 키가 없으면 다이얼로그 표시
+      setTempApiKey('');
+      setShowApiKeyDialog(true);
+      return;
+    }
+
+    // API 키가 있으면 바로 수집 시작
+    await startDataCollectionProcess();
+  };
+
+  const startDataCollectionProcess = async () => {
     try {
       if (!apiConfig.youtubeApiKey) {
-        alert('YouTube API 키를 먼저 입력해주세요.');
+        alert('YouTube API 키가 필요합니다.');
         return;
       }
 
@@ -898,6 +965,84 @@ const System = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* API 키 입력 다이얼로그 */}
+      <Dialog open={showApiKeyDialog} onOpenChange={setShowApiKeyDialog}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <Key className="w-5 h-5 text-blue-600" />
+              <span>YouTube API 키 설정</span>
+            </DialogTitle>
+            <DialogDescription>
+              데이터 수집을 위해 YouTube API 키를 입력해주세요.
+              입력된 API 키는 자동으로 저장됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="api-key-input">API 키</Label>
+              <Input
+                id="api-key-input"
+                type="text"
+                placeholder="YouTube Data API v3 키를 입력하세요"
+                value={tempApiKey}
+                onChange={(e) => setTempApiKey(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSaveApiKey();
+                  }
+                }}
+                className="font-mono"
+                autoFocus
+              />
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <h4 className="text-sm font-medium text-blue-800 mb-2">💡 API 키 발급 방법:</h4>
+              <ol className="text-xs text-blue-700 space-y-1">
+                <li>1. <a href="https://console.cloud.google.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">Google Cloud Console</a>에 로그인</li>
+                <li>2. 새 프로젝트 생성 또는 기존 프로젝트 선택</li>
+                <li>3. <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">YouTube Data API v3</a> 활성화</li>
+                <li>4. <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">사용자 인증 정보</a>에서 API 키 생성</li>
+                <li>5. 생성된 API 키를 위에 입력</li>
+              </ol>
+            </div>
+
+            {saveStatus !== 'idle' && (
+              <div className={`p-3 rounded-lg text-sm ${
+                saveStatus === 'success' 
+                  ? 'bg-green-50 border border-green-200 text-green-800' 
+                  : 'bg-red-50 border border-red-200 text-red-800'
+              }`}>
+                <div className="flex items-center space-x-2">
+                  {saveStatus === 'success' && <CheckCircle className="w-4 h-4" />}
+                  {saveStatus === 'error' && <XCircle className="w-4 h-4" />}
+                  <span>{saveMessage}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowApiKeyDialog(false)}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={handleSaveApiKey}
+              disabled={!tempApiKey.trim()}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              저장하고 수집 시작
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <header className="bg-background border-b border-border">
         <div className="container mx-auto px-4 py-4">
