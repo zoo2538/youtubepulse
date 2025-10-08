@@ -135,9 +135,10 @@ const DataClassification = () => {
       if (response.ok) {
         const result = await response.json();
         if (result.success && result.data && result.data.length > 0) {
-          // 가장 최신 자동수집 데이터 사용
-          const latestCollection = result.data[0];
-          const autoCollectedData = latestCollection.data;
+          // 서버에서 이미 평면화된 배열로 반환됨
+          const autoCollectedData = result.data;
+          
+          console.log(`🤖 자동수집 데이터 로드: ${autoCollectedData.length}개`);
           
           // 자동수집 데이터 통계 계산
           const autoStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
