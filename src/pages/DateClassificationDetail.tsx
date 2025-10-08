@@ -348,13 +348,50 @@ const DateClassificationDetail = () => {
       console.log('💾 IndexedDB 날짜별 업데이트 - 분류 데이터');
       await indexedDBService.updateClassifiedDataByDate(classifiedData, selectedDate);
       
-      // 2. 서버에 저장 (API 서버)
-      console.log('💾 서버 저장 - 미분류 데이터');
-      await hybridService.saveUnclassifiedData(unclassifiedData);
+      // 2. 서버에 날짜별 업데이트 (다른 날짜 데이터 보존) ✅
+      console.log('💾 서버 날짜별 업데이트 시작...');
       
-      console.log('💾 서버 저장 - 분류 데이터');
+      // 2-1. 서버에서 전체 미분류 데이터 가져오기
+      const allUnclassifiedData = await hybridService.getUnclassifiedData();
+      console.log(`💾 서버 전체 미분류 데이터: ${allUnclassifiedData.length}개`);
+      
+      // 2-2. 현재 날짜가 아닌 데이터만 필터링
+      const otherDatesData = allUnclassifiedData.filter(item => {
+        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+        const normalizedItemDate = itemDate && typeof itemDate === 'string' && itemDate.includes('T') 
+          ? itemDate.split('T')[0] 
+          : itemDate;
+        return normalizedItemDate !== selectedDate;
+      });
+      console.log(`💾 다른 날짜 데이터: ${otherDatesData.length}개`);
+      
+      // 2-3. 현재 날짜 데이터와 병합
+      const mergedUnclassifiedData = [...otherDatesData, ...unclassifiedData];
+      console.log(`💾 병합된 전체 데이터: ${mergedUnclassifiedData.length}개`);
+      
+      // 2-4. 서버에 전체 데이터 저장
+      console.log('💾 서버 저장 - 미분류 데이터 (날짜별 업데이트)');
+      await hybridService.saveUnclassifiedData(mergedUnclassifiedData);
+      
+      // 2-5. 분류 데이터도 동일한 방식으로 처리
       if (classifiedData.length > 0) {
-        await hybridService.saveClassifiedData(classifiedData);
+        const allClassifiedData = await hybridService.getClassifiedData();
+        console.log(`💾 서버 전체 분류 데이터: ${allClassifiedData.length}개`);
+        
+        const otherDatesClassifiedData = allClassifiedData.filter(item => {
+          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+          const normalizedItemDate = itemDate && typeof itemDate === 'string' && itemDate.includes('T') 
+            ? itemDate.split('T')[0] 
+            : itemDate;
+          return normalizedItemDate !== selectedDate;
+        });
+        console.log(`💾 다른 날짜 분류 데이터: ${otherDatesClassifiedData.length}개`);
+        
+        const mergedClassifiedData = [...otherDatesClassifiedData, ...classifiedData];
+        console.log(`💾 병합된 전체 분류 데이터: ${mergedClassifiedData.length}개`);
+        
+        console.log('💾 서버 저장 - 분류 데이터 (날짜별 업데이트)');
+        await hybridService.saveClassifiedData(mergedClassifiedData);
       }
       
       // 일별 요약 데이터 생성 및 저장 (대시보드용)
