@@ -188,11 +188,11 @@ const DateClassificationDetail = () => {
         if (collectionType) {
           console.log('🔍 수집 타입 필터링:', collectionType);
           if (collectionType === 'manual') {
-            // 수동수집 데이터만 (collectionType이 없거나 'manual')
-            typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual');
+            // 수동수집 데이터만 (collectionType이 없거나 'manual' 또는 undefined)
+            typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual' || item.collectionType === undefined);
           } else if (collectionType === 'auto') {
-            // 자동수집 데이터만 (undefined도 자동수집으로 간주)
-            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined);
+            // 자동수집 데이터만 (명시적으로 'auto'로 설정된 것만)
+            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
           }
           // 'total'인 경우 모든 데이터 (필터링 없음)
           console.log('📊 수집 타입 필터링 후:', typeFilteredData.length, '개');

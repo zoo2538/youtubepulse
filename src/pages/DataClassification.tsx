@@ -134,9 +134,18 @@ const DataClassification = () => {
       
       // API에서 자동수집 데이터 조회
       const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+      console.log('🤖 자동수집 API 응답 상태:', response.status, response.ok);
+      
       if (response.ok) {
         const result = await response.json();
-        if (result.success && result.data && result.data.length > 0) {
+        console.log('🤖 자동수집 API 응답 데이터:', {
+          success: result.success,
+          dataLength: result.data?.length,
+          dataType: typeof result.data,
+          isArray: Array.isArray(result.data)
+        });
+        
+        if (result.success && result.data && Array.isArray(result.data) && result.data.length > 0) {
           // 서버에서 이미 평면화된 배열로 반환됨
           const autoCollectedData = result.data;
           
@@ -191,12 +200,19 @@ const DataClassification = () => {
           setAutoCollectedStats(autoStats);
           console.log('🤖 자동수집 통계:', autoStats);
         } else {
-          console.log('🤖 자동수집 데이터 없음');
-          setAutoCollectedStats({});
+          console.log('🤖 자동수집 API 응답 실패 또는 데이터 없음:', {
+            success: result?.success,
+            hasData: !!result?.data,
+            dataLength: result?.data?.length || 0,
+            dataType: typeof result?.data
+          });
+          // 기존 통계 유지 (빈 객체로 덮어쓰지 않음)
+          console.log('🤖 기존 자동수집 통계 유지:', autoCollectedStats);
         }
       } else {
-        console.log('🤖 자동수집 API 호출 실패');
-        setAutoCollectedStats({});
+        console.log('🤖 자동수집 API 호출 실패:', response.status, response.statusText);
+        // 기존 통계 유지 (빈 객체로 덮어쓰지 않음)
+        console.log('🤖 기존 자동수집 통계 유지:', autoCollectedStats);
         }
       } catch (error) {
       console.error('🤖 자동수집 데이터 로드 실패:', error);
