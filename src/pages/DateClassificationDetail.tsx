@@ -143,16 +143,22 @@ const DateClassificationDetail = () => {
             }
           }
           
-          // 2. collectionDate 확인
-          if (item.collectionDate === selectedDate) {
-            console.log('✅ collectionDate 매치:', item.collectionDate);
-            return true;
+          // 2. collectionDate 확인 (ISO 형식 지원)
+          if (item.collectionDate) {
+            const collectionDateStr = item.collectionDate.split('T')[0]; // ISO 형식에서 날짜만 추출
+            if (collectionDateStr === selectedDate) {
+              console.log('✅ collectionDate 매치:', item.collectionDate, '→', collectionDateStr);
+              return true;
+            }
           }
           
-          // 3. uploadDate 확인
-          if (item.uploadDate === selectedDate) {
-            console.log('✅ uploadDate 매치:', item.uploadDate);
-            return true;
+          // 3. uploadDate 확인 (ISO 형식 지원)
+          if (item.uploadDate) {
+            const uploadDateStr = item.uploadDate.split('T')[0]; // ISO 형식에서 날짜만 추출
+            if (uploadDateStr === selectedDate) {
+              console.log('✅ uploadDate 매치:', item.uploadDate, '→', uploadDateStr);
+              return true;
+            }
           }
           
           // 4. publishedAt 확인 (YYYY-MM-DD 형식)
@@ -185,8 +191,8 @@ const DateClassificationDetail = () => {
             // 수동수집 데이터만 (collectionType이 없거나 'manual')
             typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual');
           } else if (collectionType === 'auto') {
-            // 자동수집 데이터만
-            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
+            // 자동수집 데이터만 (undefined도 자동수집으로 간주)
+            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined);
           }
           // 'total'인 경우 모든 데이터 (필터링 없음)
           console.log('📊 수집 타입 필터링 후:', typeFilteredData.length, '개');
@@ -468,7 +474,7 @@ const DateClassificationDetail = () => {
       
       // 수동수집/자동수집 구분 (collectionType이 없으면 수동수집으로 분류)
       const manualData = unclassifiedData.filter(item => !item.collectionType || item.collectionType === 'manual');
-      const autoData = unclassifiedData.filter(item => item.collectionType === 'auto');
+      const autoData = unclassifiedData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined);
       
       console.log('📊 수집 타입 분류:', {
         total: unclassifiedData.length,
