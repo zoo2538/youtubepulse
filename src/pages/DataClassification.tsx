@@ -1207,6 +1207,75 @@ const DataClassification = () => {
         console.error('❌ 진행률 데이터 저장 실패:', progressError);
         throw new Error(`진행률 데이터 저장 실패: ${progressError instanceof Error ? progressError.message : '알 수 없는 오류'}`);
       }
+
+      // dailySummary 생성 및 저장 (대시보드용)
+      try {
+        console.log('📊 dailySummary 생성 시작...');
+        
+        // 각 날짜별로 dailySummary 생성
+        for (const progressItem of progressData) {
+          const date = progressItem.date;
+          console.log(`📊 ${date} 날짜 dailySummary 생성 중...`);
+          
+          // 해당 날짜의 분류된 데이터 로드
+          const dateData = mergedData.filter(item => {
+            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            return itemDate && itemDate.split('T')[0] === date;
+          });
+          
+          console.log(`📊 ${date} 날짜 데이터: ${dateData.length}개`);
+          
+          // dailySummary 생성
+          const dailySummary = {
+            date: date,
+            categories: {} as Record<string, any>
+          };
+          
+          // 모든 카테고리 초기화
+          const allCategories = [...new Set(dateData.map(item => item.category).filter(Boolean))];
+          allCategories.forEach(category => {
+            dailySummary.categories[category] = {
+              totalViews: 0,
+              count: 0,
+              channelCount: 0,
+              channels: new Set()
+            };
+          });
+          
+          // 카테고리별 통계 계산
+          dateData.forEach(item => {
+            if (!item.category) return;
+            
+            if (!dailySummary.categories[item.category]) {
+              dailySummary.categories[item.category] = {
+                totalViews: 0,
+                count: 0,
+                channelCount: 0,
+                channels: new Set()
+              };
+            }
+            
+            dailySummary.categories[item.category].totalViews += item.viewCount || 0;
+            dailySummary.categories[item.category].count += 1;
+            dailySummary.categories[item.category].channels.add(item.channelName);
+          });
+          
+          // Set을 배열로 변환
+          Object.keys(dailySummary.categories).forEach(category => {
+            dailySummary.categories[category].channels = Array.from(dailySummary.categories[category].channels);
+            dailySummary.categories[category].channelCount = dailySummary.categories[category].channels.length;
+          });
+          
+          // dailySummary 저장
+          await indexedDBService.saveDailySummary(date, dailySummary);
+          console.log(`✅ ${date} 날짜 dailySummary 저장 완료:`, Object.keys(dailySummary.categories).length, '개 카테고리');
+        }
+        
+        console.log('✅ 모든 날짜 dailySummary 생성 및 저장 완료');
+      } catch (dailySummaryError) {
+        console.error('❌ dailySummary 생성 실패:', dailySummaryError);
+        // dailySummary 실패는 진행을 중단하지 않음 (폴백으로 classifiedData 사용 가능)
+      }
       
       // 로컬 상태 업데이트 (백업 데이터 보존)
       if (mergedData.length > 0) {
