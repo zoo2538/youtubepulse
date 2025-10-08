@@ -320,6 +320,28 @@ const DataClassification = () => {
   const [dateStats, setDateStats] = useState<{ [date: string]: { total: number; classified: number; progress: number } }>({});
   // 카테고리 관리 관련 상태 제거 - 하드코딩 방식 사용
 
+  // 데이터 우선순위 함수 (하이브리드 동기화용)
+  const getDataPriority = (item: any): number => {
+    // 1. 수동으로 분류된 데이터 (가장 높은 우선순위)
+    if (item.collectionType === 'manual' && item.status === 'classified') {
+      return 4;
+    }
+    // 2. 수동으로 수집된 데이터
+    if (item.collectionType === 'manual') {
+      return 3;
+    }
+    // 3. 자동 수집된 데이터
+    if (item.collectionType === 'auto') {
+      return 2;
+    }
+    // 4. collectionType이 undefined인 자동 수집 데이터
+    if (item.collectionType === undefined) {
+      return 1;
+    }
+    // 5. 기타
+    return 0;
+  };
+
   // 한국어/영어 판별 함수
   const isKoreanText = (text: string): boolean => {
     const koreanRegex = /[가-힣]/;
@@ -490,7 +512,7 @@ const DataClassification = () => {
             console.log('❌ 10월 6일 통계 없음 - 사용 가능한 날짜들:', Object.keys(newDateStats));
           }
           
-          // 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
+          // 하이브리드 동기화: 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
           const videoMap = new Map<string, any>();
           
           // 모든 데이터를 조회수 기준으로 정렬하여 처리

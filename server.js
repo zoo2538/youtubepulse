@@ -565,32 +565,63 @@ app.get('/api/classified', async (req, res) => {
   
   try {
     const client = await pool.connect();
+    
+    // 자동 수집 + 수동 분류 데이터 통합 조회
     const result = await client.query(`
-      SELECT data FROM classification_data 
-      WHERE data_type = 'classified' 
+      SELECT data, data_type FROM classification_data 
+      WHERE data_type IN ('auto_collected', 'manual_classified', 'classified') 
       ORDER BY created_at DESC
     `);
     
     client.release();
     
-    // 모든 행의 data를 합쳐서 반환
-    const allData = result.rows.flatMap(row => row.data || []);
-    console.log(`📊 분류 데이터 조회: ${allData.length}개 (${result.rows.length}개 행)`);
-    console.log(`📊 조회 조건: data_type = 'classified'`);
-    console.log(`📊 데이터 타입별 개수:`, result.rows.reduce((acc, row) => {
-      const dataType = row.data?.[0]?.data_type || 'unknown';
-      acc[dataType] = (acc[dataType] || 0) + (row.data?.length || 0);
+    // 모든 데이터를 합쳐서 중복 제거 (videoId + collectionDate 기준)
+    const allData = result.rows.flatMap(row => {
+      const items = Array.isArray(row.data) ? row.data : [row.data];
+      return items.map(item => ({
+        ...item,
+        _source_type: row.data_type // 데이터 소스 타입 추가
+      }));
+    });
+    
+    // 중복 제거: 같은 날짜의 같은 영상은 조회수 높은 것만
+    const videoMap = new Map();
+    
+    // 조회수 기준으로 정렬 (높은 것부터)
+    const sortedData = allData.sort((a, b) => {
+      const viewCountA = parseInt(a.viewCount || a.statistics?.viewCount || '0');
+      const viewCountB = parseInt(b.viewCount || b.statistics?.viewCount || '0');
+      return viewCountB - viewCountA;
+    });
+    
+    sortedData.forEach(item => {
+      const key = `${item.videoId}_${item.collectionDate}`;
+      
+      // 같은 날짜의 같은 영상이면 조회수가 높은 것만 저장 (이미 정렬됨)
+      if (!videoMap.has(key)) {
+        videoMap.set(key, item);
+      }
+    });
+    
+    const uniqueData = Array.from(videoMap.values());
+    
+    console.log(`📊 통합 분류 데이터 조회: ${uniqueData.length}개 (중복 제거 후)`);
+    console.log(`📊 원본 데이터: ${allData.length}개 → 고유 데이터: ${uniqueData.length}개`);
+    console.log(`📊 데이터 소스별 개수:`, uniqueData.reduce((acc, item) => {
+      const sourceType = item._source_type || 'unknown';
+      acc[sourceType] = (acc[sourceType] || 0) + 1;
       return acc;
     }, {}));
     
-    // 일부 데이터 ID 로깅 (디버깅용)
-    if (allData.length > 0) {
-      console.log(`📊 첫 3개 데이터 ID:`, allData.slice(0, 3).map(item => item.id || item.videoId));
-    }
+    // _source_type 필드 제거 후 반환
+    const cleanData = uniqueData.map(item => {
+      const { _source_type, ...cleanItem } = item;
+      return cleanItem;
+    });
     
-    res.json({ success: true, data: allData });
+    res.json({ success: true, data: cleanData });
   } catch (error) {
-    console.error('분류 데이터 조회 실패:', error);
+    console.error('통합 분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get classified data' });
   }
 });
@@ -921,13 +952,18 @@ app.get('/api/auto-collected', async (req, res) => {
     
     client.release();
     
-    // 모든 자동 수집 데이터 반환 (날짜별)
-    const collections = result.rows.map(row => ({
-      data: row.data,
-      collectedAt: row.created_at
-    }));
+    // 모든 자동 수집 데이터를 평면화하여 반환
+    const allData = result.rows.flatMap(row => {
+      const items = Array.isArray(row.data) ? row.data : [row.data];
+      return items.map(item => ({
+        ...item,
+        collectedAt: row.created_at
+      }));
+    });
     
-    res.json({ success: true, data: collections });
+    console.log(`📊 자동 수집 데이터 조회: ${allData.length}개 (${result.rows.length}개 배치)`);
+    
+    res.json({ success: true, data: allData });
   } catch (error) {
     console.error('자동 수집 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get auto-collected data' });
