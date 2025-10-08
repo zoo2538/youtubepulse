@@ -1188,15 +1188,22 @@ const DataClassification = () => {
       if (allData.length > 0) {
         console.log('📊 전체 데이터 개수:', allData.length, '개');
         
-        // 전체 데이터 업데이트 (백업 데이터 포함)
+        // 분류 데이터 덮어쓰기 (웹에서 변경된 분류 정보 우선)
         allClassifiedData.forEach(dataItem => {
           const existingIndex = mergedData.findIndex(item => item.id === dataItem.id);
           if (existingIndex >= 0) {
-            // 기존 데이터 업데이트 (전체 정보)
+            // 웹에서 변경된 분류 정보로 덮어쓰기 (분류 정보 우선)
             mergedData[existingIndex] = { 
               ...mergedData[existingIndex], 
-              ...dataItem
+              ...dataItem,
+              // 분류 관련 필드는 웹에서 변경된 값으로 강제 덮어쓰기
+              category: dataItem.category,
+              subCategory: dataItem.subCategory,
+              status: dataItem.status,
+              // 분류 시간 기록
+              classifiedAt: dataItem.classifiedAt || new Date().toISOString()
             };
+            console.log(`🔄 데이터 덮어쓰기: ${dataItem.id} - 카테고리: ${dataItem.category}, 상태: ${dataItem.status}`);
           } else {
             // 새로운 데이터 추가
             mergedData.push(dataItem);

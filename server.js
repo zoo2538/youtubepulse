@@ -238,7 +238,7 @@ async function createTables() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS classification_data (
         id SERIAL PRIMARY KEY,
-        data_type VARCHAR(100),
+        data_type VARCHAR(100) UNIQUE,
         data JSONB,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -526,41 +526,21 @@ app.post('/api/classified', async (req, res) => {
         console.log(`✅ 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
       }
     } else {
-      // 수동수집 데이터 저장 (중복 체크 및 업데이트)
-      for (const item of data) {
-      // 기존 데이터 확인 (videoId + collectionDate 기준)
-      const existing = await client.query(`
-        SELECT id, data_type, data->>'collectionDate' as collectionDate FROM classification_data 
-        WHERE data_type IN ('auto_classified', 'manual_classified')
-        AND data->>'videoId' = $1
-        AND data->>'collectionDate' = $2
-      `, [item.videoId, item.collectionDate]);
+      // 웹에서 분류한 데이터는 무조건 덮어쓰기 (분류 정보 우선)
+      // 기존 분류 데이터 삭제 후 새로 저장
+      await client.query(`DELETE FROM classification_data WHERE data_type = 'manual_classified'`);
       
-      if (existing.rows.length === 0) {
-        // 중복이 없으면 새로 저장
-        await client.query(`
-          INSERT INTO classification_data (data_type, data)
-          VALUES ($1, $2)
-        `, ['manual_classified', JSON.stringify(item)]);
-      } else {
-        // 중복이 있으면 조회수 비교 후 업데이트
-        const existingData = existing.rows[0];
-        const existingViews = parseInt(existingData.data?.statistics?.viewCount || '0');
-        const newViews = parseInt(item.statistics?.viewCount || '0');
-        
-        if (newViews > existingViews) {
-          // 조회수가 더 높으면 업데이트
-          await client.query(`
-            UPDATE classification_data 
-            SET data_type = 'manual_classified', data = $1, created_at = CURRENT_TIMESTAMP
-            WHERE id = $2
-          `, [JSON.stringify(item), existingData.id]);
-          console.log(`🔄 영상 업데이트: ${item.videoId} (조회수 ${existingViews.toLocaleString()} → ${newViews.toLocaleString()})`);
-        } else {
-          console.log(`⏭️ 영상 건너뛰기: ${item.videoId} (기존 조회수 ${existingViews.toLocaleString()} > 신규 ${newViews.toLocaleString()})`);
-        }
-      }
-    }
+      // 새 분류 데이터 저장
+      await client.query(`
+        INSERT INTO classification_data (data_type, data)
+        VALUES ($1, $2)
+      `, ['manual_classified', JSON.stringify(data)]);
+      
+      console.log(`✅ 웹 분류 데이터 덮어쓰기 저장 완료: ${data.length}개 항목`);
+      
+      // 분류된 항목들 로깅
+      const classifiedCount = data.filter(item => item.status === 'classified').length;
+      console.log(`📊 분류 완료: ${classifiedCount}개, 미분류: ${data.length - classifiedCount}개`);
     }
     
     client.release();
@@ -638,10 +618,16 @@ app.post('/api/unclassified', async (req, res) => {
         console.log(`✅ 미분류 청크 ${Math.floor(i/chunkSize) + 1} 저장 완료`);
       }
     } else {
+      // 미분류 데이터 저장 시 기존 데이터 덮어쓰기
       await client.query(`
         INSERT INTO classification_data (data_type, data)
         VALUES ($1, $2)
+        ON CONFLICT (data_type) 
+        DO UPDATE SET 
+          data = EXCLUDED.data,
+          created_at = CURRENT_TIMESTAMP
       `, ['unclassified', JSON.stringify(data)]);
+      console.log(`✅ 미분류 데이터 덮어쓰기 저장 완료: ${data.length}개 항목`);
     }
     
     client.release();
