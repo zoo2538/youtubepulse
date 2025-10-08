@@ -374,6 +374,56 @@ app.get('/api/health-sql', async (req, res) => {
   }
 });
 
+// 헬스 체크 - DB 상태 및 Pool 정보
+app.get('/health/db', async (req, res) => {
+  try {
+    if (!pool) {
+      return res.status(503).json({
+        status: 'DOWN',
+        service: 'PostgreSQL',
+        message: 'Database pool not initialized',
+        poolExists: false,
+        isConnected: false,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    const client = await pool.connect();
+    try {
+      const result = await client.query('SELECT 1 as health_check, NOW() as current_time');
+      const poolStatus = {
+        totalCount: pool.totalCount,
+        idleCount: pool.idleCount,
+        waitingCount: pool.waitingCount,
+      };
+      
+      res.status(200).json({
+        status: 'UP',
+        service: 'PostgreSQL',
+        message: 'Database connection healthy',
+        queryResult: result.rows[0],
+        poolStatus: poolStatus,
+        poolExists: true,
+        isConnected: true,
+        timestamp: new Date().toISOString()
+      });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('❌ Health check /health/db failed:', error.message);
+    res.status(500).json({
+      status: 'ERROR',
+      service: 'PostgreSQL',
+      message: 'Database connection error',
+      error: error.message,
+      poolExists: !!pool,
+      isConnected: false,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
 // 데이터 동기화 API
 app.post('/api/sync/channels', async (req, res) => {
   if (!pool) {

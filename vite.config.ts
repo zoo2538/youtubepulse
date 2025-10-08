@@ -25,6 +25,10 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
+        // 파일명 해싱으로 캐시 무효화 보장
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]',
         manualChunks: {
           // 핵심 모듈들을 안정적인 청크로 분리
           'vendor': ['react', 'react-dom', 'react-router-dom'],

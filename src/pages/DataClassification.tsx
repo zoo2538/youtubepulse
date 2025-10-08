@@ -58,6 +58,8 @@ import { startDataCollection } from "@/lib/youtube-api-service";
 import { compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { fetchAndHydrate } from "@/lib/fetch-and-hydrate";
+import { showToast } from "@/lib/toast-util";
 
 // localStorage 관련 함수들 제거 - IndexedDB만 사용
 
@@ -321,6 +323,42 @@ const DataClassification = () => {
   const [dateStats, setDateStats] = useState<{ [date: string]: { total: number; classified: number; progress: number } }>({});
   // 카테고리 관리 관련 상태 제거 - 하드코딩 방식 사용
 
+  // 디버그 훅: 백그라운드 동기화 수동 트리거 (개발 모드만)
+  React.useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as any).__debugTriggerBackgroundSync = async () => {
+        console.log('🐛 [Debug] 백그라운드 동기화 수동 트리거');
+        const startTime = performance.now();
+        
+        try {
+          const result = await fetchAndHydrate({ scope: 'all' });
+          const elapsedMs = Math.round(performance.now() - startTime);
+          
+          console.log(`🐛 [Debug] 결과 | 성공: ${result.success} | 건수: ${result.count} | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
+          
+          if (result.success) {
+            window.dispatchEvent(new CustomEvent('dataUpdated', {
+              detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
+            }));
+          }
+          
+          return result;
+        } catch (error) {
+          console.error('🐛 [Debug] 실패:', error);
+          throw error;
+        }
+      };
+      
+      console.log('🐛 [Debug] window.__debugTriggerBackgroundSync() 등록됨');
+    }
+    
+    return () => {
+      if (import.meta.env.DEV) {
+        delete (window as any).__debugTriggerBackgroundSync;
+      }
+    };
+  }, []);
+
   // 데이터 우선순위 함수 (하이브리드 동기화용)
   const getDataPriority = (item: any): number => {
     // 1. 수동으로 분류된 데이터 (가장 높은 우선순위)
@@ -376,6 +414,8 @@ const DataClassification = () => {
         console.log('🔄 페이지 포커스 이벤트 - 데이터 로드 허용');
       } else if (event.detail.type === 'dataUpdated') {
         console.log('🔄 데이터 업데이트 이벤트 - 데이터 로드 허용');
+      } else if (event.detail.type === 'backgroundSync') {
+        console.log('🔄 백그라운드 동기화 완료 이벤트 - 서버 데이터로 갱신');
       } else {
         console.log('🔒 알 수 없는 이벤트 타입 - 데이터 로드 차단:', event.detail.type);
         return;
@@ -1260,39 +1300,69 @@ const DataClassification = () => {
               } catch (reloadError) {
                 console.warn('⚠️ 서버 재조회 실패 (저장은 완료됨):', reloadError);
                 
+                // 사용자에게 정보 제공 (경고 아님)
+                showToast('저장 완료! 서버 동기화는 5분 후 자동으로 재시도됩니다.', {
+                  type: 'info',
+                  duration: 4000
+                });
+                
                 // 5분 후 백그라운드 재시도 예약
                 setTimeout(async () => {
+                  const startTime = performance.now();
+                  console.log('🔄 [BGSync-Retry] 백그라운드 재조회 재시도 시작 (5분 경과)');
+                  
                   try {
-                    console.log('🔄 백그라운드 재조회 재시도...');
-                    const retryData = await hybridService.getClassifiedData();
-                    if (retryData.length > 0) {
-                      await indexedDBService.saveClassifiedData(retryData);
-                      console.log('✅ 백그라운드 재조회 성공');
+                    const result = await fetchAndHydrate({ scope: 'classified' });
+                    const elapsedMs = Math.round(performance.now() - startTime);
+                    
+                    if (result.success) {
+                      console.log(`✅ [BGSync-Retry] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
+                      showToast('백그라운드 동기화 완료!', { type: 'success' });
+                      
+                      window.dispatchEvent(new CustomEvent('dataUpdated', {
+                        detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
+                      }));
+                    } else {
+                      console.warn(`⚠️ [BGSync-Retry] 재시도 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
                     }
                   } catch (retryError) {
-                    console.warn('⚠️ 백그라운드 재조회도 실패 (로컬 데이터 유지)');
+                    const elapsedMs = Math.round(performance.now() - startTime);
+                    console.error(`❌ [BGSync-Retry] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, retryError);
                   }
                 }, 5 * 60 * 1000); // 5분 후
               }
             } else {
               console.log('📊 대용량 데이터 (26K+) - 즉시 반영, 백그라운드 동기화 예약');
               
+              // 사용자에게 정보 제공
+              showToast(`저장 완료! (${classifiedItems.length.toLocaleString()}개) 백그라운드 동기화는 10분 후 자동 실행됩니다.`, {
+                type: 'success',
+                duration: 5000
+              });
+              
               // 대용량 데이터는 백그라운드에서 10분 후 재조회
               setTimeout(async () => {
+                const startTime = performance.now();
+                console.log('🔄 [BGSync-Large] 백그라운드 대용량 데이터 동기화 시작 (10분 경과)');
+                
                 try {
-                  console.log('🔄 백그라운드 대용량 데이터 동기화 시작...');
-                  const bgData = await hybridService.getClassifiedData();
-                  if (bgData.length > 0) {
-                    await indexedDBService.saveClassifiedData(bgData);
-                    console.log('✅ 백그라운드 대용량 동기화 완료');
+                  const result = await fetchAndHydrate({ scope: 'classified' });
+                  const elapsedMs = Math.round(performance.now() - startTime);
+                  
+                  if (result.success) {
+                    console.log(`✅ [BGSync-Large] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
+                    showToast(`대용량 백그라운드 동기화 완료! (${result.count.toLocaleString()}개)`, { type: 'success' });
                     
                     // 데이터 업데이트 이벤트 발생
                     window.dispatchEvent(new CustomEvent('dataUpdated', {
-                      detail: { type: 'backgroundSync', timestamp: Date.now() }
+                      detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
                     }));
+                  } else {
+                    console.warn(`⚠️ [BGSync-Large] 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
                   }
                 } catch (bgError) {
-                  console.warn('⚠️ 백그라운드 동기화 실패 (로컬 데이터 유지)');
+                  const elapsedMs = Math.round(performance.now() - startTime);
+                  console.error(`❌ [BGSync-Large] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, bgError);
                 }
               }, 10 * 60 * 1000); // 10분 후
             }

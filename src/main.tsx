@@ -23,16 +23,17 @@ try {
 
 createRoot(document.getElementById("root")!).render(<App />);
 
-// PWA Service Worker 등록 (개발 환경에서는 비활성화)
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('SW registered: ', registration);
-      })
-      .catch((registrationError) => {
-        console.log('SW registration failed: ', registrationError);
-      });
-  });
-}
+// PWA Service Worker 등록 비활성화 (파일 없음으로 인한 404 방지)
+// 필요시 sw.js 파일 생성 후 활성화
+// if ('serviceWorker' in navigator && import.meta.env.PROD) {
+//   window.addEventListener('load', () => {
+//     navigator.serviceWorker.register('/sw.js')
+//       .then((registration) => {
+//         console.log('SW registered: ', registration);
+//       })
+//       .catch((registrationError) => {
+//         console.log('SW registration failed: ', registrationError);
+//       });
+//   });
+// }
 
