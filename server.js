@@ -1107,6 +1107,38 @@ app.use((req, res, next) => {
   next();
 });
 
+// PostgreSQL 연결 테스트 API
+app.post('/api/test-postgresql', async (req, res) => {
+  try {
+    console.log('🧪 PostgreSQL 연결 테스트 시작');
+    
+    if (!pool) {
+      console.error('❌ PostgreSQL 연결이 없습니다.');
+      return res.status(500).json({ error: 'PostgreSQL connection not available' });
+    }
+    
+    const client = await pool.connect();
+    console.log('✅ PostgreSQL 클라이언트 연결 성공');
+    
+    const result = await client.query('SELECT NOW() as current_time');
+    console.log('✅ PostgreSQL 쿼리 성공:', result.rows[0]);
+    
+    client.release();
+    
+    res.json({ 
+      success: true, 
+      message: 'PostgreSQL connection test successful',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ PostgreSQL 연결 테스트 실패:', error);
+    res.status(500).json({ 
+      error: 'PostgreSQL connection test failed',
+      details: error.message
+    });
+  }
+});
+
 // 자동수집 API 엔드포인트 (GitHub Actions에서 호출)
 app.post('/api/auto-collect', async (req, res) => {
   try {
