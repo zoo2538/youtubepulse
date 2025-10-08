@@ -258,9 +258,9 @@ const DataClassification = () => {
             };
           });
           
-          // 5. 중복 제거 적용
+          // 5. 중복 제거 적용 (같은 날짜의 같은 영상만 중복 제거)
           console.log('🔄 중복 제거 전:', sanitized.length, '개 항목');
-          const dedupedData = dedupeComprehensive(sanitized as VideoItem[]);
+          const dedupedData = dedupeByVideoDay(sanitized as VideoItem[]);
           console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
           console.log('📊 제거된 중복:', sanitized.length - dedupedData.length, '개');
           
@@ -501,9 +501,9 @@ const DataClassification = () => {
               };
             });
             
-            // 중복 제거 적용
+            // 중복 제거 적용 (같은 날짜의 같은 영상만 중복 제거)
             console.log('🔄 중복 제거 전:', sanitized.length, '개 항목');
-            const dedupedData = dedupeComprehensive(sanitized as VideoItem[]);
+            const dedupedData = dedupeByVideoDay(sanitized as VideoItem[]);
             console.log('✅ 중복 제거 후:', dedupedData.length, '개 항목');
             console.log('📊 제거된 중복:', sanitized.length - dedupedData.length, '개');
             
