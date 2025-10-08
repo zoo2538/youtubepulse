@@ -333,7 +333,7 @@ class HybridService {
     try {
       if (this.config.useApiServer) {
         // 데이터가 10,000개 이상이면 배치로 나누어 전송
-        const BATCH_SIZE = 5000;
+        const BATCH_SIZE = 1000; // 5000 → 1000으로 축소
         if (Array.isArray(data) && data.length > BATCH_SIZE) {
           console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
           
@@ -358,9 +358,9 @@ class HybridService {
               // 개별 배치 오류는 전체를 중단하지 않음
             }
             
-            // 배치 간 지연 (서버 부하 방지)
+            // 배치 간 지연 증가 (서버 부하 방지)
             if (i + BATCH_SIZE < data.length) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              await new Promise(resolve => setTimeout(resolve, 3000)); // 1초 → 3초로 증가
             }
           }
           
@@ -434,7 +434,7 @@ class HybridService {
     try {
       if (this.config.useApiServer) {
         // 데이터가 10,000개 이상이면 배치로 나누어 전송
-        const BATCH_SIZE = 5000;
+        const BATCH_SIZE = 1000; // 5000 → 1000으로 축소
         if (Array.isArray(data) && data.length > BATCH_SIZE) {
           console.log(`📦 대용량 데이터 배치 업로드 시작: ${data.length}개 → ${Math.ceil(data.length / BATCH_SIZE)}개 배치`);
           
@@ -459,9 +459,9 @@ class HybridService {
               // 개별 배치 오류는 전체를 중단하지 않음
             }
             
-            // 배치 간 지연 (서버 부하 방지)
+            // 배치 간 지연 증가 (서버 부하 방지)
             if (i + BATCH_SIZE < data.length) {
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              await new Promise(resolve => setTimeout(resolve, 3000)); // 1초 → 3초로 증가
             }
           }
           

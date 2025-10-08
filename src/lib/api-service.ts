@@ -22,9 +22,9 @@ class ApiService {
     try {
       const url = `${this.baseURL}${endpoint}`;
       
-      // 타임아웃 설정 (30초)
+      // 타임아웃 설정 (60초로 증가)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       
       const response = await fetch(url, {
         headers: {
