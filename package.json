@@ -26,7 +26,18 @@
     "electron:build": "npm run build && electron-builder",
     "electron:dist": "npm run build && electron-builder --publish=never",
     "cache:clear": "rm -rf dist && rm -rf node_modules/.vite && echo 'Cache cleared'",
-    "cache:clear:win": "if exist dist rmdir /s /q dist && if exist node_modules\\.vite rmdir /s /q node_modules\\.vite && echo Cache cleared"
+    "cache:clear:win": "if exist dist rmdir /s /q dist && if exist node_modules\\.vite rmdir /s /q node_modules\\.vite && echo Cache cleared",
+    "type-check": "tsc --noEmit",
+    "deploy": "gh-pages -d dist",
+    "deploy:full": "node scripts/deploy.js",
+    "health-check": "node scripts/health-check.js",
+    "health-check:with-auto": "node scripts/health-check.js --test-auto-collect",
+    "e2e-test": "node scripts/e2e-verification.js",
+    "verify:all": "npm run health-check && npm run e2e-test",
+    "diagnostic": "node scripts/diagnostic-tools.js",
+    "ops:check": "npm run diagnostic && npm run verify:all",
+    "metrics": "node scripts/metrics-collector.js",
+    "ops:full": "npm run metrics && npm run ops:check"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

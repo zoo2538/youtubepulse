@@ -148,6 +148,29 @@ class ApiService {
   async testConnection(): Promise<ApiResponse<any>> {
     return this.request('/api/health');
   }
+
+  // 개별 비디오 수정
+  async updateVideo(id: string, updateData: any): Promise<ApiResponse<any>> {
+    return this.request(`/api/videos/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updateData),
+    });
+  }
+
+  // 개별 비디오 삭제
+  async deleteVideo(id: string): Promise<ApiResponse<any>> {
+    return this.request(`/api/videos/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // 배치 비디오 삭제
+  async deleteVideosBatch(ids: string[]): Promise<ApiResponse<any>> {
+    return this.request('/api/videos/batch', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids }),
+    });
+  }
 }
 
 export const apiService = new ApiService();

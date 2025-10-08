@@ -899,6 +899,210 @@ app.post('/api/channels', async (req, res) => {
   }
 });
 
+// 개별 비디오 수정 API (PATCH /api/videos/:id)
+app.patch('/api/videos/:id', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+    const client = await pool.connect();
+    
+    console.log(`📝 비디오 수정 요청: ${id}`, updateData);
+    
+    // 현재 데이터 조회
+    const currentResult = await client.query(`
+      SELECT data FROM classification_data 
+      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+      AND data @> '[{"id": $1}]'
+    `, [id]);
+    
+    if (currentResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Video not found' });
+    }
+    
+    // 데이터 업데이트
+    const currentData = currentResult.rows[0].data;
+    const updatedData = currentData.map((item: any) => {
+      if (item.id === id) {
+        return {
+          ...item,
+          ...updateData,
+          updatedAt: new Date().toISOString(),
+          version: (item.version || 0) + 1
+        };
+      }
+      return item;
+    });
+    
+    // 업데이트된 데이터 저장
+    await client.query(`
+      UPDATE classification_data 
+      SET data = $1, created_at = CURRENT_TIMESTAMP
+      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+      AND data @> '[{"id": $2}]'
+    `, [JSON.stringify(updatedData), id]);
+    
+    client.release();
+    
+    const updatedItem = updatedData.find((item: any) => item.id === id);
+    
+    console.log(`✅ 비디오 수정 완료: ${id}`, {
+      updated_at: updatedItem?.updatedAt,
+      version: updatedItem?.version,
+      affectedIds: [id]
+    });
+    
+    res.json({
+      success: true,
+      message: 'Video updated successfully',
+      updated_at: updatedItem?.updatedAt,
+      version: updatedItem?.version,
+      affectedIds: [id]
+    });
+    
+  } catch (error) {
+    console.error('비디오 수정 실패:', error);
+    res.status(500).json({ 
+      error: 'Failed to update video',
+      details: error.message 
+    });
+  }
+});
+
+// 개별 비디오 삭제 API (DELETE /api/videos/:id)
+app.delete('/api/videos/:id', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { id } = req.params;
+    const client = await pool.connect();
+    
+    console.log(`🗑️ 비디오 삭제 요청: ${id}`);
+    
+    // 현재 데이터 조회
+    const currentResult = await client.query(`
+      SELECT data, data_type FROM classification_data 
+      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+      AND data @> '[{"id": $1}]'
+    `, [id]);
+    
+    if (currentResult.rows.length === 0) {
+      client.release();
+      return res.status(404).json({ error: 'Video not found' });
+    }
+    
+    // 데이터에서 해당 항목 제거
+    const currentData = currentResult.rows[0].data;
+    const filteredData = currentData.filter((item: any) => item.id !== id);
+    
+    if (filteredData.length === currentData.length) {
+      client.release();
+      return res.status(404).json({ error: 'Video not found in data' });
+    }
+    
+    // 업데이트된 데이터 저장
+    await client.query(`
+      UPDATE classification_data 
+      SET data = $1, created_at = CURRENT_TIMESTAMP
+      WHERE data_type = $2
+      AND data @> '[{"id": $3}]'
+    `, [JSON.stringify(filteredData), currentResult.rows[0].data_type, id]);
+    
+    client.release();
+    
+    console.log(`✅ 비디오 삭제 완료: ${id}`, {
+      affectedIds: [id],
+      remainingItems: filteredData.length
+    });
+    
+    res.json({
+      success: true,
+      message: 'Video deleted successfully',
+      affectedIds: [id],
+      remainingItems: filteredData.length
+    });
+    
+  } catch (error) {
+    console.error('비디오 삭제 실패:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete video',
+      details: error.message 
+    });
+  }
+});
+
+// 배치 비디오 삭제 API (DELETE /api/videos/batch)
+app.delete('/api/videos/batch', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { ids } = req.body;
+    
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Invalid or empty ids array' });
+    }
+    
+    const client = await pool.connect();
+    
+    console.log(`🗑️ 배치 비디오 삭제 요청: ${ids.length}개`);
+    
+    let totalDeleted = 0;
+    const results = [];
+    
+    // 각 데이터 타입별로 처리
+    for (const dataType of ['classified', 'manual_classified', 'auto_collected']) {
+      const currentResult = await client.query(`
+        SELECT data FROM classification_data 
+        WHERE data_type = $1
+      `, [dataType]);
+      
+      if (currentResult.rows.length > 0) {
+        const currentData = currentResult.rows[0].data;
+        const filteredData = currentData.filter((item: any) => !ids.includes(item.id));
+        const deletedCount = currentData.length - filteredData.length;
+        
+        if (deletedCount > 0) {
+          await client.query(`
+            UPDATE classification_data 
+            SET data = $1, created_at = CURRENT_TIMESTAMP
+            WHERE data_type = $2
+          `, [JSON.stringify(filteredData), dataType]);
+          
+          totalDeleted += deletedCount;
+          results.push({ dataType, deletedCount });
+        }
+      }
+    }
+    
+    client.release();
+    
+    console.log(`✅ 배치 비디오 삭제 완료: ${totalDeleted}개`, results);
+    
+    res.json({
+      success: true,
+      message: `Batch delete completed: ${totalDeleted} items deleted`,
+      affectedIds: ids,
+      deletedCount: totalDeleted,
+      results
+    });
+    
+  } catch (error) {
+    console.error('배치 비디오 삭제 실패:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete videos',
+      details: error.message 
+    });
+  }
+});
+
 app.get('/api/channels', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });

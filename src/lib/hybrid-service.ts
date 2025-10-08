@@ -1,6 +1,7 @@
 // IndexedDB와 API 서버를 함께 사용하는 하이브리드 서비스
 import { indexedDBService } from './indexeddb-service';
 import { apiService } from './api-service';
+import { outboxService } from './outbox-service';
 
 interface HybridServiceConfig {
   useApiServer: boolean;
@@ -685,6 +686,121 @@ class HybridService {
       console.error('❌ 데이터 동기화 실패:', error);
       throw error;
     }
+  }
+
+  // 아웃박스 기반 안전한 업데이트
+  async safeUpdateVideo(id: string, updateData: any): Promise<{ success: boolean; outboxId?: string }> {
+    try {
+      if (this.config.useApiServer) {
+        const result = await apiService.updateVideo(id, updateData);
+        if (result.success) {
+          console.log(`✅ 비디오 업데이트 성공: ${id}`);
+          return { success: true };
+        } else {
+          throw new Error(result.error || 'Update failed');
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ 서버 업데이트 실패, 아웃박스에 추가:', error);
+      
+      try {
+        const outboxId = await outboxService.addToOutbox(
+          'update',
+          `/api/videos/${id}`,
+          updateData
+        );
+        
+        console.log(`📦 아웃박스에 추가됨: ${outboxId}`);
+        return { success: false, outboxId };
+      } catch (outboxError) {
+        console.error('❌ 아웃박스 추가 실패:', outboxError);
+        throw outboxError;
+      }
+    }
+    
+    return { success: false };
+  }
+
+  // 아웃박스 기반 안전한 삭제
+  async safeDeleteVideo(id: string): Promise<{ success: boolean; outboxId?: string }> {
+    try {
+      if (this.config.useApiServer) {
+        const result = await apiService.deleteVideo(id);
+        if (result.success) {
+          console.log(`✅ 비디오 삭제 성공: ${id}`);
+          return { success: true };
+        } else {
+          throw new Error(result.error || 'Delete failed');
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ 서버 삭제 실패, 아웃박스에 추가:', error);
+      
+      try {
+        const outboxId = await outboxService.addToOutbox(
+          'delete',
+          `/api/videos/${id}`,
+          {}
+        );
+        
+        console.log(`📦 아웃박스에 추가됨: ${outboxId}`);
+        return { success: false, outboxId };
+      } catch (outboxError) {
+        console.error('❌ 아웃박스 추가 실패:', outboxError);
+        throw outboxError;
+      }
+    }
+    
+    return { success: false };
+  }
+
+  // 아웃박스 기반 안전한 배치 삭제
+  async safeDeleteVideosBatch(ids: string[]): Promise<{ success: boolean; outboxId?: string }> {
+    try {
+      if (this.config.useApiServer) {
+        const result = await apiService.deleteVideosBatch(ids);
+        if (result.success) {
+          console.log(`✅ 배치 삭제 성공: ${ids.length}개`);
+          return { success: true };
+        } else {
+          throw new Error(result.error || 'Batch delete failed');
+        }
+      }
+    } catch (error) {
+      console.warn('⚠️ 서버 배치 삭제 실패, 아웃박스에 추가:', error);
+      
+      try {
+        const outboxId = await outboxService.addToOutbox(
+          'delete',
+          '/api/videos/batch',
+          { ids }
+        );
+        
+        console.log(`📦 아웃박스에 추가됨: ${outboxId}`);
+        return { success: false, outboxId };
+      } catch (outboxError) {
+        console.error('❌ 아웃박스 추가 실패:', outboxError);
+        throw outboxError;
+      }
+    }
+    
+    return { success: false };
+  }
+
+  // 아웃박스 초기화 및 자동 처리 시작
+  initializeOutbox(): void {
+    console.log('📦 아웃박스 서비스 초기화');
+    outboxService.startAutoProcess();
+  }
+
+  // 아웃박스 통계 조회
+  async getOutboxStats(): Promise<{ pending: number; failed: number; completed: number }> {
+    return await outboxService.getStats();
+  }
+
+  // 수동 아웃박스 처리
+  async processOutbox(): Promise<{ success: number; failed: number }> {
+    return await outboxService.processOutbox();
   }
 }
 

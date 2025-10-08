@@ -6,7 +6,7 @@
  * - 데이터베이스 연결 상태 확인
  */
 
-// import fetch from 'node-fetch'; // Node.js 18+ 내장 fetch 사용
+// // Node.js 22+ has native fetch support // Node.js 18+ 내장 fetch 사용
 
 const args = process.argv.slice(2);
 const apiBase = args.find(arg => arg.startsWith('--api='))?.split('=')[1] || 'https://api.youthbepulse.com';

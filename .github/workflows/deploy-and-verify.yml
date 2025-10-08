@@ -1,0 +1,129 @@
+name: Deploy and Verify
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Run quality checks
+      run: |
+        npm run lint
+        npm run type-check
+        
+    - name: Build application
+      run: npm run build
+      
+    - name: Deploy to GitHub Pages
+      if: env.GITHUB_TOKEN
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./dist
+        
+    - name: Deploy to Railway
+      if: env.RAILWAY_TOKEN
+      run: |
+        npm install -g @railway/cli
+        echo "${{ secrets.RAILWAY_TOKEN }}" | railway auth
+        cd dist/server
+        railway deploy --service youtubepulse-backend
+        
+  verify:
+    runs-on: ubuntu-latest
+    name: Health Check and E2E Verification
+    needs: deploy
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Wait for deployment
+      run: sleep 60
+      
+    - name: Run health check
+      run: |
+        npm run health-check
+      env:
+        API_BASE_URL: https://api.youthbepulse.com
+      continue-on-error: true
+      
+    - name: Run E2E verification
+      run: |
+        npm run e2e-test
+      env:
+        API_BASE_URL: https://api.youthbepulse.com
+        FRONTEND_URL: https://zoo2538.github.io/youtubepulse
+      continue-on-error: true
+      
+    - name: Collect operational metrics
+      run: |
+        npm run metrics
+      env:
+        API_BASE_URL: https://api.youthbepulse.com
+      continue-on-error: true
+      
+    - name: Collect verification logs
+      if: always()
+      run: |
+        mkdir -p logs
+        echo "=== Health Check Results ===" > logs/verification.log
+        npm run health-check >> logs/verification.log 2>&1 || true
+        echo "=== E2E Test Results ===" >> logs/verification.log
+        npm run e2e-test >> logs/verification.log 2>&1 || true
+        echo "=== Operational Metrics ===" >> logs/verification.log
+        npm run metrics >> logs/verification.log 2>&1 || true
+        
+    - name: Upload verification logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: verification-logs
+        path: logs/
+        
+    - name: Send Slack notification
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        text: |
+          🚀 YouTube Pulse 배포 및 검증 완료
+          
+          📊 결과:
+          - 배포: ${{ needs.deploy.result }}
+          - 검증: ${{ job.status }}
+          
+          📋 상세 로그는 아티팩트에서 확인하세요.
+          
+          🌐 프론트엔드: https://zoo2538.github.io/youtubepulse
+          🚂 백엔드 API: https://api.youthbepulse.com
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

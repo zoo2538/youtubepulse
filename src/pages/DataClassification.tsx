@@ -142,9 +142,30 @@ const DataClassification = () => {
           
           console.log(`🤖 자동수집 데이터 로드: ${autoCollectedData.length}개`);
           
-          // 자동수집 데이터 통계 계산
+          // 자동수집 데이터 중복 제거 (조회수 높은 것 우선)
+          const videoMap = new Map<string, any>();
+          const sortedAutoData = [...autoCollectedData].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+          
+          sortedAutoData.forEach(item => {
+            let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            // ISO 타임스탬프 형식이면 날짜만 추출 (YYYY-MM-DD)
+            if (date && typeof date === 'string' && date.includes('T')) {
+              date = date.split('T')[0];
+            }
+            if (date && item.videoId) {
+              const videoKey = `${date}_${item.videoId}`;
+              if (!videoMap.has(videoKey)) {
+                videoMap.set(videoKey, item);
+              }
+            }
+          });
+          
+          const deduplicatedAutoData = Array.from(videoMap.values());
+          console.log(`🤖 자동수집 중복 제거: ${autoCollectedData.length}개 → ${deduplicatedAutoData.length}개`);
+
+          // 자동수집 데이터 통계 계산 (중복 제거된 데이터 사용)
           const autoStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-          autoCollectedData.forEach((item: any) => {
+          deduplicatedAutoData.forEach((item: any) => {
             let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
             // ISO 타임스탬프 형식이면 날짜만 추출 (YYYY-MM-DD)
             if (date && typeof date === 'string' && date.includes('T')) {
@@ -409,13 +430,17 @@ const DataClassification = () => {
         return;
       }
       
-      // 페이지 포커스 이벤트인 경우에만 데이터 로드 (다른 불필요한 이벤트 차단)
+      // 수동/자동 수집 분리 처리에 따른 이벤트 타입 처리
       if (event.detail.type === 'pageFocus') {
         console.log('🔄 페이지 포커스 이벤트 - 데이터 로드 허용');
       } else if (event.detail.type === 'dataUpdated') {
         console.log('🔄 데이터 업데이트 이벤트 - 데이터 로드 허용');
       } else if (event.detail.type === 'backgroundSync') {
         console.log('🔄 백그라운드 동기화 완료 이벤트 - 서버 데이터로 갱신');
+      } else if (event.detail.type === 'manualSync') {
+        console.log('🔄 수동수집 동기화 완료 이벤트 - 즉시 UI 갱신');
+      } else if (event.detail.type === 'autoSync') {
+        console.log('🔄 자동수집 동기화 완료 이벤트 - 즉시 UI 갱신');
       } else {
         console.log('🔒 알 수 없는 이벤트 타입 - 데이터 로드 차단:', event.detail.type);
         return;
@@ -432,7 +457,7 @@ const DataClassification = () => {
           console.log(`📊 로드된 데이터 개수: ${savedData?.length || 0}개`);
           
           // 백업 복원 중이면 데이터 로드 차단 (데이터 손실 방지)
-          if (window.restoreLock || sessionStorage.getItem('restoreInProgress')) {
+          if ((window as any).restoreLock || sessionStorage.getItem('restoreInProgress')) {
             console.log('🔒 백업 복원 중이므로 데이터 로드 차단');
             return;
           }
@@ -751,7 +776,7 @@ const DataClassification = () => {
     // 페이지 포커스 시 데이터 새로고침
     const handlePageFocus = () => {
       // 복원 중이면 동기화 차단
-      if (window.restoreLock || sessionStorage.getItem('restoreInProgress')) {
+      if ((window as any).restoreLock || sessionStorage.getItem('restoreInProgress')) {
         console.log('🔒 복원 중이므로 포커스 동기화 차단');
         return;
       }
@@ -1182,7 +1207,7 @@ const DataClassification = () => {
     }
     
     // 백업 복원 중이면 일괄 저장 차단 (데이터 손실 방지)
-    if (window.restoreLock || sessionStorage.getItem('restoreInProgress')) {
+    if ((window as any).restoreLock || sessionStorage.getItem('restoreInProgress')) {
       alert('⚠️ 백업 복원 중입니다. 복원이 완료된 후 다시 시도해주세요.');
       return;
     }
@@ -1284,87 +1309,165 @@ const DataClassification = () => {
             await hybridService.saveClassifiedData(classifiedItems);
             console.log(`✅ 하이브리드: ${classifiedItems.length}개의 분류 데이터 저장 완료`);
             
-            // 서버 저장 후 재조회 (서버 권위 원칙)
-            // 대용량 데이터는 백그라운드 재조회로 전환
-            if (classifiedItems.length < 10000) {
+            // 수동수집과 자동수집 분리 처리
+            const autoCollectedCount = classifiedItems.filter(item => 
+              item.collectionType === 'auto' || item.collectionType === undefined
+            ).length;
+            const manualCollectedCount = classifiedItems.filter(item => 
+              item.collectionType === 'manual'
+            ).length;
+
+            console.log(`📊 데이터 분류: 수동수집 ${manualCollectedCount}개, 자동수집 ${autoCollectedCount}개`);
+
+            // 1. 수동수집: 즉시 서버 재조회 (사용자 행위에 의한 즉시 반영 필요)
+            if (manualCollectedCount > 0) {
+              console.log('🔄 [수동수집] 즉시 서버 재조회 시작...');
               try {
-                console.log('🔄 서버 재조회 시작...');
                 const serverData = await hybridService.getClassifiedData();
-                console.log(`📊 서버 재조회 결과: ${serverData.length}개 데이터`);
+                console.log(`📊 [수동수집] 서버 재조회 결과: ${serverData.length}개 데이터`);
                 
                 // IndexedDB 덮어쓰기 (서버 데이터 기준)
                 if (serverData.length > 0) {
                   await indexedDBService.saveClassifiedData(serverData);
-                  console.log('✅ IndexedDB 덮어쓰기 완료 (서버 데이터 기준)');
+                  console.log('✅ [수동수집] IndexedDB 덮어쓰기 완료 (서버 데이터 기준)');
+                  
+                  // 즉시 UI 갱신
+                  window.dispatchEvent(new CustomEvent('dataUpdated', {
+                    detail: { type: 'manualSync', timestamp: Date.now(), count: serverData.length }
+                  }));
                 }
-              } catch (reloadError) {
-                console.warn('⚠️ 서버 재조회 실패 (저장은 완료됨):', reloadError);
                 
-                // 사용자에게 정보 제공 (경고 아님)
-                showToast('저장 완료! 서버 동기화는 5분 후 자동으로 재시도됩니다.', {
+                showToast(`수동수집 데이터 저장 완료! (${manualCollectedCount.toLocaleString()}개)`, {
+                  type: 'success',
+                  duration: 3000
+                });
+              } catch (reloadError) {
+                console.warn('⚠️ [수동수집] 서버 재조회 실패 (저장은 완료됨):', reloadError);
+                
+                // 수동수집 실패 시 5분 후 재시도
+                showToast('수동수집 저장 완료! 서버 동기화는 5분 후 자동으로 재시도됩니다.', {
                   type: 'info',
                   duration: 4000
                 });
                 
-                // 5분 후 백그라운드 재시도 예약
                 setTimeout(async () => {
                   const startTime = performance.now();
-                  console.log('🔄 [BGSync-Retry] 백그라운드 재조회 재시도 시작 (5분 경과)');
+                  console.log('🔄 [수동수집-Retry] 백그라운드 재조회 재시도 시작 (5분 경과)');
                   
                   try {
                     const result = await fetchAndHydrate({ scope: 'classified' });
                     const elapsedMs = Math.round(performance.now() - startTime);
                     
                     if (result.success) {
-                      console.log(`✅ [BGSync-Retry] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
-                      showToast('백그라운드 동기화 완료!', { type: 'success' });
+                      console.log(`✅ [수동수집-Retry] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
+                      showToast('수동수집 백그라운드 동기화 완료!', { type: 'success' });
                       
                       window.dispatchEvent(new CustomEvent('dataUpdated', {
                         detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
                       }));
                     } else {
-                      console.warn(`⚠️ [BGSync-Retry] 재시도 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
+                      console.warn(`⚠️ [수동수집-Retry] 재시도 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
                     }
                   } catch (retryError) {
                     const elapsedMs = Math.round(performance.now() - startTime);
-                    console.error(`❌ [BGSync-Retry] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, retryError);
+                    console.error(`❌ [수동수집-Retry] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, retryError);
                   }
                 }, 5 * 60 * 1000); // 5분 후
               }
-            } else {
-              console.log('📊 대용량 데이터 (26K+) - 즉시 반영, 백그라운드 동기화 예약');
-              
-              // 사용자에게 정보 제공
-              showToast(`저장 완료! (${classifiedItems.length.toLocaleString()}개) 백그라운드 동기화는 10분 후 자동 실행됩니다.`, {
-                type: 'success',
-                duration: 5000
-              });
-              
-              // 대용량 데이터는 백그라운드에서 10분 후 재조회
-              setTimeout(async () => {
-                const startTime = performance.now();
-                console.log('🔄 [BGSync-Large] 백그라운드 대용량 데이터 동기화 시작 (10분 경과)');
-                
+            }
+
+            // 2. 자동수집: 조건부 백그라운드 동기화
+            if (autoCollectedCount > 0) {
+              if (autoCollectedCount < 10000) {
+                // 소량 자동수집: 즉시 재조회
+                console.log('🔄 [자동수집-소량] 즉시 서버 재조회 시작...');
                 try {
-                  const result = await fetchAndHydrate({ scope: 'classified' });
-                  const elapsedMs = Math.round(performance.now() - startTime);
+                  const serverData = await hybridService.getClassifiedData();
+                  console.log(`📊 [자동수집-소량] 서버 재조회 결과: ${serverData.length}개 데이터`);
                   
-                  if (result.success) {
-                    console.log(`✅ [BGSync-Large] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
-                    showToast(`대용량 백그라운드 동기화 완료! (${result.count.toLocaleString()}개)`, { type: 'success' });
+                  if (serverData.length > 0) {
+                    await indexedDBService.saveClassifiedData(serverData);
+                    console.log('✅ [자동수집-소량] IndexedDB 덮어쓰기 완료 (서버 데이터 기준)');
                     
-                    // 데이터 업데이트 이벤트 발생
+                    // 즉시 UI 갱신
                     window.dispatchEvent(new CustomEvent('dataUpdated', {
-                      detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
+                      detail: { type: 'autoSync', timestamp: Date.now(), count: serverData.length }
                     }));
-                  } else {
-                    console.warn(`⚠️ [BGSync-Large] 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
                   }
-                } catch (bgError) {
-                  const elapsedMs = Math.round(performance.now() - startTime);
-                  console.error(`❌ [BGSync-Large] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, bgError);
+                  
+                  showToast(`자동수집 데이터 저장 완료! (${autoCollectedCount.toLocaleString()}개)`, {
+                    type: 'success',
+                    duration: 3000
+                  });
+                } catch (reloadError) {
+                  console.warn('⚠️ [자동수집-소량] 서버 재조회 실패 (저장은 완료됨):', reloadError);
+                  
+                  showToast('자동수집 저장 완료! 서버 동기화는 5분 후 자동으로 재시도됩니다.', {
+                    type: 'info',
+                    duration: 4000
+                  });
+                  
+                  // 5분 후 재시도
+                  setTimeout(async () => {
+                    const startTime = performance.now();
+                    console.log('🔄 [자동수집-소량-Retry] 백그라운드 재조회 재시도 시작 (5분 경과)');
+                    
+                    try {
+                      const result = await fetchAndHydrate({ scope: 'classified' });
+                      const elapsedMs = Math.round(performance.now() - startTime);
+                      
+                      if (result.success) {
+                        console.log(`✅ [자동수집-소량-Retry] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
+                        showToast('자동수집 백그라운드 동기화 완료!', { type: 'success' });
+                        
+                        window.dispatchEvent(new CustomEvent('dataUpdated', {
+                          detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
+                        }));
+                      } else {
+                        console.warn(`⚠️ [자동수집-소량-Retry] 재시도 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
+                      }
+                    } catch (retryError) {
+                      const elapsedMs = Math.round(performance.now() - startTime);
+                      console.error(`❌ [자동수집-소량-Retry] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, retryError);
+                    }
+                  }, 5 * 60 * 1000); // 5분 후
                 }
-              }, 10 * 60 * 1000); // 10분 후
+              } else {
+                // 대용량 자동수집: 백그라운드 동기화 예약
+                console.log('📊 [자동수집-대용량] 백그라운드 동기화 예약');
+                
+                // 로컬 완료 상태로 즉시 반영
+                showToast(`자동수집 저장 완료! (${autoCollectedCount.toLocaleString()}개) 백그라운드 동기화는 10분 후 자동 실행됩니다.`, {
+                  type: 'success',
+                  duration: 5000
+                });
+                
+                // 10분 후 백그라운드 동기화
+                setTimeout(async () => {
+                  const startTime = performance.now();
+                  console.log('🔄 [자동수집-대용량] 백그라운드 동기화 시작 (10분 경과)');
+                  
+                  try {
+                    const result = await fetchAndHydrate({ scope: 'classified' });
+                    const elapsedMs = Math.round(performance.now() - startTime);
+                    
+                    if (result.success) {
+                      console.log(`✅ [자동수집-대용량] 성공 | 건수: ${result.count.toLocaleString()} | 소요: ${elapsedMs}ms | 소스: ${result.source}`);
+                      showToast(`자동수집 대용량 백그라운드 동기화 완료! (${result.count.toLocaleString()}개)`, { type: 'success' });
+                      
+                      // 데이터 업데이트 이벤트 발생
+                      window.dispatchEvent(new CustomEvent('dataUpdated', {
+                        detail: { type: 'backgroundSync', timestamp: Date.now(), count: result.count }
+                      }));
+                    } else {
+                      console.warn(`⚠️ [자동수집-대용량] 실패 | 소스: ${result.source} | 소요: ${elapsedMs}ms`);
+                    }
+                  } catch (bgError) {
+                    const elapsedMs = Math.round(performance.now() - startTime);
+                    console.error(`❌ [자동수집-대용량] 최종 실패 | 소요: ${elapsedMs}ms | 오류:`, bgError);
+                  }
+                }, 10 * 60 * 1000); // 10분 후
+              }
             }
           }
         } catch (saveError) {
@@ -1908,7 +2011,7 @@ const DataClassification = () => {
       console.log('🗑️ 일자별 중복 제거 시작...');
       
       // IndexedDB 열기
-      const db = await new Promise((resolve, reject) => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open('YouTubePulseDB', 2);
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve(request.result);
@@ -1919,7 +2022,7 @@ const DataClassification = () => {
       const store = transaction.objectStore('unclassifiedData');
       
       // 모든 데이터 가져오기
-      const allData = await new Promise((resolve, reject) => {
+      const allData = await new Promise<any[]>((resolve, reject) => {
         const request = store.getAll();
         request.onerror = () => reject(request.error);
         request.onsuccess = () => resolve(request.result);
@@ -2053,7 +2156,7 @@ const DataClassification = () => {
       }
       
       // 데이터 새로고침
-      await loadData();
+      window.location.reload();
       
     } catch (error) {
       console.error('❌ 일자별 중복 제거 실패:', error);
@@ -2182,7 +2285,7 @@ const DataClassification = () => {
           
           // 복원 락 설정 (동시 이벤트 차단)
           sessionStorage.setItem('restoreInProgress', 'true');
-          window.restoreLock = true; // 전역 락 설정
+          (window as any).restoreLock = true; // 전역 락 설정
           
           const text = event.target?.result as string;
           let restoredData;
@@ -2340,7 +2443,7 @@ const DataClassification = () => {
         } finally {
           // 복원 락 해제
           sessionStorage.removeItem('restoreInProgress');
-          window.restoreLock = false; // 전역 락 해제
+          (window as any).restoreLock = false; // 전역 락 해제
           setIsLoading(false);
           console.log('🔄 백업 복원 프로세스 종료');
         }
@@ -2376,10 +2479,14 @@ const DataClassification = () => {
           
           // 2. ID 타임스탬프 확인 (실제 수집 시간)
           if (item.id && typeof item.id === 'string') {
-            const timestamp = parseInt(item.id.split('_')[0]);
-            if (!isNaN(timestamp)) {
-              const actualDate = new Date(timestamp).toISOString().split('T')[0];
-              if (actualDate === date) return true;
+            const idStr = item.id as string;
+            const parts = idStr.split('_');
+            if (parts.length > 0) {
+              const timestamp = parseInt(parts[0]);
+              if (!isNaN(timestamp)) {
+                const actualDate = new Date(timestamp).toISOString().split('T')[0];
+                if (actualDate === date) return true;
+              }
             }
           }
           
