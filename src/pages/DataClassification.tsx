@@ -490,11 +490,11 @@ const DataClassification = () => {
             console.log('❌ 10월 6일 통계 없음 - 사용 가능한 날짜들:', Object.keys(newDateStats));
           }
           
-          // 자동수집 통계 계산 (collectionType이 'auto'인 데이터만)
+          // 자동수집 통계 계산 (collectionType이 'auto' 또는 undefined인 데이터)
           const autoCollectedStats: {[date: string]: {total: number; classified: number; progress: number}} = {};
           savedData?.forEach(item => {
-            // 자동수집 데이터만 필터링
-            if (item.collectionType === 'auto') {
+            // 자동수집 데이터 필터링 (undefined도 자동수집으로 간주)
+            if (item.collectionType === 'auto' || item.collectionType === undefined) {
               let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
               
               // dayKeyLocal의 대시 문제 해결
@@ -785,8 +785,8 @@ const DataClassification = () => {
       const isClassified = item.status === 'classified';
       const collectionType = item.collectionType || 'auto'; // 기본값은 auto
       
-      // 수집 타입별 카운트
-      if (collectionType === 'auto') {
+      // 수집 타입별 카운트 (undefined도 자동수집으로 간주)
+      if (collectionType === 'auto' || collectionType === undefined) {
         progress.autoCollected++;
         if (isClassified) progress.autoClassified++;
       } else {
@@ -1403,7 +1403,7 @@ const DataClassification = () => {
         classifiedVideos: unclassifiedData.filter(item => item.status === 'classified').length,
         unclassifiedVideos: unclassifiedData.filter(item => item.status === 'unclassified').length,
           manualCollected: unclassifiedData.filter(item => item.collectionType === 'manual').length,
-          autoCollected: unclassifiedData.filter(item => item.collectionType === 'auto').length
+          autoCollected: unclassifiedData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined).length
         },
         
         // 일별 데이터 (하이브리드 구조)
@@ -1415,7 +1415,7 @@ const DataClassification = () => {
           
           // 수동수집/자동수집 구분
           const manualData = dateData.filter(item => item.collectionType === 'manual');
-          const autoData = dateData.filter(item => item.collectionType === 'auto');
+          const autoData = dateData.filter(item => item.collectionType === 'auto' || item.collectionType === undefined);
           
           const total = dateData.length;
           const classified = dateData.filter(item => item.status === 'classified').length;
