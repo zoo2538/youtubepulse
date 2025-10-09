@@ -485,18 +485,26 @@ class HybridService {
     try {
       if (this.config.useApiServer) {
         const result = await apiService.getClassifiedData();
-        if (result.success && result.data) {
-          console.log('✅ API 서버에서 분류 데이터 조회 완료:', result.data.length, '개');
+        
+        // 응답 래퍼 언래핑 (API 응답 표준화)
+        const classifiedData = Array.isArray(result) 
+          ? result 
+          : (result.success && result.data && Array.isArray(result.data)) 
+            ? result.data 
+            : [];
+        
+        if (classifiedData.length > 0) {
+          console.log('✅ API 서버에서 분류 데이터 조회 완료:', classifiedData.length, '개');
           
           // 서버에서 받은 데이터로 IndexedDB 캐시 갱신
           try {
-            await indexedDBService.saveClassifiedData(result.data);
+            await indexedDBService.saveClassifiedData(classifiedData);
             console.log('✅ IndexedDB 캐시 갱신 완료');
           } catch (cacheError) {
             console.warn('⚠️ IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
           }
           
-          return result.data;
+          return classifiedData;
         }
       }
 
@@ -564,9 +572,17 @@ class HybridService {
     try {
       if (this.config.useApiServer) {
         const result = await apiService.getUnclassifiedData();
-        if (result.success && result.data) {
-          console.log('✅ API 서버에서 미분류 데이터 조회 완료');
-          return result.data;
+        
+        // 응답 래퍼 언래핑 (API 응답 표준화)
+        const unclassifiedData = Array.isArray(result) 
+          ? result 
+          : (result.success && result.data && Array.isArray(result.data)) 
+            ? result.data 
+            : [];
+        
+        if (unclassifiedData.length > 0) {
+          console.log('✅ API 서버에서 미분류 데이터 조회 완료:', unclassifiedData.length, '개');
+          return unclassifiedData;
         }
       }
 

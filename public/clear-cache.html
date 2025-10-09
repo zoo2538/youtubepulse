@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>캐시 클리어 - YouTube Pulse</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+        button:hover {
+            background: #5a6fd8;
+        }
+        .progress {
+            margin: 20px 0;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 캐시 클리어 도구</h1>
+        <p>YouTube Pulse 캐시 문제를 해결합니다.</p>
+        
+        <div id="status" class="status info">
+            캐시 클리어를 시작합니다...
+        </div>
+        
+        <div class="progress">
+            <div class="progress-bar">
+                <div id="progress" class="progress-fill"></div>
+            </div>
+        </div>
+        
+        <button onclick="clearAllCache()">전체 캐시 클리어</button>
+        <button onclick="redirectToMain()">메인 페이지로 이동</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let progress = 0;
+        const progressBar = document.getElementById('progress');
+        const status = document.getElementById('status');
+        const results = document.getElementById('results');
+        
+        function updateProgress(percent, message) {
+            progress = percent;
+            progressBar.style.width = percent + '%';
+            status.textContent = message;
+        }
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+        
+        async function clearAllCache() {
+            updateProgress(10, '서비스 워커 해제 중...');
+            
+            try {
+                // 1. 서비스 워커 해제
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    for (let registration of registrations) {
+                        await registration.unregister();
+                        addResult('✅ 서비스 워커 해제 완료', 'success');
+                    }
+                    if (registrations.length === 0) {
+                        addResult('ℹ️ 등록된 서비스 워커 없음', 'info');
+                    }
+                }
+                updateProgress(20, 'CacheStorage 정리 중...');
+                
+                // 2. CacheStorage 정리
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    for (let cacheName of cacheNames) {
+                        await caches.delete(cacheName);
+                        addResult(`✅ 캐시 삭제: ${cacheName}`, 'success');
+                    }
+                    if (cacheNames.length === 0) {
+                        addResult('ℹ️ 삭제할 캐시 없음', 'info');
+                    }
+                }
+                updateProgress(40, 'IndexedDB 정리 중...');
+                
+                // 3. IndexedDB 정리
+                if ('indexedDB' in window) {
+                    const databases = ['YouTubePulseDB'];
+                    for (let dbName of databases) {
+                        try {
+                            const deleteReq = indexedDB.deleteDatabase(dbName);
+                            await new Promise((resolve, reject) => {
+                                deleteReq.onsuccess = () => resolve();
+                                deleteReq.onerror = () => reject(deleteReq.error);
+                            });
+                            addResult(`✅ IndexedDB 삭제: ${dbName}`, 'success');
+                        } catch (error) {
+                            addResult(`⚠️ IndexedDB 삭제 실패: ${dbName}`, 'error');
+                        }
+                    }
+                }
+                updateProgress(60, 'localStorage 정리 중...');
+                
+                // 4. localStorage 정리
+                const keysToKeep = ['userEmail', 'userRole', 'youtubeApiKey'];
+                const allKeys = Object.keys(localStorage);
+                let deletedCount = 0;
+                
+                for (let key of allKeys) {
+                    if (!keysToKeep.includes(key)) {
+                        localStorage.removeItem(key);
+                        deletedCount++;
+                    }
+                }
+                
+                if (deletedCount > 0) {
+                    addResult(`✅ localStorage 정리: ${deletedCount}개 항목 삭제`, 'success');
+                } else {
+                    addResult('ℹ️ localStorage 정리할 항목 없음', 'info');
+                }
+                
+                updateProgress(80, 'sessionStorage 정리 중...');
+                
+                // 5. sessionStorage 정리
+                sessionStorage.clear();
+                addResult('✅ sessionStorage 정리 완료', 'success');
+                
+                updateProgress(100, '캐시 클리어 완료!');
+                
+                addResult('🎉 모든 캐시가 성공적으로 정리되었습니다!', 'success');
+                addResult('📍 이제 메인 페이지로 이동하여 새로고침하세요.', 'info');
+                
+            } catch (error) {
+                addResult(`❌ 오류 발생: ${error.message}`, 'error');
+                updateProgress(0, '오류 발생');
+            }
+        }
+        
+        function redirectToMain() {
+            window.location.href = '/';
+        }
+        
+        // 페이지 로드 시 자동 실행
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                clearAllCache();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
