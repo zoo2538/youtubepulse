@@ -1564,6 +1564,8 @@ async function autoCollectData() {
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
+  let requestCount = 0; // API 요청 카운터 초기화
+  
   try {
     const apiKey = process.env.VITE_YOUTUBE_API_KEY;
     if (!apiKey) {
@@ -1780,7 +1782,8 @@ async function autoCollectData() {
       const keywordVideo = keywordVideos.find(kv => kv.id === video.id);
       if (keywordVideo) {
         // 키워드 수집에서 온 영상인 경우, 어떤 키워드로 수집되었는지 찾기
-        for (const keyword of keywords) {
+        const testKeywords = ['브이로그']; // 테스트용 키워드 목록
+        for (const keyword of testKeywords) {
           // 실제로는 키워드 매핑 로직이 필요하지만, 일단 기본값으로 설정
           sourceKeyword = keyword;
           break;
