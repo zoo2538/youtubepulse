@@ -2468,6 +2468,53 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
   }
 });
 
+// DB 전체 초기화 API (관리자 전용)
+app.post('/api/reset-database', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { confirmKey } = req.body;
+    
+    // 안전장치: 확인 키 필요
+    if (confirmKey !== 'RESET_ALL_DATA_CONFIRM') {
+      return res.status(403).json({ error: 'Invalid confirmation key' });
+    }
+    
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🗑️ 데이터베이스 전체 초기화 시작');
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    const client = await pool.connect();
+    
+    // 모든 classification_data 삭제
+    const result = await client.query(`
+      DELETE FROM classification_data
+      RETURNING data_type
+    `);
+    
+    const deletedCount = result.rowCount || 0;
+    
+    console.log(`✅ classification_data 테이블 초기화: ${deletedCount}개 삭제`);
+    
+    client.release();
+    
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`🗑️ 데이터베이스 초기화 완료: ${deletedCount}개 삭제`);
+    console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    
+    res.json({ 
+      success: true, 
+      message: 'Database reset successfully',
+      deletedCount: deletedCount
+    });
+  } catch (error) {
+    console.error('❌ 데이터베이스 초기화 실패:', error);
+    res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 14일 데이터 자동 정리 스케줄러
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
