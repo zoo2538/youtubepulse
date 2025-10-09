@@ -568,12 +568,20 @@ app.post('/api/classified', async (req, res) => {
     return res.status(500).json({ error: 'Database not connected' });
   }
   
+  let client;
   try {
     const newData = req.body;
-    const dataSize = JSON.stringify(newData).length;
-    console.log(`👤 수동수집 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
     
-    const client = await pool.connect();
+    // 데이터 검증
+    if (!Array.isArray(newData)) {
+      console.error('❌ 잘못된 데이터 형식: 배열이 아님');
+      return res.status(400).json({ error: 'Data must be an array' });
+    }
+    
+    const dataSize = JSON.stringify(newData).length;
+    console.log(`👤 수동수집 분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB, 개수: ${newData.length}개`);
+    
+    client = await pool.connect();
     
     // 1. 기존 전체 데이터 조회
     const existingResult = await client.query(
@@ -631,7 +639,6 @@ app.post('/api/classified', async (req, res) => {
     const classifiedCount = mergedData.filter(item => item.status === 'classified').length;
     console.log(`📊 분류 완료: ${classifiedCount}개, 미분류: ${mergedData.length - classifiedCount}개`);
     
-    client.release();
     res.json({ 
       success: true, 
       message: 'Classified data saved',
@@ -644,13 +651,18 @@ app.post('/api/classified', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('분류 데이터 저장 실패:', error);
-    console.error('에러 상세:', error.message);
-    console.error('에러 코드:', error.code);
+    console.error('❌ 분류 데이터 저장 실패:', error);
+    console.error('❌ 에러 메시지:', error.message);
+    console.error('❌ 에러 스택:', error.stack);
     res.status(500).json({ 
       error: 'Failed to save classified data',
-      details: error.message
+      details: error.message,
+      code: error.code
     });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 });
 
@@ -728,12 +740,20 @@ app.post('/api/unclassified', async (req, res) => {
     return res.status(500).json({ error: 'Database not connected' });
   }
   
+  let client;
   try {
     const newData = req.body;
-    const dataSize = JSON.stringify(newData).length;
-    console.log(`📊 미분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB`);
     
-    const client = await pool.connect();
+    // 데이터 검증
+    if (!Array.isArray(newData)) {
+      console.error('❌ 잘못된 데이터 형식: 배열이 아님');
+      return res.status(400).json({ error: 'Data must be an array' });
+    }
+    
+    const dataSize = JSON.stringify(newData).length;
+    console.log(`📊 미분류 데이터 크기: ${(dataSize / 1024 / 1024).toFixed(2)}MB, 개수: ${newData.length}개`);
+    
+    client = await pool.connect();
     
     // 1. 기존 전체 데이터 조회
     const existingResult = await client.query(
@@ -742,7 +762,7 @@ app.post('/api/unclassified', async (req, res) => {
     
     let existingData = [];
     if (existingResult.rows.length > 0 && existingResult.rows[0].data) {
-      existingData = existingResult.rows[0].data;
+      existingData = Array.isArray(existingResult.rows[0].data) ? existingResult.rows[0].data : [];
     }
     
     console.log(`📊 기존 미분류 데이터: ${existingData.length}개`);
@@ -787,7 +807,6 @@ app.post('/api/unclassified', async (req, res) => {
     
     console.log(`✅ 미분류 데이터 날짜별 병합 저장 완료: ${mergedData.length}개 항목`);
     
-    client.release();
     res.json({ 
       success: true, 
       message: 'Unclassified data saved',
@@ -799,8 +818,18 @@ app.post('/api/unclassified', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('미분류 데이터 저장 실패:', error);
-    res.status(500).json({ error: 'Failed to save unclassified data' });
+    console.error('❌ 미분류 데이터 저장 실패:', error);
+    console.error('❌ 에러 메시지:', error.message);
+    console.error('❌ 에러 스택:', error.stack);
+    res.status(500).json({ 
+      error: 'Failed to save unclassified data',
+      details: error.message,
+      code: error.code
+    });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 });
 
@@ -1820,8 +1849,6 @@ async function autoCollectData() {
       VALUES ($1, $2)
     `, ['auto_collected', JSON.stringify(newData)]);
     console.log('✅ PostgreSQL 저장 완료');
-    
-    client.release();
 
     console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🤖 자동 수집 완료!');
@@ -1840,6 +1867,10 @@ async function autoCollectData() {
     
     // 오류를 API 응답으로도 전달
     throw new Error(`자동수집 실패: ${error.message}`);
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 }
 
