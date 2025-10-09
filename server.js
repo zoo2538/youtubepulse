@@ -2499,6 +2499,48 @@ app.post('/api/cleanup-duplicates', async (req, res) => {
   }
 });
 
+// DB 스키마 마이그레이션 API (UNIQUE 제약 조건 추가)
+app.post('/api/migrate-schema', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    console.log('🔄 스키마 마이그레이션 시작...');
+    const client = await pool.connect();
+    
+    // classification_data 테이블에 UNIQUE 제약 조건 추가
+    try {
+      await client.query(`
+        ALTER TABLE classification_data 
+        ADD CONSTRAINT classification_data_data_type_key 
+        UNIQUE (data_type)
+      `);
+      console.log('✅ classification_data.data_type UNIQUE 제약 조건 추가 완료');
+    } catch (constraintError) {
+      if (constraintError.code === '42P07') {
+        console.log('⚠️ UNIQUE 제약 조건이 이미 존재함 (정상)');
+      } else {
+        throw constraintError;
+      }
+    }
+    
+    client.release();
+    
+    res.json({ 
+      success: true, 
+      message: 'Schema migration completed successfully'
+    });
+  } catch (error) {
+    console.error('❌ 스키마 마이그레이션 실패:', error);
+    res.status(500).json({ 
+      error: 'Schema migration failed',
+      details: error.message,
+      code: error.code
+    });
+  }
+});
+
 // DB 전체 초기화 API (관리자 전용)
 app.post('/api/reset-database', async (req, res) => {
   if (!pool) {
