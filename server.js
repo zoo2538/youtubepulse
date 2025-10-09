@@ -1030,8 +1030,8 @@ app.patch('/api/videos/:id', async (req, res) => {
     const currentResult = await client.query(`
       SELECT data FROM classification_data 
       WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data @> '[{"id": $1}]'
-    `, [id]);
+      AND data::text LIKE '%"id":"${id}"%'
+    `);
     
     if (currentResult.rows.length === 0) {
       client.release();
@@ -1103,8 +1103,8 @@ app.delete('/api/videos/:id', async (req, res) => {
     const currentResult = await client.query(`
       SELECT data, data_type FROM classification_data 
       WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data @> '[{"id": $1}]'
-    `, [id]);
+      AND data::text LIKE '%"id":"${id}"%'
+    `);
     
     if (currentResult.rows.length === 0) {
       client.release();
@@ -1594,6 +1594,7 @@ async function autoCollectData() {
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
   let requestCount = 0; // API 요청 카운터 초기화
+  let client; // PostgreSQL 클라이언트 변수 선언
   
   try {
     const apiKey = process.env.VITE_YOUTUBE_API_KEY;
