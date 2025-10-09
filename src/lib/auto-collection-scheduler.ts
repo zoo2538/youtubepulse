@@ -179,22 +179,44 @@ class AutoCollectionScheduler {
         return;
       }
 
-      console.log(`🔄 재시도 큐 처리: ${retryQueue.length}개 항목`);
+      // 24시간 이상 된 항목 자동 제거
+      const now = Date.now();
+      const MAX_AGE = 24 * 60 * 60 * 1000; // 24시간
+      const validQueue = retryQueue.filter((item: any) => {
+        const age = now - (item.timestamp || 0);
+        if (age > MAX_AGE) {
+          console.log('🗑️ 오래된 재시도 큐 항목 제거:', item.dateKey, `(${Math.round(age / 1000 / 60 / 60)}시간 경과)`);
+          return false;
+        }
+        return true;
+      });
+
+      // 오래된 항목이 제거되었으면 저장
+      if (validQueue.length !== retryQueue.length) {
+        localStorage.setItem('auto_collection_retry_queue', JSON.stringify(validQueue));
+        console.log(`✅ 재시도 큐 정리: ${retryQueue.length}개 → ${validQueue.length}개`);
+      }
+
+      if (validQueue.length === 0) {
+        return;
+      }
+
+      console.log(`🔄 재시도 큐 처리: ${validQueue.length}개 항목`);
       
-      for (const item of retryQueue) {
+      for (const item of validQueue) {
         try {
           await this.runCollection(item.dateKey);
           // 성공 시 큐에서 제거
-          const updatedQueue = retryQueue.filter((q: any) => q !== item);
+          const updatedQueue = validQueue.filter((q: any) => q !== item);
           localStorage.setItem('auto_collection_retry_queue', JSON.stringify(updatedQueue));
           
         } catch (error) {
           console.error('❌ 재시도 실패:', item.dateKey, error);
-          item.retryCount++;
+          item.retryCount = (item.retryCount || 0) + 1;
           
           // 최대 재시도 횟수 초과 시 큐에서 제거
           if (item.retryCount >= 3) {
-            const updatedQueue = retryQueue.filter((q: any) => q !== item);
+            const updatedQueue = validQueue.filter((q: any) => q !== item);
             localStorage.setItem('auto_collection_retry_queue', JSON.stringify(updatedQueue));
             console.log('❌ 최대 재시도 횟수 초과:', item.dateKey);
           }
