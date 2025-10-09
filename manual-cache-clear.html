@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>수동 캐시 클리어 - YouTube Pulse</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 15px 0;
+            text-align: left;
+            border-radius: 4px;
+        }
+        .step h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .step p {
+            margin: 0;
+            color: #666;
+        }
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .button:hover {
+            background: #5a6fd8;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 캐시 문제 해결 가이드</h1>
+        <p>YouTube Pulse의 캐시 문제를 해결하는 단계별 방법입니다.</p>
+        
+        <div class="warning">
+            <strong>⚠️ 중요:</strong> 다음 단계를 순서대로 진행하세요.
+        </div>
+        
+        <div class="step">
+            <h3>1단계: 개발자 도구 열기</h3>
+            <p>키보드에서 <strong>F12</strong> 키를 누르거나, 브라우저 메뉴에서 개발자 도구를 열어주세요.</p>
+        </div>
+        
+        <div class="step">
+            <h3>2단계: 서비스 워커 해제</h3>
+            <p>DevTools에서 <strong>Application</strong> 탭 → <strong>Service Workers</strong> → 해당 도메인에서 <strong>Unregister</strong> 클릭</p>
+        </div>
+        
+        <div class="step">
+            <h3>3단계: 저장소 정리</h3>
+            <p>DevTools에서 <strong>Application</strong> 탭 → <strong>Storage</strong> → <strong>Clear site data</strong> 클릭</p>
+        </div>
+        
+        <div class="step">
+            <h3>4단계: 강제 새로고침</h3>
+            <p>DevTools가 열린 상태에서 새로고침 버튼을 <strong>길게 클릭</strong> → <strong>"Empty Cache and Hard Reload"</strong> 선택</p>
+        </div>
+        
+        <div class="step">
+            <h3>5단계: 확인</h3>
+            <p>페이지가 새로 로드되면 데이터 분류 관리 페이지에서 데이터가 정상 표시되는지 확인하세요.</p>
+        </div>
+        
+        <div style="margin-top: 30px;">
+            <a href="/" class="button">메인 페이지로 이동</a>
+            <a href="javascript:location.reload(true)" class="button">강제 새로고침</a>
+        </div>
+        
+        <div class="warning" style="margin-top: 30px;">
+            <strong>💡 팁:</strong> 만약 위 방법으로 해결되지 않으면, 브라우저를 완전히 종료하고 다시 실행해보세요.
+        </div>
+    </div>
+</body>
+</html>
