@@ -820,7 +820,9 @@ app.post('/api/unclassified', async (req, res) => {
     
     console.log(`📊 병합된 전체 데이터: ${mergedData.length}개 (다른 날짜: ${otherDatesData.length}개 + 새 데이터: ${newData.length}개)`);
     
-    // 5. 병합된 데이터 저장
+    // 5. 데이터 저장 (2가지 방식)
+    
+    // 5-1. classification_data 테이블에 저장 (전체 조회용 - 기존 방식 유지)
     await client.query(`
       INSERT INTO classification_data (data_type, data)
       VALUES ($1, $2)
@@ -829,8 +831,74 @@ app.post('/api/unclassified', async (req, res) => {
         data = EXCLUDED.data,
         created_at = CURRENT_TIMESTAMP
     `, ['unclassified', JSON.stringify(mergedData)]);
+    console.log(`✅ classification_data 테이블 저장 완료: ${mergedData.length}개`);
     
-    console.log(`✅ 미분류 데이터 날짜별 병합 저장 완료: ${mergedData.length}개 항목`);
+    // 5-2. unclassified_data 테이블에 개별 UPSERT (분류 작업용)
+    console.log(`💾 unclassified_data 테이블 개별 UPSERT 시작: ${newData.length}개`);
+    let insertCount = 0;
+    let updateCount = 0;
+    let errorCount = 0;
+    
+    for (const item of newData) {
+      try {
+        // day_key_local 계산
+        const dayKeyLocal = item.dayKeyLocal || 
+          (item.collectionDate ? (item.collectionDate.includes('T') ? item.collectionDate.split('T')[0] : item.collectionDate) : 
+           (item.uploadDate ? (item.uploadDate.includes('T') ? item.uploadDate.split('T')[0] : item.uploadDate) : 
+            new Date().toISOString().split('T')[0]));
+        
+        const result = await client.query(`
+          INSERT INTO unclassified_data (
+            video_id, channel_id, channel_name, video_title, 
+            video_description, view_count, like_count, comment_count,
+            upload_date, collection_date, thumbnail_url, 
+            category, sub_category, status, day_key_local
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          ON CONFLICT (video_id, day_key_local) 
+          DO UPDATE SET
+            channel_id = EXCLUDED.channel_id,
+            channel_name = EXCLUDED.channel_name,
+            video_title = EXCLUDED.video_title,
+            video_description = EXCLUDED.video_description,
+            view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
+            like_count = GREATEST(unclassified_data.like_count, EXCLUDED.like_count),
+            comment_count = GREATEST(unclassified_data.comment_count, EXCLUDED.comment_count),
+            thumbnail_url = EXCLUDED.thumbnail_url,
+            category = EXCLUDED.category,
+            sub_category = EXCLUDED.sub_category,
+            status = EXCLUDED.status,
+            updated_at = NOW()
+          RETURNING (xmax = 0) AS inserted
+        `, [
+          item.videoId, 
+          item.channelId, 
+          item.channelName, 
+          item.videoTitle,
+          item.videoDescription, 
+          item.viewCount || 0,
+          item.likeCount || 0,
+          item.commentCount || 0,
+          item.uploadDate, 
+          item.collectionDate,
+          item.thumbnailUrl, 
+          item.category || '', 
+          item.subCategory || '', 
+          item.status || 'unclassified',
+          dayKeyLocal
+        ]);
+        
+        if (result.rows[0].inserted) {
+          insertCount++;
+        } else {
+          updateCount++;
+        }
+      } catch (itemError) {
+        console.error(`❌ 항목 저장 실패 (${item.videoId}):`, itemError.message);
+        errorCount++;
+      }
+    }
+    
+    console.log(`✅ unclassified_data 테이블 저장 완료: 신규 ${insertCount}개, 업데이트 ${updateCount}개, 오류 ${errorCount}개`);
     
     res.json({ 
       success: true, 
