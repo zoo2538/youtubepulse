@@ -176,20 +176,32 @@ class HybridSyncService {
 
         const responseData = await response.json();
         
-        // 응답 형식 디버그 로그
-        console.log('🔍 서버 응답 형식 확인:', {
-          isArray: Array.isArray(responseData),
-          hasData: 'data' in responseData,
-          hasSuccess: 'success' in responseData,
-          hasRecords: 'records' in responseData,
-          dataType: responseData.data ? (Array.isArray(responseData.data) ? 'array' : typeof responseData.data) : 'none',
-          dataLength: responseData.data?.length || 0
-        });
+        // 응답 형식 확인 및 데이터 추출 (더 견고하게)
+        let data: any[] = [];
         
-        // 응답 형식 확인 및 데이터 추출
-        const data = Array.isArray(responseData) ? responseData : 
-                     (responseData.data && Array.isArray(responseData.data) ? responseData.data : 
-                     (responseData.success && Array.isArray(responseData.records) ? responseData.records : []));
+        if (Array.isArray(responseData)) {
+          // 응답 자체가 배열인 경우
+          data = responseData;
+          console.log('📥 배열 응답 감지:', data.length, '개');
+        } else if (responseData && typeof responseData === 'object') {
+          // 응답이 객체인 경우
+          if (responseData.success === true && Array.isArray(responseData.data)) {
+            // { success: true, data: [...] } 형식
+            data = responseData.data;
+            console.log('📥 성공 응답 (data):', data.length, '개');
+          } else if (Array.isArray(responseData.data)) {
+            // { data: [...] } 형식
+            data = responseData.data;
+            console.log('📥 데이터 응답:', data.length, '개');
+          } else if (Array.isArray(responseData.records)) {
+            // { records: [...] } 형식
+            data = responseData.records;
+            console.log('📥 레코드 응답:', data.length, '개');
+          } else {
+            console.warn('⚠️ 알 수 없는 응답 형식:', Object.keys(responseData));
+            console.warn('⚠️ 응답 샘플:', JSON.stringify(responseData).substring(0, 200));
+          }
+        }
         
         console.log(`📥 서버에서 전체 데이터 다운로드: ${data.length}개 레코드`);
 
