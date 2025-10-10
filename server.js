@@ -1034,27 +1034,31 @@ app.get('/api/unclassified', async (req, res) => {
     const { date } = req.query;
     const client = await pool.connect();
     
+    // 항상 unclassified_data 테이블에서 직접 조회 (올바른 dayKeyLocal 보장)
     let query, params;
     if (date) {
-      // 날짜별 데이터 조회 (문자열 비교)
+      // 날짜별 데이터 조회
       query = `
         SELECT 
           id, video_id, channel_id, channel_name, video_title, 
           video_description, view_count, like_count, comment_count,
           upload_date, collection_date, thumbnail_url, 
-          category, sub_category, status, collection_type
+          category, sub_category, status, collection_type, day_key_local
         FROM unclassified_data 
-        WHERE collection_date::text LIKE $1
+        WHERE day_key_local = $1
         ORDER BY view_count DESC
       `;
-      params = [`${date}%`];
+      params = [date];
     } else {
-      // 전체 데이터 조회 (기존 방식)
+      // 전체 데이터 조회 (unclassified_data 테이블에서 직접 조회)
       query = `
-        SELECT data FROM classification_data 
-        WHERE data_type = 'unclassified' 
-        ORDER BY created_at DESC 
-        LIMIT 1
+        SELECT 
+          id, video_id, channel_id, channel_name, video_title, 
+          video_description, view_count, like_count, comment_count,
+          upload_date, collection_date, thumbnail_url, 
+          category, sub_category, status, collection_type, day_key_local
+        FROM unclassified_data 
+        ORDER BY collection_date DESC, view_count DESC
       `;
       params = [];
     }
@@ -1062,40 +1066,38 @@ app.get('/api/unclassified', async (req, res) => {
     const result = await client.query(query, params);
     client.release();
     
-    if (date) {
-      // 날짜별 조회 결과를 API 형식으로 변환
-      const data = result.rows.map(row => {
-        // KST 기준 day_key_local 생성 (YYYY-MM-DD 형식)
+    // 조회 결과를 API 형식으로 변환
+    const data = result.rows.map(row => {
+      // day_key_local이 없으면 collection_date로부터 생성
+      let dayKeyLocal = row.day_key_local;
+      if (!dayKeyLocal) {
         const date = new Date(row.collection_date);
         const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-        const dayKeyLocal = kstDate.toISOString().split('T')[0];
-        
-        return {
-          id: row.id,
-          videoId: row.video_id,
-          channelId: row.channel_id,
-          channelName: row.channel_name,
-          videoTitle: row.video_title,
-          videoDescription: row.video_description,
-          viewCount: row.view_count,
-          likeCount: row.like_count,
-          commentCount: row.comment_count,
-          uploadDate: row.upload_date,
-          collectionDate: row.collection_date,
-          dayKeyLocal: dayKeyLocal, // KST 기준 일자 키 추가
-          thumbnailUrl: row.thumbnail_url,
-          category: row.category || '',
-          subCategory: row.sub_category || '',
-          status: row.status || 'unclassified',
-          collectionType: row.collection_type || 'manual'
-        };
-      });
-      res.json({ success: true, data });
-    } else {
-      // 기존 방식
-      const data = result.rows.length > 0 ? result.rows[0].data : [];
-      res.json({ success: true, data });
-    }
+        dayKeyLocal = kstDate.toISOString().split('T')[0];
+      }
+      
+      return {
+        id: row.id,
+        videoId: row.video_id,
+        channelId: row.channel_id,
+        channelName: row.channel_name,
+        videoTitle: row.video_title,
+        videoDescription: row.video_description,
+        viewCount: row.view_count,
+        likeCount: row.like_count,
+        commentCount: row.comment_count,
+        uploadDate: row.upload_date,
+        collectionDate: row.collection_date,
+        dayKeyLocal: dayKeyLocal, // KST 기준 일자 키 추가
+        thumbnailUrl: row.thumbnail_url,
+        category: row.category || '',
+        subCategory: row.sub_category || '',
+        status: row.status || 'unclassified',
+        collectionType: row.collection_type || 'manual'
+      };
+    });
+    
+    res.json({ success: true, data });
   } catch (error) {
     console.error('미분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get unclassified data' });

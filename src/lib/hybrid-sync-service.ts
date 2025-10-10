@@ -4,6 +4,10 @@
  */
 
 import { indexedDBService } from './indexeddb-service';
+import { apiService } from './api-service';
+
+// API Base URL을 apiService에서 가져옴
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
 
 export interface SyncOperation {
   id: string;
@@ -121,7 +125,7 @@ class HybridSyncService {
         op.status = 'processing';
         await this.saveSyncQueue();
 
-        const response = await fetch('https://api.youthbepulse.com/api/sync/upload', {
+        const response = await fetch(`${API_BASE_URL}/api/sync/upload`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -164,7 +168,7 @@ class HybridSyncService {
         console.log('📥 전체 동기화: 서버의 모든 데이터로 덮어쓰기 시작...');
         
         // 1. 서버에서 전체 데이터 다운로드
-        const response = await fetch('https://api.youthbepulse.com/api/unclassified');
+        const response = await fetch(`${API_BASE_URL}/api/unclassified`);
         
         if (!response.ok) {
           throw new Error(`전체 다운로드 실패: ${response.status}`);
@@ -220,7 +224,7 @@ class HybridSyncService {
 
       // 증분 동기화 (기존 방식)
       const lastSync = this.metadata?.lastSyncAt || 0;
-      const response = await fetch(`https://api.youthbepulse.com/api/sync/download?since=${lastSync}`);
+      const response = await fetch(`${API_BASE_URL}/api/sync/download?since=${lastSync}`);
       
       if (!response.ok) {
         throw new Error(`다운로드 실패: ${response.status}`);
