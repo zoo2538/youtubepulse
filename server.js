@@ -1760,12 +1760,12 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 (테스트용으로 1페이지만)
-    console.log('📺 1단계: 트렌드 영상 수집 중... (테스트 모드: 1페이지만)');
+    // 1단계: 트렌드 영상 수집 (5페이지 = 250개)
+    console.log('📺 1단계: 트렌드 영상 수집 중... (5페이지)');
     let trendingVideos = [];
     let nextPageToken = '';
     
-    for (let page = 0; page < 1; page++) { // 테스트용으로 1페이지만
+    for (let page = 0; page < 5; page++) { // 5페이지 수집
       const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
       console.log(`📺 페이지 ${page + 1} 요청: ${trendingUrl.substring(0, 100)}...`);
       
@@ -1805,16 +1805,53 @@ async function autoCollectData() {
     });
     console.log(`✅ 트렌드: ${beforeFilter}개 → ${trendingVideos.length}개 (한글 필터링)`);
 
-    // 2단계: 키워드 기반 영상 수집 (테스트용으로 1개 키워드만)
-    console.log('🔍 2단계: 키워드 영상 수집 중... (테스트 모드: 1개 키워드만)');
+    // 2단계: 키워드 기반 영상 수집 (전체 73개 키워드)
+    console.log('🔍 2단계: 키워드 영상 수집 중... (73개 키워드)');
     let keywordVideos = [];
     
-    // 테스트용으로 1개 키워드만 사용
-    const testKeywords = ['브이로그']; // 첫 번째 키워드만
+    // 전체 키워드 사용
+    const testKeywords = [
+      // 인기 콘텐츠 (4개)
+      '브이로그', '리뷰', '언박싱', '튜토리얼',
+      // 엔터테인먼트 (7개)
+      '케이팝', '인터뷰', '예능', '라방', '비하인드', 'idol', 'k-pop',
+      // 게임 & 스트리밍 (2개)
+      '게임요약', '게임 공략',
+      // 라이프스타일 (3개)
+      '뷰티', '메이크업', '패션',
+      // 여행 & 라이프 (3개)
+      '여행', '인테리어', '집꾸미기',
+      // 교육 & 학습 (3개)
+      '공부', '시험', '취업',
+      // 투자 & 경제 (4개)
+      '부동산 이슈', '경제 이슈', '경제 요약', '재테크',
+      // 뉴스 & 이슈 (4개)
+      '뉴스 요약', '사회 이슈', '정치 이슈', '정치 요약',
+      // 음악 & 예술 (5개)
+      '연예인', '아이돌', '가수', '스타 소식', '트롯트',
+      // 영화 & 드라마 (4개)
+      '영화', '드라마', '영화리뷰', '드라마리뷰',
+      // 기술 & 개발 (3개)
+      '인공지능', 'ai 이슈', '기술 트렌드',
+      // 스포츠 (3개)
+      '스포츠 요약', '스포츠 이슈', '운동',
+      // 쇼핑 & 리뷰 (4개)
+      '쇼핑', '쇼핑리뷰', '구매', '리뷰',
+      // 창작 & 취미 (3개)
+      '취미', '여가', '반려동물',
+      // 애니메이션 & 웹툰 (3개)
+      '애니메이션', '애니', '웹툰',
+      // 시니어 & 노년층 (9개)
+      '막장', '건강관리', '인생경험', '지혜', '사연', '감동', '인생', '국뽕', '실화',
+      // 트렌드 & 밈 (5개)
+      '썰', '밈', '힐링', '커뮤니티', '짤',
+      // 하이라이트 & 편집 콘텐츠 (4개)
+      '모음', '명장면', '베스트', '짜집기'
+    ]; // 총 73개
     
     for (const keyword of testKeywords) {
       console.log(`🔍 키워드 검색: "${keyword}"`);
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=10&regionCode=KR&order=viewCount&key=${apiKey}`;
       const searchResponse = await fetch(searchUrl);
       
       if (searchResponse.ok) {
