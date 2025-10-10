@@ -244,6 +244,31 @@ async function createTables() {
       )
     `);
     
+    // 미분류 데이터 테이블
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS unclassified_data (
+        id SERIAL PRIMARY KEY,
+        video_id VARCHAR(255) NOT NULL,
+        channel_id VARCHAR(255),
+        channel_name VARCHAR(255),
+        video_title VARCHAR(500),
+        video_description TEXT,
+        view_count BIGINT DEFAULT 0,
+        like_count BIGINT DEFAULT 0,
+        comment_count BIGINT DEFAULT 0,
+        upload_date TIMESTAMP,
+        collection_date TIMESTAMP,
+        thumbnail_url VARCHAR(500),
+        category VARCHAR(100),
+        sub_category VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'unclassified',
+        day_key_local VARCHAR(10),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(video_id, day_key_local)
+      )
+    `);
+    
     console.log('✅ PostgreSQL 테이블 생성 완료');
     client.release();
   } catch (error) {

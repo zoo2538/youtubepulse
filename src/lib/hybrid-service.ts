@@ -587,7 +587,7 @@ class HybridService {
       }
 
       if (this.config.fallbackToLocal) {
-        const localData = await indexedDBService.getUnclassifiedData();
+        const localData = await indexedDBService.loadUnclassifiedData();
         console.log('⚠️ 로컬 IndexedDB에서 미분류 데이터 조회');
         return localData;
       }
@@ -604,7 +604,7 @@ class HybridService {
       if (this.config.fallbackToLocal) {
         console.log('🔄 로컬 IndexedDB로 폴백 시도...');
         try {
-          return await indexedDBService.getUnclassifiedData();
+          return await indexedDBService.loadUnclassifiedData();
         } catch (localError) {
           console.error('❌ 로컬 IndexedDB 조회도 실패:', localError);
           return [];
@@ -842,7 +842,7 @@ class HybridService {
       }
 
       // 미분류 데이터 동기화
-      const unclassifiedData = await indexedDBService.getUnclassifiedData();
+      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
       if (unclassifiedData.length > 0) {
         await this.saveUnclassifiedData(unclassifiedData);
       }

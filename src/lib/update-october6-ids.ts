@@ -11,7 +11,7 @@ export async function updateOctober6DataIds(): Promise<{
   
   try {
     // 10월 6일 데이터 조회
-    const allData = await indexedDBService.getUnclassifiedData();
+    const allData = await indexedDBService.loadUnclassifiedData();
     
     // 10월 6일 데이터 필터링
     const october6Data = allData.filter(item => {
