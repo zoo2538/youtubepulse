@@ -700,85 +700,60 @@ app.get('/api/classified', async (req, res) => {
     const { date } = req.query;
     const client = await pool.connect();
     
-    // 자동 수집 + 수동 분류 데이터 통합 조회
-    const result = await client.query(`
-      SELECT data, data_type FROM classification_data 
-      WHERE data_type IN ('auto_collected', 'manual_classified', 'classified') 
-      ORDER BY created_at DESC
-    `);
+    // unclassified_data 테이블에서 status='classified'인 데이터 조회
+    let query = `
+      SELECT 
+        id,
+        video_id as "videoId",
+        channel_id as "channelId",
+        channel_name as "channelName",
+        video_title as "videoTitle",
+        video_description as "videoDescription",
+        view_count as "viewCount",
+        like_count as "likeCount",
+        comment_count as "commentCount",
+        upload_date as "uploadDate",
+        collection_date as "collectionDate",
+        thumbnail_url as "thumbnailUrl",
+        category,
+        sub_category as "subCategory",
+        status,
+        day_key_local as "dayKeyLocal",
+        collection_type as "collectionType",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      FROM unclassified_data
+      WHERE status = 'classified'
+    `;
     
-    client.release();
-    
-    // 모든 데이터를 합쳐서 중복 제거 (videoId + collectionDate 기준)
-    let allData = result.rows.flatMap(row => {
-      const items = Array.isArray(row.data) ? row.data : [row.data];
-      return items.map(item => ({
-        ...item,
-        _source_type: row.data_type // 데이터 소스 타입 추가
-      }));
-    });
+    const params = [];
     
     // 날짜별 필터링 (선택적)
     if (date) {
-      allData = allData.filter(item => {
-        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-        const dateStr = itemDate ? itemDate.split('T')[0] : '';
-        return dateStr === date;
-      });
-      console.log(`📅 날짜별 필터링 (${date}): ${allData.length}개 항목`);
+      query += ` AND day_key_local = $1`;
+      params.push(date);
+      console.log(`📅 날짜별 필터링: ${date}`);
     }
     
-    // 중복 제거: 같은 날짜의 같은 영상은 조회수 높은 것만
-    const videoMap = new Map();
+    query += ` ORDER BY view_count DESC`;
     
-    // 조회수 기준으로 정렬 (높은 것부터)
-    const sortedData = allData.sort((a, b) => {
-      const viewCountA = parseInt(a.viewCount || a.statistics?.viewCount || '0');
-      const viewCountB = parseInt(b.viewCount || b.statistics?.viewCount || '0');
-      return viewCountB - viewCountA;
-    });
+    const result = await client.query(query, params);
+    client.release();
     
-    sortedData.forEach(item => {
-      const key = `${item.videoId}_${item.collectionDate}`;
-      
-      // 같은 날짜의 같은 영상이면 조회수가 높은 것만 저장 (이미 정렬됨)
-      if (!videoMap.has(key)) {
-        videoMap.set(key, item);
-      }
-    });
+    // collectionType 기본값 설정 (기존 데이터 호환성)
+    const data = result.rows.map(item => ({
+      ...item,
+      collectionType: item.collectionType || 'manual'
+    }));
     
-    const uniqueData = Array.from(videoMap.values());
+    console.log(`📊 분류 데이터 조회: ${data.length}개`);
+    if (date) {
+      console.log(`📅 날짜 (${date}): ${data.length}개`);
+    }
     
-    console.log(`📊 통합 분류 데이터 조회: ${uniqueData.length}개 (중복 제거 후)`);
-    console.log(`📊 원본 데이터: ${allData.length}개 → 고유 데이터: ${uniqueData.length}개`);
-    console.log(`📊 데이터 소스별 개수:`, uniqueData.reduce((acc, item) => {
-      const sourceType = item._source_type || 'unknown';
-      acc[sourceType] = (acc[sourceType] || 0) + 1;
-      return acc;
-    }, {}));
-    
-    // _source_type 필드 제거 후 반환하고 collectionType 기본값 설정
-    const cleanData = uniqueData.map(item => {
-      const { _source_type, ...cleanItem } = item;
-      
-      // collectionType이 없는 경우 데이터 소스에 따라 기본값 설정
-      if (!cleanItem.collectionType) {
-        if (_source_type === 'auto_collected') {
-          cleanItem.collectionType = 'auto';
-        } else if (_source_type === 'manual_classified') {
-          cleanItem.collectionType = 'manual';
-        } else {
-          // 기본값은 manual (기존 데이터 호환성)
-          cleanItem.collectionType = 'manual';
-        }
-      }
-      
-      return cleanItem;
-    });
-    
-    res.json({ success: true, data: cleanData });
+    res.json(data);
   } catch (error) {
-    console.error('통합 분류 데이터 조회 실패:', error);
+    console.error('분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get classified data' });
   }
 });
