@@ -127,14 +127,10 @@ const DateClassificationDetail = () => {
             if (response.ok) {
               const serverData = await response.json();
               if (serverData.success && serverData.data && serverData.data.length > 0) {
-                // 선택된 날짜의 데이터만 필터링
-                allData = serverData.data.filter(item => {
-                  const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-                  const dateStr = itemDate ? itemDate.split('T')[0] : '';
-                  return dateStr === selectedDate;
-                });
+                // 서버에서 이미 날짜별로 필터링된 데이터 사용 (중복 필터링 방지)
+                allData = serverData.data;
                 dataSource = 'server-classified';
-                console.log('✅ 서버에서 classified 데이터 로드 (classification_data 테이블):', allData.length, '개');
+                console.log('✅ 서버에서 classified 데이터 로드 (classification_data 테이블, 날짜별 필터링됨):', allData.length, '개');
               }
             }
           }

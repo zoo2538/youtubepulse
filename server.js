@@ -757,9 +757,22 @@ app.get('/api/classified', async (req, res) => {
       return acc;
     }, {}));
     
-    // _source_type 필드 제거 후 반환
+    // _source_type 필드 제거 후 반환하고 collectionType 기본값 설정
     const cleanData = uniqueData.map(item => {
       const { _source_type, ...cleanItem } = item;
+      
+      // collectionType이 없는 경우 데이터 소스에 따라 기본값 설정
+      if (!cleanItem.collectionType) {
+        if (_source_type === 'auto_collected') {
+          cleanItem.collectionType = 'auto';
+        } else if (_source_type === 'manual_classified') {
+          cleanItem.collectionType = 'manual';
+        } else {
+          // 기본값은 manual (기존 데이터 호환성)
+          cleanItem.collectionType = 'manual';
+        }
+      }
+      
       return cleanItem;
     });
     
