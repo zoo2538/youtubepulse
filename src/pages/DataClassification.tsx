@@ -307,6 +307,34 @@ const DataClassification = () => {
           
           setUnclassifiedData(dedupedData as UnclassifiedData[]);
           console.log('✅ 하이브리드 서비스에서 로드 완료:', dedupedData.length);
+          
+          // 6. 실제 데이터 기반으로 dateStats 재계산 (중복 제거 반영)
+          const actualDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+          
+          dedupedData.forEach((item: UnclassifiedData) => {
+            const dayKey = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            if (!dayKey) return;
+            
+            const normalizedKey = dayKey.split('T')[0];
+            
+            if (!actualDateStats[normalizedKey]) {
+              actualDateStats[normalizedKey] = { total: 0, classified: 0, progress: 0 };
+            }
+            
+            actualDateStats[normalizedKey].total++;
+            if (item.status === 'classified') {
+              actualDateStats[normalizedKey].classified++;
+            }
+          });
+          
+          // 진행률 계산
+          Object.keys(actualDateStats).forEach(date => {
+            const stats = actualDateStats[date];
+            stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+          });
+          
+          setDateStats(actualDateStats);
+          console.log('📊 실제 데이터 기반 dateStats 재계산:', actualDateStats);
         } else {
           // 6. IndexedDB에 데이터가 없으면 localStorage에서 마이그레이션 시도
         const channelsData = localStorage.getItem('youtubepulse_channels');
