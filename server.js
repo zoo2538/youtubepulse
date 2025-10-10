@@ -1867,6 +1867,10 @@ async function autoCollectData() {
     await client.query(`
       INSERT INTO classification_data (data_type, data)
       VALUES ($1, $2)
+      ON CONFLICT (data_type) 
+      DO UPDATE SET 
+        data = EXCLUDED.data,
+        created_at = CURRENT_TIMESTAMP
     `, ['auto_collected', JSON.stringify(newData)]);
     console.log('✅ PostgreSQL 저장 완료');
 
