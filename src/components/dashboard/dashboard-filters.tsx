@@ -22,7 +22,7 @@ export function DashboardFilters() {
             <label className="text-sm font-medium text-foreground mb-2 block">
               카테고리
             </label>
-            <div className="grid grid-cols-8 gap-2">
+            <div className="grid grid-cols-9 gap-2">
               {categories.map((category) => (
                 <Link key={category} to={`/category/${encodeURIComponent(category)}`}>
                   <Badge

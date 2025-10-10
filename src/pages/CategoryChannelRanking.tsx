@@ -266,7 +266,7 @@ const CategoryChannelRanking = () => {
             <label className="text-sm font-medium text-foreground mb-2 block">
               카테고리 선택
             </label>
-            <div className="grid grid-cols-8 gap-2">
+            <div className="grid grid-cols-9 gap-2">
               {Object.keys(subCategories).map((cat) => (
                 <Link key={cat} to={`/category/${encodeURIComponent(cat)}`}>
                   <Badge
