@@ -833,27 +833,41 @@ app.post('/api/unclassified', async (req, res) => {
     `, ['unclassified', JSON.stringify(mergedData)]);
     console.log(`✅ classification_data 테이블 저장 완료: ${mergedData.length}개`);
     
-    // 5-2. unclassified_data 테이블에 개별 UPSERT (분류 작업용)
-    console.log(`💾 unclassified_data 테이블 개별 UPSERT 시작: ${newData.length}개`);
-    let insertCount = 0;
-    let updateCount = 0;
-    let errorCount = 0;
+    // 5-2. unclassified_data 테이블에 배치 UPSERT (분류 작업용)
+    console.log(`💾 unclassified_data 테이블 배치 UPSERT 시작: ${newData.length}개`);
     
-    for (const item of newData) {
-      try {
-        // day_key_local 계산
-        const dayKeyLocal = item.dayKeyLocal || 
-          (item.collectionDate ? (item.collectionDate.includes('T') ? item.collectionDate.split('T')[0] : item.collectionDate) : 
-           (item.uploadDate ? (item.uploadDate.includes('T') ? item.uploadDate.split('T')[0] : item.uploadDate) : 
-            new Date().toISOString().split('T')[0]));
-        
+    // 배치 크기를 100개로 제한하여 타임아웃 방지
+    const BATCH_SIZE = 100;
+    const batches = [];
+    for (let i = 0; i < newData.length; i += BATCH_SIZE) {
+      batches.push(newData.slice(i, i + BATCH_SIZE));
+    }
+    
+    console.log(`📦 ${batches.length}개 배치로 처리 (배치당 최대 ${BATCH_SIZE}개)`);
+    
+    let totalInsertCount = 0;
+    let totalUpdateCount = 0;
+    let totalErrorCount = 0;
+    
+    for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+      const batch = batches[batchIdx];
+      console.log(`📦 배치 ${batchIdx + 1}/${batches.length} 처리 중 (${batch.length}개)...`);
+      
+      for (const item of batch) {
+        try {
+          // day_key_local 계산
+          const dayKeyLocal = item.dayKeyLocal || 
+            (item.collectionDate ? (item.collectionDate.includes('T') ? item.collectionDate.split('T')[0] : item.collectionDate) : 
+             (item.uploadDate ? (item.uploadDate.includes('T') ? item.uploadDate.split('T')[0] : item.uploadDate) : 
+              new Date().toISOString().split('T')[0]));
+          
         const result = await client.query(`
           INSERT INTO unclassified_data (
             video_id, channel_id, channel_name, video_title, 
             video_description, view_count, like_count, comment_count,
             upload_date, collection_date, thumbnail_url, 
-            category, sub_category, status, day_key_local
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            category, sub_category, status, day_key_local, collection_type
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           ON CONFLICT (video_id, day_key_local) 
           DO UPDATE SET
             channel_id = EXCLUDED.channel_id,
@@ -867,6 +881,7 @@ app.post('/api/unclassified', async (req, res) => {
             category = EXCLUDED.category,
             sub_category = EXCLUDED.sub_category,
             status = EXCLUDED.status,
+            collection_type = EXCLUDED.collection_type,
             updated_at = NOW()
           RETURNING (xmax = 0) AS inserted
         `, [
@@ -884,21 +899,25 @@ app.post('/api/unclassified', async (req, res) => {
           item.category || '', 
           item.subCategory || '', 
           item.status || 'unclassified',
-          dayKeyLocal
+          dayKeyLocal,
+          item.collectionType || 'manual'
         ]);
-        
-        if (result.rows[0].inserted) {
-          insertCount++;
-        } else {
-          updateCount++;
+          
+          if (result.rows[0].inserted) {
+            totalInsertCount++;
+          } else {
+            totalUpdateCount++;
+          }
+        } catch (itemError) {
+          console.error(`❌ 항목 저장 실패 (${item.videoId}):`, itemError.message);
+          totalErrorCount++;
         }
-      } catch (itemError) {
-        console.error(`❌ 항목 저장 실패 (${item.videoId}):`, itemError.message);
-        errorCount++;
       }
+      
+      console.log(`✅ 배치 ${batchIdx + 1}/${batches.length} 완료`);
     }
     
-    console.log(`✅ unclassified_data 테이블 저장 완료: 신규 ${insertCount}개, 업데이트 ${updateCount}개, 오류 ${errorCount}개`);
+    console.log(`✅ unclassified_data 테이블 저장 완료: 신규 ${totalInsertCount}개, 업데이트 ${totalUpdateCount}개, 오류 ${totalErrorCount}개`);
     
     res.json({ 
       success: true, 
@@ -1022,8 +1041,9 @@ app.get('/api/unclassified', async (req, res) => {
       query = `
         SELECT 
           id, video_id, channel_id, channel_name, video_title, 
-          video_description, view_count, upload_date, collection_date,
-          thumbnail_url, category, sub_category, status
+          video_description, view_count, like_count, comment_count,
+          upload_date, collection_date, thumbnail_url, 
+          category, sub_category, status, collection_type
         FROM unclassified_data 
         WHERE collection_date::text LIKE $1
         ORDER BY view_count DESC
@@ -1059,13 +1079,16 @@ app.get('/api/unclassified', async (req, res) => {
           videoTitle: row.video_title,
           videoDescription: row.video_description,
           viewCount: row.view_count,
+          likeCount: row.like_count,
+          commentCount: row.comment_count,
           uploadDate: row.upload_date,
           collectionDate: row.collection_date,
           dayKeyLocal: dayKeyLocal, // KST 기준 일자 키 추가
           thumbnailUrl: row.thumbnail_url,
           category: row.category || '',
           subCategory: row.sub_category || '',
-          status: row.status || 'unclassified'
+          status: row.status || 'unclassified',
+          collectionType: row.collection_type || 'manual'
         };
       });
       res.json({ success: true, data });
@@ -1956,8 +1979,8 @@ async function autoCollectData() {
             video_id, channel_id, channel_name, video_title, 
             video_description, view_count, like_count, comment_count,
             upload_date, collection_date, thumbnail_url, 
-            category, sub_category, status, day_key_local
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            category, sub_category, status, day_key_local, collection_type
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
           ON CONFLICT (video_id, day_key_local) 
           DO UPDATE SET
             channel_id = EXCLUDED.channel_id,
@@ -1971,6 +1994,7 @@ async function autoCollectData() {
             category = COALESCE(unclassified_data.category, EXCLUDED.category),
             sub_category = COALESCE(unclassified_data.sub_category, EXCLUDED.sub_category),
             status = COALESCE(unclassified_data.status, EXCLUDED.status),
+            collection_type = EXCLUDED.collection_type,
             updated_at = NOW()
           RETURNING (xmax = 0) AS inserted
         `, [
@@ -1988,7 +2012,8 @@ async function autoCollectData() {
           item.category || '', 
           item.subCategory || '', 
           item.status || 'unclassified',
-          today
+          today,
+          'auto'
         ]);
         
         if (result.rows[0].inserted) {
