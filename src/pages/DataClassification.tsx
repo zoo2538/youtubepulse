@@ -690,10 +690,10 @@ const DataClassification = () => {
       // 기타(미분류)는 분류 완료가 아님
       const isClassified = item.status === 'classified' && 
                           !(item.category === '기타' && item.subCategory === '기타(미분류)');
-      const collectionType = item.collectionType || 'auto'; // 기본값은 auto
+      const collectionType = item.collectionType || 'manual'; // 기본값은 manual (기존 데이터 호환)
       
-      // 수집 타입별 카운트 (undefined도 자동수집으로 간주)
-      if (collectionType === 'auto' || collectionType === undefined) {
+      // 수집 타입별 카운트
+      if (collectionType === 'auto') {
         progress.autoCollected++;
         if (isClassified) progress.autoClassified++;
       } else {
