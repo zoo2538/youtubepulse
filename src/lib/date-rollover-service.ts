@@ -40,14 +40,14 @@ class DateRolloverService {
     // 가시성 변경 감지
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        console.log('🔄 페이지 가시성 복원 - 자정 전환 재확인');
+        // 로그 제거 - 필요시에만 출력
         this.checkRollover();
       }
     });
 
     // 5분 간격 가드 (중복 작업 방지)
     this.intervalId = setInterval(() => {
-      console.log('🔄 5분 간격 자정 전환 확인');
+      // 로그 제거 - 필요시에만 출력
       this.checkRollover();
     }, 5 * 60 * 1000); // 5분
     
@@ -92,12 +92,12 @@ class DateRolloverService {
     
     // 아이템포턴트 가드: 이미 생성된 날짜면 스킵
     if (this.state.lastGeneratedDateKey === today) {
-      console.log('⏭️ 이미 생성된 날짜:', today);
+      // 로그 제거 - 정상 동작
       return;
     }
     
     if (this.state.lastCheckedDate === today) {
-      console.log('📅 날짜 변경 없음:', today);
+      // 로그 제거 - 정상 동작
       return;
     }
 

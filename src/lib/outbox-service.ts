@@ -195,7 +195,7 @@ class OutboxService {
     const pendingItems = await this.getPendingItems();
     
     if (pendingItems.length === 0) {
-      console.log('📦 처리할 아웃박스 작업 없음');
+      // 로그 제거 - 정상 동작 (작업 없음)
       return { success: 0, failed: 0 };
     }
 

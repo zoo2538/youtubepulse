@@ -46,7 +46,7 @@ class AutoCollectionScheduler {
     // 가시성 변경 감지
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        console.log('🔄 페이지 가시성 복원 - 자동 수집 확인');
+        // 로그 제거 - 필요시에만 출력
         this.checkAndRun();
       }
     });
@@ -54,7 +54,7 @@ class AutoCollectionScheduler {
 
   private async checkAndRun() {
     if (this.metadata.inFlight) {
-      console.log('⏭️ 자동 수집 이미 진행 중');
+      // 로그 제거 - 정상 동작 (중복 방지)
       return;
     }
 
