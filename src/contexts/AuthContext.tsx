@@ -170,7 +170,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               console.error('❌ 로그인 후 동기화 오류:', syncError);
             }
             
+            // 로그인 성공 후 캐시 클리어 및 페이지 새로고침
+            console.log('🔄 캐시 클리어 및 페이지 새로고침 시작...');
+            if ('caches' in window) {
+              try {
+                const cacheNames = await caches.keys();
+                await Promise.all(
+                  cacheNames.map(cacheName => caches.delete(cacheName))
+                );
+                console.log('✅ 서비스 워커 캐시 클리어 완료');
+              } catch (cacheError) {
+                console.warn('⚠️ 캐시 클리어 실패:', cacheError);
+              }
+            }
+            
             setIsLoading(false);
+            
+            // 페이지 강제 새로고침 (캐시 무시)
+            window.location.reload();
             return true;
             } else {
               throw new Error('저장된 데이터가 일치하지 않음');
@@ -224,7 +241,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               console.error('❌ 로그인 후 동기화 오류:', syncError);
             }
             
+            // 로그인 성공 후 캐시 클리어 및 페이지 새로고침
+            console.log('🔄 캐시 클리어 및 페이지 새로고침 시작...');
+            if ('caches' in window) {
+              try {
+                const cacheNames = await caches.keys();
+                await Promise.all(
+                  cacheNames.map(cacheName => caches.delete(cacheName))
+                );
+                console.log('✅ 서비스 워커 캐시 클리어 완료');
+              } catch (cacheError) {
+                console.warn('⚠️ 캐시 클리어 실패:', cacheError);
+              }
+            }
+            
             setIsLoading(false);
+            
+            // 페이지 강제 새로고침 (캐시 무시)
+            window.location.reload();
             return true;
           } catch (storageError) {
             console.error('❌ 개발 localStorage 저장 실패:', storageError);
@@ -281,7 +315,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.error('❌ 로그인 후 동기화 오류:', syncError);
           }
           
+          // 로그인 성공 후 캐시 클리어 및 페이지 새로고침
+          console.log('🔄 캐시 클리어 및 페이지 새로고침 시작...');
+          if ('caches' in window) {
+            try {
+              const cacheNames = await caches.keys();
+              await Promise.all(
+                cacheNames.map(cacheName => caches.delete(cacheName))
+              );
+              console.log('✅ 서비스 워커 캐시 클리어 완료');
+            } catch (cacheError) {
+              console.warn('⚠️ 캐시 클리어 실패:', cacheError);
+            }
+          }
+          
           setIsLoading(false);
+          
+          // 페이지 강제 새로고침 (캐시 무시)
+          window.location.reload();
           return true;
         }
       } catch (parseError) {
