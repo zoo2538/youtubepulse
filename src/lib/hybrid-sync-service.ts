@@ -154,8 +154,65 @@ class HybridSyncService {
   }
 
   // 서버에서 다운로드 (서버 → 로컬)
-  private async downloadFromServer(): Promise<{ downloaded: number; conflicts: number }> {
+  private async downloadFromServer(fullSync: boolean = false): Promise<{ downloaded: number; conflicts: number }> {
     try {
+      let downloaded = 0;
+      let conflicts = 0;
+
+      // 전체 동기화인 경우 /api/unclassified에서 모든 데이터 가져오기
+      if (fullSync) {
+        console.log('📥 전체 동기화: 서버의 모든 데이터로 덮어쓰기 시작...');
+        
+        // 1. 서버에서 전체 데이터 다운로드
+        const response = await fetch('https://api.youthbepulse.com/api/unclassified');
+        
+        if (!response.ok) {
+          throw new Error(`전체 다운로드 실패: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log(`📥 서버에서 전체 데이터 다운로드: ${data.length}개 레코드`);
+
+        // 2. IndexedDB의 기존 데이터 완전 삭제
+        console.log('🗑️ 기존 IndexedDB 데이터 삭제 중...');
+        await indexedDBService.clearUnclassifiedData();
+        console.log('✅ 기존 데이터 삭제 완료');
+
+        // 3. 서버 데이터를 IndexedDB에 새로 저장
+        console.log('💾 서버 데이터를 IndexedDB에 저장 중...');
+        for (const record of data) {
+          try {
+            // 키 단일화: dayKeyLocal 우선 사용
+            const dayKey = record.dayKeyLocal || 
+                          (record.collectionDate ? new Date(record.collectionDate).toISOString().split('T')[0] : null) ||
+                          (record.uploadDate ? new Date(record.uploadDate).toISOString().split('T')[0] : null);
+            
+            if (!dayKey) {
+              console.warn(`⚠️ 날짜 키가 없는 레코드 스킵: ${record.videoId}`);
+              continue;
+            }
+            
+            // 새로운 데이터로 저장 (덮어쓰기)
+            await indexedDBService.saveUnclassifiedDataItem({
+              ...record,
+              dayKeyLocal: dayKey
+            });
+            
+            downloaded++;
+            
+            if (downloaded % 100 === 0) {
+              console.log(`진행 중... ${downloaded}/${data.length}`);
+            }
+          } catch (error) {
+            console.error(`❌ 레코드 저장 실패:`, record.videoId, error);
+          }
+        }
+        
+        console.log(`✅ 전체 동기화 완료: 기존 데이터 삭제 후 ${downloaded}개 새로 저장`);
+        return { downloaded, conflicts };
+      }
+
+      // 증분 동기화 (기존 방식)
       const lastSync = this.metadata?.lastSyncAt || 0;
       const response = await fetch(`https://api.youthbepulse.com/api/sync/download?since=${lastSync}`);
       
@@ -164,10 +221,7 @@ class HybridSyncService {
       }
 
       const data = await response.json();
-      let downloaded = 0;
-      let conflicts = 0;
-
-      console.log(`📥 서버에서 다운로드: ${data.records.length}개 레코드`);
+      console.log(`📥 서버에서 증분 다운로드: ${data.records.length}개 레코드`);
 
       for (const record of data.records) {
         try {
@@ -203,15 +257,15 @@ class HybridSyncService {
   }
 
   // 전체 동기화 실행
-  async performFullSync(): Promise<SyncResult> {
+  async performFullSync(forceFullDownload: boolean = true): Promise<SyncResult> {
     console.log('🔄 전체 동기화 시작...');
 
     try {
       // 1. 서버로 업로드
       const uploadResult = await this.uploadToServer();
 
-      // 2. 서버에서 다운로드
-      const downloadResult = await this.downloadFromServer();
+      // 2. 서버에서 다운로드 (전체 또는 증분)
+      const downloadResult = await this.downloadFromServer(forceFullDownload);
 
       // 3. 메타데이터 업데이트
       this.metadata = {

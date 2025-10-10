@@ -451,6 +451,32 @@ class IndexedDBService {
     });
   }
 
+  // unclassifiedData 전체 삭제 (전체 동기화용)
+  async clearUnclassifiedData(): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
+        const store = transaction.objectStore('unclassifiedData');
+        const clearRequest = store.clear();
+        
+        clearRequest.onsuccess = () => {
+          console.log('✅ unclassifiedData 전체 삭제 완료');
+          resolve();
+        };
+        
+        clearRequest.onerror = () => {
+          console.error('❌ unclassifiedData 삭제 실패:', clearRequest.error);
+          reject(clearRequest.error);
+        };
+      } catch (error) {
+        console.error('❌ clearUnclassifiedData 트랜잭션 실패:', error);
+        reject(error);
+      }
+    });
+  }
+
   // classifiedData 저장
   async saveClassifiedData(data: any[]): Promise<void> {
     if (!this.db) await this.init();

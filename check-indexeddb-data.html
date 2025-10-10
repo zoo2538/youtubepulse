@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IndexedDB 데이터 현황</title>
+  <base href="https://youthbepulse.com/">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1400px;
+      margin: 20px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #e0e0e0;
+    }
+    h1, h2 {
+      color: #60a5fa;
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: #2a2a2a;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #444;
+    }
+    th {
+      background: #3b82f6;
+      color: white;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+    }
+    tr:hover {
+      background: #333;
+    }
+    .status {
+      margin: 20px 0;
+      padding: 15px;
+      background: #2a2a2a;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 18px;
+      color: #60a5fa;
+    }
+    .error {
+      background: #dc2626;
+      color: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin: 20px 0;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin: 20px 0;
+    }
+    .summary-card {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      border-left: 4px solid #3b82f6;
+    }
+    .summary-card h3 {
+      margin: 0 0 10px 0;
+      color: #60a5fa;
+      font-size: 14px;
+    }
+    .summary-card .value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #3b82f6;
+    }
+    .auto { color: #10b981; }
+    .manual { color: #f59e0b; }
+    .total { color: #8b5cf6; }
+  </style>
+</head>
+<body>
+  <h1>📊 IndexedDB 데이터 수집 현황</h1>
+  
+  <div id="loading" class="loading">
+    데이터 로딩 중...
+  </div>
+  
+  <div id="content" style="display: none;">
+    <div class="summary" id="summary"></div>
+    
+    <h2>📅 날짜별 수집 현황</h2>
+    <table id="dateTable">
+      <thead>
+        <tr>
+          <th>날짜</th>
+          <th>수동수집</th>
+          <th>자동수집</th>
+          <th>전체</th>
+          <th>분류완료</th>
+          <th>미분류</th>
+          <th>진행률</th>
+        </tr>
+      </thead>
+      <tbody id="dateTableBody"></tbody>
+    </table>
+
+    <h2>📊 상세 데이터 (상위 20개 날짜)</h2>
+    <table id="detailTable">
+      <thead>
+        <tr>
+          <th>날짜</th>
+          <th>수집타입</th>
+          <th>상태</th>
+          <th>개수</th>
+        </tr>
+      </thead>
+      <tbody id="detailTableBody"></tbody>
+    </table>
+  </div>
+  
+  <div id="error" style="display: none;"></div>
+
+  <script>
+    async function loadIndexedDBData() {
+      try {
+        // IndexedDB 열기 (버전 지정 없이 최신 버전 사용)
+        const dbRequest = indexedDB.open('YouTubePulseDB');
+        
+        dbRequest.onerror = () => {
+          showError('IndexedDB를 열 수 없습니다: ' + dbRequest.error);
+        };
+        
+        dbRequest.onsuccess = () => {
+          const db = dbRequest.result;
+          console.log('✅ IndexedDB 연결 성공');
+          console.log('📊 사용 가능한 스토어:', Array.from(db.objectStoreNames));
+          console.log('📊 데이터베이스 버전:', db.version);
+          
+          // 스토어 존재 확인
+          if (!db.objectStoreNames.contains('unclassifiedData')) {
+            showError('unclassifiedData 스토어를 찾을 수 없습니다. 사용 가능한 스토어: ' + 
+                     Array.from(db.objectStoreNames).join(', '));
+            return;
+          }
+          
+          // unclassifiedData 테이블에서 데이터 조회
+          try {
+            const transaction = db.transaction(['unclassifiedData'], 'readonly');
+            const store = transaction.objectStore('unclassifiedData');
+            const getAllRequest = store.getAll();
+            
+            getAllRequest.onsuccess = () => {
+              const data = getAllRequest.result;
+              console.log(`📊 전체 데이터: ${data.length}개`);
+              
+              if (data.length === 0) {
+                showError('IndexedDB에 데이터가 없습니다.');
+                return;
+              }
+              
+              processData(data);
+            };
+            
+            getAllRequest.onerror = () => {
+              showError('데이터 조회 실패: ' + getAllRequest.error);
+            };
+          } catch (txError) {
+            showError('트랜잭션 생성 실패: ' + txError.message);
+          }
+        };
+        
+        dbRequest.onupgradeneeded = (event) => {
+          console.log('⚠️ IndexedDB 업그레이드 필요');
+          const db = dbRequest.result;
+          
+          // unclassifiedData 스토어가 없으면 생성
+          if (!db.objectStoreNames.contains('unclassifiedData')) {
+            console.log('📦 unclassifiedData 스토어 생성 중...');
+            const store = db.createObjectStore('unclassifiedData', { keyPath: 'id' });
+            store.createIndex('channelName', 'channelName', { unique: false });
+            store.createIndex('status', 'status', { unique: false });
+            store.createIndex('category', 'category', { unique: false });
+            store.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
+          }
+        };
+        
+      } catch (error) {
+        showError('오류 발생: ' + error.message);
+      }
+    }
+    
+    function processData(data) {
+      // 날짜별, 수집타입별, 상태별 통계
+      const dateStats = {};
+      const detailStats = [];
+      
+      data.forEach(item => {
+        // 날짜 키 추출
+        const dateKey = item.dayKeyLocal || 
+                       (item.collectionDate || item.uploadDate)?.split('T')[0] || 
+                       'unknown';
+        
+        const collectionType = item.collectionType || 'manual'; // 기본값 manual
+        const status = item.status || 'unclassified';
+        
+        // 날짜별 통계 초기화
+        if (!dateStats[dateKey]) {
+          dateStats[dateKey] = {
+            manual: 0,
+            auto: 0,
+            total: 0,
+            classified: 0,
+            unclassified: 0
+          };
+        }
+        
+        // 수집 타입별 카운트
+        if (collectionType === 'auto') {
+          dateStats[dateKey].auto++;
+        } else {
+          dateStats[dateKey].manual++;
+        }
+        
+        dateStats[dateKey].total++;
+        
+        // 상태별 카운트
+        if (status === 'classified') {
+          dateStats[dateKey].classified++;
+        } else {
+          dateStats[dateKey].unclassified++;
+        }
+        
+        // 상세 통계 (날짜 + 타입 + 상태)
+        const detailKey = `${dateKey}_${collectionType}_${status}`;
+        const existing = detailStats.find(s => s.key === detailKey);
+        if (existing) {
+          existing.count++;
+        } else {
+          detailStats.push({
+            key: detailKey,
+            date: dateKey,
+            type: collectionType,
+            status: status,
+            count: 1
+          });
+        }
+      });
+      
+      // 요약 정보
+      const totalManual = Object.values(dateStats).reduce((sum, stat) => sum + stat.manual, 0);
+      const totalAuto = Object.values(dateStats).reduce((sum, stat) => sum + stat.auto, 0);
+      const totalAll = Object.values(dateStats).reduce((sum, stat) => sum + stat.total, 0);
+      const totalClassified = Object.values(dateStats).reduce((sum, stat) => sum + stat.classified, 0);
+      
+      displaySummary(totalManual, totalAuto, totalAll, totalClassified, Object.keys(dateStats).length);
+      displayDateTable(dateStats);
+      displayDetailTable(detailStats);
+      
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    }
+    
+    function displaySummary(manual, auto, total, classified, dateCount) {
+      const summaryHtml = `
+        <div class="summary-card">
+          <h3>전체 데이터</h3>
+          <div class="value total">${total.toLocaleString()}개</div>
+        </div>
+        <div class="summary-card">
+          <h3>수동 수집</h3>
+          <div class="value manual">${manual.toLocaleString()}개</div>
+        </div>
+        <div class="summary-card">
+          <h3>자동 수집</h3>
+          <div class="value auto">${auto.toLocaleString()}개</div>
+        </div>
+        <div class="summary-card">
+          <h3>분류 완료</h3>
+          <div class="value">${classified.toLocaleString()}개</div>
+        </div>
+        <div class="summary-card">
+          <h3>수집 날짜</h3>
+          <div class="value">${dateCount}일</div>
+        </div>
+        <div class="summary-card">
+          <h3>전체 진행률</h3>
+          <div class="value">${((classified / total) * 100).toFixed(1)}%</div>
+        </div>
+      `;
+      document.getElementById('summary').innerHTML = summaryHtml;
+    }
+    
+    function displayDateTable(dateStats) {
+      // 날짜별로 정렬 (최신순)
+      const sortedDates = Object.keys(dateStats).sort((a, b) => b.localeCompare(a));
+      
+      let html = '';
+      sortedDates.forEach(date => {
+        const stat = dateStats[date];
+        const progress = ((stat.classified / stat.total) * 100).toFixed(1);
+        
+        html += `
+          <tr>
+            <td><strong>${date}</strong></td>
+            <td class="manual">${stat.manual.toLocaleString()}개</td>
+            <td class="auto">${stat.auto.toLocaleString()}개</td>
+            <td class="total">${stat.total.toLocaleString()}개</td>
+            <td>${stat.classified.toLocaleString()}개</td>
+            <td>${stat.unclassified.toLocaleString()}개</td>
+            <td>${progress}%</td>
+          </tr>
+        `;
+      });
+      
+      document.getElementById('dateTableBody').innerHTML = html;
+    }
+    
+    function displayDetailTable(detailStats) {
+      // 날짜별, 타입별, 상태별로 정렬
+      detailStats.sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        if (a.type !== b.type) return a.type.localeCompare(b.type);
+        return a.status.localeCompare(b.status);
+      });
+      
+      // 상위 100개만 표시
+      const top100 = detailStats.slice(0, 100);
+      
+      let html = '';
+      top100.forEach(stat => {
+        const typeClass = stat.type === 'auto' ? 'auto' : 'manual';
+        const statusText = stat.status === 'classified' ? '분류완료' : 
+                          stat.status === 'pending' ? '보류' : '미분류';
+        
+        html += `
+          <tr>
+            <td>${stat.date}</td>
+            <td class="${typeClass}">${stat.type === 'auto' ? '자동' : '수동'}</td>
+            <td>${statusText}</td>
+            <td>${stat.count.toLocaleString()}개</td>
+          </tr>
+        `;
+      });
+      
+      document.getElementById('detailTableBody').innerHTML = html;
+    }
+    
+    function showError(message) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'none';
+      document.getElementById('error').style.display = 'block';
+      document.getElementById('error').className = 'error';
+      document.getElementById('error').textContent = '❌ ' + message;
+    }
+    
+    // 페이지 로드 시 실행
+    loadIndexedDBData();
+  </script>
+</body>
+</html>
+
