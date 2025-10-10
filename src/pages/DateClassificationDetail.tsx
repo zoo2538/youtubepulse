@@ -121,15 +121,20 @@ const DateClassificationDetail = () => {
               }
             }
           } else {
-            // 일반 데이터 (수동수집/전체)
-            console.log('📊 일반 데이터 - unclassified API 사용...');
-            const response = await fetch(`https://api.youthbepulse.com/api/unclassified?date=${selectedDate}`);
+            // 일반 데이터 (수동수집/전체) - classification_data 테이블 사용하여 일관성 보장
+            console.log('📊 일반 데이터 - classified API 사용 (classification_data 테이블)...');
+            const response = await fetch(`https://api.youthbepulse.com/api/classified?date=${selectedDate}`);
             if (response.ok) {
               const serverData = await response.json();
               if (serverData.success && serverData.data && serverData.data.length > 0) {
-                allData = serverData.data;
-                dataSource = 'server';
-                console.log('✅ 서버에서 일반 데이터 로드:', allData.length, '개');
+                // 선택된 날짜의 데이터만 필터링
+                allData = serverData.data.filter(item => {
+                  const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+                  const dateStr = itemDate ? itemDate.split('T')[0] : '';
+                  return dateStr === selectedDate;
+                });
+                dataSource = 'server-classified';
+                console.log('✅ 서버에서 classified 데이터 로드 (classification_data 테이블):', allData.length, '개');
               }
             }
           }
@@ -248,21 +253,27 @@ const DateClassificationDetail = () => {
           }
         }
 
-        // 중복 제거 로직 추가 (videoId 기준으로 중복 제거)
+        // 중복 제거 로직 개선 (같은 날짜의 같은 영상 중 조회수 높은 것만 유지)
         console.log('📊 필터링된 데이터 개수:', typeFilteredData.length);
-        const seenVideoIds = new Set<string>();
-        const dateData = typeFilteredData.filter(item => {
-          const videoId = item.videoId;
-          if (seenVideoIds.has(videoId)) {
-            console.log('🔄 중복 데이터 제거:', videoId, '제목:', item.videoTitle);
-            return false;
+        
+        // 조회수 기준으로 정렬 (높은 것부터)
+        const sortedData = typeFilteredData.sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
+        
+        // 같은 날짜의 같은 영상 중복 제거 (조회수 높은 것 우선)
+        const videoMap = new Map<string, any>();
+        sortedData.forEach(item => {
+          const videoKey = `${selectedDate}_${item.videoId}`;
+          if (!videoMap.has(videoKey)) {
+            videoMap.set(videoKey, item);
+          } else {
+            console.log('🔄 중복 데이터 제거 (조회수 낮음):', item.videoId, '제목:', item.videoTitle, '조회수:', item.viewCount);
           }
-          seenVideoIds.add(videoId);
-          return true;
         });
         
+        const dateData = Array.from(videoMap.values());
+        
         console.log('📊 중복 제거 후 데이터 개수:', dateData.length);
-        console.log('📊 제거된 중복 개수:', filteredData.length - dateData.length);
+        console.log('📊 제거된 중복 개수:', typeFilteredData.length - dateData.length);
         
         const finalData = dateData.map(item => ({
           ...item,

@@ -697,6 +697,7 @@ app.get('/api/classified', async (req, res) => {
   }
   
   try {
+    const { date } = req.query;
     const client = await pool.connect();
     
     // 자동 수집 + 수동 분류 데이터 통합 조회
@@ -709,13 +710,23 @@ app.get('/api/classified', async (req, res) => {
     client.release();
     
     // 모든 데이터를 합쳐서 중복 제거 (videoId + collectionDate 기준)
-    const allData = result.rows.flatMap(row => {
+    let allData = result.rows.flatMap(row => {
       const items = Array.isArray(row.data) ? row.data : [row.data];
       return items.map(item => ({
         ...item,
         _source_type: row.data_type // 데이터 소스 타입 추가
       }));
     });
+    
+    // 날짜별 필터링 (선택적)
+    if (date) {
+      allData = allData.filter(item => {
+        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+        const dateStr = itemDate ? itemDate.split('T')[0] : '';
+        return dateStr === date;
+      });
+      console.log(`📅 날짜별 필터링 (${date}): ${allData.length}개 항목`);
+    }
     
     // 중복 제거: 같은 날짜의 같은 영상은 조회수 높은 것만
     const videoMap = new Map();
