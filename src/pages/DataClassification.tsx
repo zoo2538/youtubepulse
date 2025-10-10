@@ -3080,7 +3080,7 @@ const DataClassification = () => {
                  </Button>
                  <div className="text-xs text-muted-foreground space-y-1">
                    <p>{dataManagementConfig.autoCleanup && "• 자동 정리가 활성화되어 있습니다"}</p>
-                   <p>• 7일 이전 데이터는 자동으로 정리됩니다</p>
+                   <p>• {dataManagementConfig.retentionDays}일 이전 데이터는 자동으로 정리됩니다</p>
                  </div>
                </div>
               </div>
