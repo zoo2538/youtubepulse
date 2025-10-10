@@ -170,7 +170,13 @@ class HybridSyncService {
           throw new Error(`전체 다운로드 실패: ${response.status}`);
         }
 
-        const data = await response.json();
+        const responseData = await response.json();
+        
+        // 응답 형식 확인 및 데이터 추출
+        const data = Array.isArray(responseData) ? responseData : 
+                     (responseData.data && Array.isArray(responseData.data) ? responseData.data : 
+                     (responseData.success && Array.isArray(responseData.records) ? responseData.records : []));
+        
         console.log(`📥 서버에서 전체 데이터 다운로드: ${data.length}개 레코드`);
 
         // 2. IndexedDB의 기존 데이터 완전 삭제
