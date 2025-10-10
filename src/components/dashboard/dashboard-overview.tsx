@@ -508,44 +508,34 @@ export function DashboardOverview() {
                 content={<CustomTooltip />}
                 cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1, strokeDasharray: "3 3" }}
               />
-              {Object.entries(categoryColors).map(([category, color]) => {
-                const hasData = viewsData.some(day => day[category]?.views > 0);
-                if (!hasData) return null;
-                
-                return (
-                  <Line 
-                    key={category}
-                    type="monotone" 
-                    dataKey={`${category}.views`}
-                    stroke={color}
-                    strokeWidth={3}
-                    dot={{ fill: color, strokeWidth: 2, r: 5 }}
-                    activeDot={{ r: 8, stroke: color, strokeWidth: 3, fill: "white" }}
-                    connectNulls={false}
-                    animationDuration={1000}
-                  />
-                );
-              })}
+              {Object.entries(categoryColors).map(([category, color]) => (
+                <Line 
+                  key={category}
+                  type="monotone" 
+                  dataKey={`${category}.views`}
+                  stroke={color}
+                  strokeWidth={2}
+                  dot={{ fill: color, strokeWidth: 2, r: 4 }}
+                  activeDot={{ r: 8, stroke: color, strokeWidth: 3, fill: "white" }}
+                  connectNulls={true}
+                  animationDuration={1000}
+                />
+              ))}
             </LineChart>
           </ResponsiveContainer>
           
           {/* 범례 */}
           <div className="mt-4 pt-4 border-t border-border">
             <div className="flex flex-wrap gap-3">
-              {Object.entries(categoryColors).map(([category, color]) => {
-                const hasData = viewsData.some(day => day[category]?.views > 0);
-                if (!hasData) return null;
-                
-                return (
-                  <div key={category} className="flex items-center space-x-2">
-                    <div 
-                      className="w-3 h-3 rounded-full" 
-                      style={{ backgroundColor: color }}
-                    />
-                    <span className="text-xs text-muted-foreground">{category}</span>
-                  </div>
-                );
-              })}
+              {Object.entries(categoryColors).map(([category, color]) => (
+                <div key={category} className="flex items-center space-x-2">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="text-xs text-muted-foreground">{category}</span>
+                </div>
+              ))}
             </div>
           </div>
         </Card>
