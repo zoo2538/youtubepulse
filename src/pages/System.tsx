@@ -108,29 +108,6 @@ const System = () => {
     enableNotifications: true
   });
 
-  // 데이터 마이그레이션 상태
-  const [migrationStatus, setMigrationStatus] = useState<{
-    indexeddbData: {
-      channels: number;
-      videos: number;
-      classificationData: number;
-    };
-    canMigrate: boolean;
-  }>({
-    indexeddbData: { channels: 0, videos: 0, classificationData: 0 },
-    canMigrate: false
-  });
-
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationResult, setMigrationResult] = useState<{
-    success: boolean;
-    message: string;
-    migratedData: {
-      channels: number;
-      videos: number;
-      classificationData: number;
-    };
-  } | null>(null);
 
   // 캐시 정리 상태
   const [isClearingCache, setIsClearingCache] = useState(false);
@@ -149,8 +126,6 @@ const System = () => {
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
 
-  const [dbInfo, setDbInfo] = useState<any>(null);
-  const [isLoadingDbInfo, setIsLoadingDbInfo] = useState(false);
 
   // 관리자 권한 체크 (임시 비활성화 - 디버깅용)
   useEffect(() => {
@@ -193,11 +168,8 @@ const System = () => {
     // }
   }, [isLoggedIn, userRole, navigate]);
 
-  // 페이지 로드 시 IndexedDB 정보 로드
+  // 페이지 로드 시 설정 로드
   React.useEffect(() => {
-    loadDatabaseInfo();
-    loadMigrationStatus();
-    
     // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
     if (localStorage.getItem('customApiEnabled') === null) {
       localStorage.setItem('customApiEnabled', 'false'); // Railway 서버 문제로 비활성화
@@ -228,38 +200,6 @@ const System = () => {
   }, [apiConfig, systemConfig]);
 
   // 마이그레이션 상태 로드
-  const loadMigrationStatus = async () => {
-    try {
-      const status = await dataMigrationService.getMigrationStatus();
-      setMigrationStatus(status);
-    } catch (error) {
-      console.error('마이그레이션 상태 로드 실패:', error);
-    }
-  };
-
-  // 데이터 동기화 실행
-  const handleDataSync = async () => {
-    setIsMigrating(true);
-    setMigrationResult(null);
-    
-    try {
-      const result = await dataMigrationService.migrateAllDataToPostgreSQL();
-      setMigrationResult(result);
-      
-      if (result.success) {
-        // 성공 시 상태 업데이트
-        await loadMigrationStatus();
-      }
-    } catch (error) {
-      setMigrationResult({
-        success: false,
-        message: `동기화 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
-        migratedData: { channels: 0, videos: 0, classificationData: 0 }
-      });
-    } finally {
-      setIsMigrating(false);
-    }
-  };
 
 
 
@@ -268,24 +208,11 @@ const System = () => {
   const [youtubeApiStatus, setYoutubeApiStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
 
-  const loadDatabaseInfo = async () => {
-    try {
-      setIsLoadingDbInfo(true);
-      const info = await indexedDBService.getDatabaseInfo();
-      setDbInfo(info);
-    } catch (error) {
-      console.error('데이터베이스 정보 로드 오류:', error);
-    } finally {
-      setIsLoadingDbInfo(false);
-    }
-  };
-
   const handleCleanupOldData = async () => {
     if (window.confirm('14일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
       try {
         const deletedCount = await indexedDBService.cleanupOldData(14);
         alert(`데이터 정리가 완료되었습니다!\n\n삭제된 데이터: ${deletedCount}개`);
-        loadDatabaseInfo(); // 정보 새로고침
       } catch (error) {
         console.error('데이터 정리 오류:', error);
         alert('데이터 정리 중 오류가 발생했습니다.');
@@ -1505,126 +1432,6 @@ const System = () => {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <div className="w-2 h-2 rounded-full bg-blue-500" />
-                            <span className="text-sm font-medium">IndexedDB</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Badge variant="default">연결됨</Badge>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={loadDatabaseInfo}
-                              disabled={isLoadingDbInfo}
-                            >
-                              {isLoadingDbInfo ? '로딩...' : '정보'}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div className="p-3 rounded-lg bg-blue-600 text-white">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-medium">IndexedDB 정보</h4>
-                          </div>
-                          <div className="text-xs space-y-1">
-                            <div><strong>데이터베이스:</strong> {dbInfo?.name || 'YouTubePulseDB'}</div>
-                            <div><strong>버전:</strong> {dbInfo?.version || '2'}</div>
-                            <div><strong>저장소:</strong> {dbInfo?.objectStores?.join(', ') || 'categories, channels, classifiedByDate, classifiedData, dailyProgress, dailySummary, subCategories, systemConfig, unclassifiedData, videos'}</div>
-                            <div><strong>총 데이터:</strong> {dbInfo?.size || 0}개</div>
-                            <div><strong>보존 기간:</strong> 14일 (자동 정리)</div>
-                            <div><strong>용량:</strong> 브라우저별 제한 (일반적으로 수GB)</div>
-                            <div><strong>상태:</strong> <span className="text-green-300">정상 운영</span></div>
-                          </div>
-                          
-                          {/* 통합 데이터 통계 */}
-                          <div className="mt-3 p-2 bg-blue-500/20 rounded border border-blue-400/30">
-                            <h5 className="text-xs font-medium mb-1 text-blue-100">📊 데이터 현황</h5>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-blue-200">채널:</span>
-                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.channels || 0}개</span>
-                              </div>
-                              <div>
-                                <span className="text-blue-200">영상:</span>
-                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.videos || 0}개</span>
-                              </div>
-                              <div>
-                                <span className="text-blue-200">분류됨:</span>
-                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.classifiedData || 0}개</span>
-                              </div>
-                              <div>
-                                <span className="text-blue-200">미분류:</span>
-                                <span className="ml-1 font-medium">{migrationStatus?.indexeddbData?.unclassifiedData || 0}개</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 데이터 동기화 섹션 */}
-                        <div className="p-3 rounded-lg bg-green-600 text-white">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="text-sm font-medium">데이터 동기화</h4>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={handleDataSync}
-                              disabled={isMigrating || !migrationStatus.canMigrate}
-                              className="text-xs"
-                            >
-                              {isMigrating ? '동기화 중...' : '🔄 동기화'}
-                            </Button>
-                          </div>
-                          <div className="text-xs space-y-1">
-                            <div><strong>IndexedDB 데이터:</strong></div>
-                            <div className="ml-2">• 채널: {migrationStatus.indexeddbData.channels}개</div>
-                            <div className="ml-2">• 영상: {migrationStatus.indexeddbData.videos}개</div>
-                            <div className="ml-2">• 분류 데이터: {migrationStatus.indexeddbData.classificationData}개</div>
-                            <div><strong>상태:</strong> {migrationStatus.canMigrate ? 
-                              <span className="text-yellow-300">동기화 가능</span> : 
-                              <span className="text-gray-300">동기화할 데이터 없음</span>
-                            }</div>
-                          </div>
-                          
-                          {/* 동기화 상세 정보 */}
-                          <div className="mt-3 p-2 bg-green-500/20 rounded border border-green-400/30">
-                            <h5 className="text-xs font-medium mb-1 text-green-100">동기화 상세</h5>
-                            <div className="space-y-1 text-xs">
-                              <div className="flex justify-between">
-                                <span className="text-green-200">총 데이터:</span>
-                                <span className="font-medium">{(migrationStatus.indexeddbData.channels || 0) + (migrationStatus.indexeddbData.videos || 0) + (migrationStatus.indexeddbData.classificationData || 0)}개</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-green-200">동기화 대상:</span>
-                                <span className="font-medium text-green-300">PostgreSQL</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span className="text-green-200">마지막 동기화:</span>
-                                <span className="font-medium text-green-300">수동 실행</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          {/* 동기화 결과 표시 */}
-                          {migrationResult && (
-                            <div className={`mt-2 p-2 rounded text-xs ${
-                              migrationResult.success ? 'bg-green-700' : 'bg-red-700'
-                            }`}>
-                              <div className="font-medium">
-                                {migrationResult.success ? '✅ 동기화 완료' : '❌ 동기화 실패'}
-                              </div>
-                              <div>{migrationResult.message}</div>
-                              {migrationResult.success && (
-                                <div className="mt-1">
-                                  • 채널: {migrationResult.migratedData.channels}개
-                                  • 영상: {migrationResult.migratedData.videos}개
-                                  • 분류: {migrationResult.migratedData.classificationData}개
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                        </div>
                       </div>
                     </Card>
                   </div>
