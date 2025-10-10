@@ -205,42 +205,27 @@ class HybridSyncService {
         
         console.log(`📥 서버에서 전체 데이터 다운로드: ${data.length}개 레코드`);
 
-        // 2. IndexedDB의 기존 데이터 완전 삭제
-        console.log('🗑️ 기존 IndexedDB 데이터 삭제 중...');
-        await indexedDBService.clearUnclassifiedData();
-        console.log('✅ 기존 데이터 삭제 완료');
-
-        // 3. 서버 데이터를 IndexedDB에 새로 저장
-        console.log('💾 서버 데이터를 IndexedDB에 저장 중...');
-        for (const record of data) {
-          try {
-            // 키 단일화: dayKeyLocal 우선 사용
-            const dayKey = record.dayKeyLocal || 
-                          (record.collectionDate ? new Date(record.collectionDate).toISOString().split('T')[0] : null) ||
-                          (record.uploadDate ? new Date(record.uploadDate).toISOString().split('T')[0] : null);
-            
-            if (!dayKey) {
-              console.warn(`⚠️ 날짜 키가 없는 레코드 스킵: ${record.videoId}`);
-              continue;
-            }
-            
-            // 새로운 데이터로 저장 (덮어쓰기)
-            await indexedDBService.saveUnclassifiedDataItem({
-              ...record,
-              dayKeyLocal: dayKey
-            });
-            
-            downloaded++;
-            
-            if (downloaded % 100 === 0) {
-              console.log(`진행 중... ${downloaded}/${data.length}`);
-            }
-          } catch (error) {
-            console.error(`❌ 레코드 저장 실패:`, record.videoId, error);
-          }
-        }
+        // 2. dayKeyLocal 정규화
+        console.log('🔄 dayKeyLocal 정규화 중...');
+        const normalizedData = data.map(record => {
+          const dayKey = record.dayKeyLocal || 
+                        (record.collectionDate ? new Date(record.collectionDate).toISOString().split('T')[0] : null) ||
+                        (record.uploadDate ? new Date(record.uploadDate).toISOString().split('T')[0] : null);
+          
+          return {
+            ...record,
+            dayKeyLocal: dayKey
+          };
+        }).filter(record => record.dayKeyLocal); // 날짜 키 없는 레코드 제거
         
-        console.log(`✅ 전체 동기화 완료: 기존 데이터 삭제 후 ${downloaded}개 새로 저장`);
+        console.log(`✅ 정규화 완료: ${data.length}개 → ${normalizedData.length}개`);
+
+        // 3. IndexedDB에 배치 저장 (기존 데이터 자동 덮어쓰기)
+        console.log('💾 서버 데이터를 IndexedDB에 배치 저장 중...');
+        await indexedDBService.saveUnclassifiedData(normalizedData);
+        downloaded = normalizedData.length;
+        
+        console.log(`✅ 전체 동기화 완료: ${downloaded}개 새로 저장`);
         return { downloaded, conflicts };
       }
 
