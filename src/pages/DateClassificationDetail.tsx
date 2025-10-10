@@ -310,8 +310,10 @@ const DateClassificationDetail = () => {
       const channelItems = channelGroups[item.channelName] || [];
       matchesStatus = channelItems.length > 1 && (item.status === 'unclassified' || item.status === 'pending');
     } else if (filterStatus === 'unclassified') {
-      // 미분류 필터: unclassified와 pending 상태 모두 표시
-      matchesStatus = item.status === 'unclassified' || item.status === 'pending';
+      // 미분류 필터: unclassified, pending 상태, 그리고 기타(미분류) 서브카테고리도 표시
+      matchesStatus = item.status === 'unclassified' || 
+                     item.status === 'pending' || 
+                     (item.category === '기타' && item.subCategory === '기타(미분류)');
     } else {
       matchesStatus = item.status === filterStatus;
     }
@@ -1254,18 +1256,18 @@ const DateClassificationDetail = () => {
                             
                             const confirmMessage = `선택된 ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류하시겠습니까?`;
                             if (confirm(confirmMessage)) {
-                              setUnclassifiedData(prev => 
-                                prev.map(item => 
-                                  selectedItems.has(item.id) 
-                                    ? { 
-                                        ...item, 
-                                        category: bulkCategory, 
-                                        subCategory: bulkSubCategory, 
-                                        status: 'classified' 
-                                      }
-                                    : item
-                                )
-                              );
+                            setUnclassifiedData(prev => 
+                              prev.map(item => 
+                                selectedItems.has(item.id) 
+                                  ? { 
+                                      ...item, 
+                                      category: bulkCategory, 
+                                      subCategory: bulkSubCategory, 
+                                      status: bulkSubCategory === '기타(미분류)' ? 'pending' : 'classified' 
+                                    }
+                                  : item
+                              )
+                            );
 
                               // 선택 해제 및 상태 초기화
                               setSelectedItems(new Set());
@@ -1423,10 +1425,17 @@ const DateClassificationDetail = () => {
                     <TableCell className="align-top py-3">
                       <Select
                         value={item.subCategory || ''}
-                        onValueChange={(value) => updateItem(item.id, { 
-                          subCategory: value, 
-                          status: 'classified' 
-                        })}
+                        onValueChange={(value) => {
+                          // 기타(미분류)에서 다른 서브카테고리로 변경 시 classified로 변경
+                          const newStatus = (item.subCategory === '기타(미분류)' && value !== '기타(미분류)') 
+                            ? 'classified' 
+                            : (value === '기타(미분류)' ? 'pending' : 'classified');
+                          
+                          updateItem(item.id, { 
+                            subCategory: value, 
+                            status: newStatus 
+                          });
+                        }}
                         disabled={!item.category}
                       >
                         <SelectTrigger className="w-32 bg-white text-black border-gray-300">
