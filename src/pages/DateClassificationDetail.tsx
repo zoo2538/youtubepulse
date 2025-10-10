@@ -726,10 +726,18 @@ const DateClassificationDetail = () => {
         console.log('📁 백업 파일 로드:', backupData);
         
         // 백업 데이터 검증 (하이브리드 형식 지원)
+        console.log('🔍 백업 데이터 구조 확인:', {
+          hasAllData: !!backupData.allData,
+          allDataIsArray: Array.isArray(backupData.allData),
+          hasData: !!backupData.data,
+          dataIsArray: Array.isArray(backupData.data),
+          backupKeys: Object.keys(backupData)
+        });
+        
         if (!backupData.allData || !Array.isArray(backupData.allData)) {
           // 기존 형식도 지원
         if (!backupData.data || !Array.isArray(backupData.data)) {
-          throw new Error('유효하지 않은 백업 파일입니다.');
+          throw new Error('유효하지 않은 백업 파일입니다. data 또는 allData 배열이 필요합니다.');
           }
         }
         
@@ -831,10 +839,11 @@ const DateClassificationDetail = () => {
           if (response.ok) {
             console.log('✅ 서버 동기화 완료');
           } else {
-            console.log('⚠️ 서버 동기화 실패, 로컬에서만 복원됨');
+            const errorText = await response.text();
+            console.log('⚠️ 서버 동기화 실패, 로컬에서만 복원됨:', response.status, errorText);
           }
         } catch (serverError) {
-          console.log('⚠️ 서버 연결 실패, 로컬에서만 복원됨');
+          console.log('⚠️ 서버 연결 실패, 로컬에서만 복원됨:', serverError);
         }
         
         // 데이터 업데이트 이벤트 발생 (백업 데이터 보존)
@@ -852,7 +861,12 @@ const DateClassificationDetail = () => {
         
       } catch (error) {
         console.error('❌ 백업 복원 실패:', error);
-        alert('❌ 백업 복원에 실패했습니다. 파일을 확인해주세요.');
+        console.error('❌ 에러 상세:', {
+          message: error instanceof Error ? error.message : '알 수 없는 오류',
+          stack: error instanceof Error ? error.stack : undefined,
+          error: error
+        });
+        alert(`❌ 백업 복원에 실패했습니다.\n\n에러: ${error instanceof Error ? error.message : '알 수 없는 오류'}\n\n파일을 확인해주세요.`);
       }
     };
     reader.readAsText(file);
