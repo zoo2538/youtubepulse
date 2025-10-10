@@ -830,9 +830,9 @@ const DateClassificationDetail = () => {
         // 일별 진행률 데이터 저장 (데이터 분류 관리 페이지용)
         const dailyProgress = {
           date: selectedDate,
-          total: backupData.data.length,
+          total: restoreData.length,
           classified: classifiedData.length,
-          progress: backupData.data.length > 0 ? Math.round((classifiedData.length / backupData.data.length) * 100) : 0
+          progress: restoreData.length > 0 ? Math.round((classifiedData.length / restoreData.length) * 100) : 0
         };
         await indexedDBService.saveDailyProgress(dailyProgress);
         
@@ -844,7 +844,7 @@ const DateClassificationDetail = () => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ 
-              data: backupData.data,
+              data: restoreData,
               date: selectedDate 
             })
           });
@@ -864,13 +864,13 @@ const DateClassificationDetail = () => {
           detail: { 
             type: 'backupRestored', 
             date: selectedDate, 
-            dataCount: backupData.data.length,
+            dataCount: restoreData.length,
             preserveBackupData: true // 백업 데이터 보존 플래그
           } 
         }));
         
         console.log(`🔄 ${selectedDate} 날짜 데이터 복원 완료:`, backupData);
-        alert(`✅ ${selectedDate} 날짜 데이터가 성공적으로 복원되었습니다!\n복원된 데이터: ${backupData.data.length}개`);
+        alert(`✅ ${selectedDate} 날짜 데이터가 성공적으로 복원되었습니다!\n복원된 데이터: ${restoreData.length}개`);
         
       } catch (error) {
         console.error('❌ 백업 복원 실패:', error);
