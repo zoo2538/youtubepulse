@@ -1864,6 +1864,8 @@ async function autoCollectData() {
 
     // PostgreSQL에 저장
     console.log(`💾 PostgreSQL 저장 시작: ${newData.length}개 데이터`);
+    
+    // 1. classification_data 테이블에 저장 (기존 방식 유지 - 전체 조회용)
     await client.query(`
       INSERT INTO classification_data (data_type, data)
       VALUES ($1, $2)
@@ -1872,7 +1874,66 @@ async function autoCollectData() {
         data = EXCLUDED.data,
         created_at = CURRENT_TIMESTAMP
     `, ['auto_collected', JSON.stringify(newData)]);
-    console.log('✅ PostgreSQL 저장 완료');
+    console.log('✅ classification_data 저장 완료');
+    
+    // 2. unclassified_data 테이블에도 저장 (분류 작업용)
+    console.log(`💾 unclassified_data 테이블에도 저장 시작: ${newData.length}개`);
+    let insertCount = 0;
+    let updateCount = 0;
+    
+    for (const item of newData) {
+      try {
+        const result = await client.query(`
+          INSERT INTO unclassified_data (
+            video_id, channel_id, channel_name, video_title, 
+            video_description, view_count, like_count, comment_count,
+            upload_date, collection_date, thumbnail_url, 
+            category, sub_category, status, day_key_local
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          ON CONFLICT (video_id, day_key_local) 
+          DO UPDATE SET
+            channel_id = EXCLUDED.channel_id,
+            channel_name = EXCLUDED.channel_name,
+            video_title = EXCLUDED.video_title,
+            video_description = EXCLUDED.video_description,
+            view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
+            like_count = GREATEST(unclassified_data.like_count, EXCLUDED.like_count),
+            comment_count = GREATEST(unclassified_data.comment_count, EXCLUDED.comment_count),
+            thumbnail_url = EXCLUDED.thumbnail_url,
+            category = COALESCE(unclassified_data.category, EXCLUDED.category),
+            sub_category = COALESCE(unclassified_data.sub_category, EXCLUDED.sub_category),
+            status = COALESCE(unclassified_data.status, EXCLUDED.status),
+            updated_at = NOW()
+          RETURNING (xmax = 0) AS inserted
+        `, [
+          item.videoId, 
+          item.channelId, 
+          item.channelName, 
+          item.videoTitle,
+          item.videoDescription, 
+          item.viewCount || 0,
+          item.likeCount || 0,
+          item.commentCount || 0,
+          item.uploadDate, 
+          item.collectionDate,
+          item.thumbnailUrl, 
+          item.category || '', 
+          item.subCategory || '', 
+          item.status || 'unclassified',
+          today
+        ]);
+        
+        if (result.rows[0].inserted) {
+          insertCount++;
+        } else {
+          updateCount++;
+        }
+      } catch (itemError) {
+        console.error(`❌ 항목 저장 실패 (${item.videoId}):`, itemError.message);
+      }
+    }
+    
+    console.log(`✅ unclassified_data 저장 완료: 신규 ${insertCount}개, 업데이트 ${updateCount}개`);
 
     console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('🤖 자동 수집 완료!');
