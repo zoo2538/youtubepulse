@@ -258,16 +258,16 @@ const DataClassification = () => {
         // 3. 자동수집 데이터 로드
         await loadAutoCollectedData();
         
-        // 4. 서버에서 전체 원본 데이터 가져와서 IndexedDB에 저장
-        const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified');
+        // 4. 서버에서 최근 7일 데이터만 가져와서 IndexedDB에 저장 (효율성 개선)
+        const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
         if (serverResponse.ok) {
           const serverResult = await serverResponse.json();
           if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
-            console.log(`📥 서버에서 ${serverResult.data.length}개 데이터 다운로드`);
+            console.log(`📥 서버에서 최근 7일 데이터 ${serverResult.data.length}개 다운로드`);
             
             // IndexedDB에 저장 (기존 데이터 덮어쓰기)
             await hybridService.saveUnclassifiedData(serverResult.data);
-            console.log(`💾 IndexedDB에 ${serverResult.data.length}개 데이터 저장 완료`);
+            console.log(`💾 IndexedDB에 ${serverResult.data.length}개 데이터 저장 완료 (최근 7일)`);
           }
         }
         

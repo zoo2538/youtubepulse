@@ -1031,13 +1031,13 @@ app.get('/api/unclassified', async (req, res) => {
   }
   
   try {
-    const { date } = req.query;
+    const { date, days } = req.query;
     const client = await pool.connect();
     
     // 항상 unclassified_data 테이블에서 직접 조회 (올바른 dayKeyLocal 보장)
     let query, params;
     if (date) {
-      // 날짜별 데이터 조회
+      // 특정 날짜 데이터 조회
       query = `
         SELECT 
           id, video_id, channel_id, channel_name, video_title, 
@@ -1049,6 +1049,30 @@ app.get('/api/unclassified', async (req, res) => {
         ORDER BY view_count DESC
       `;
       params = [date];
+    } else if (days) {
+      // 최근 N일 데이터 조회 (오늘 포함)
+      const daysCount = Math.min(Math.max(parseInt(days) || 7, 1), 30); // 1~30일로 제한
+      
+      // 날짜 계산 (KST 기준)
+      const today = new Date();
+      const kstToday = new Date(today.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const startDate = new Date(kstToday);
+      startDate.setDate(startDate.getDate() - (daysCount - 1));
+      const startDateString = startDate.toISOString().split('T')[0];
+      
+      console.log(`📅 최근 ${daysCount}일 데이터 조회: ${startDateString} ~ 오늘`);
+      
+      query = `
+        SELECT 
+          id, video_id, channel_id, channel_name, video_title, 
+          video_description, view_count, like_count, comment_count,
+          upload_date, collection_date, thumbnail_url, 
+          category, sub_category, status, collection_type, day_key_local
+        FROM unclassified_data 
+        WHERE day_key_local >= $1
+        ORDER BY collection_date DESC, view_count DESC
+      `;
+      params = [startDateString];
     } else {
       // 전체 데이터 조회 (unclassified_data 테이블에서 직접 조회)
       query = `
