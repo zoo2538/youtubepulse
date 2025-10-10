@@ -953,13 +953,10 @@ app.get('/api/unclassified', async (req, res) => {
     if (date) {
       // 날짜별 조회 결과를 API 형식으로 변환
       const data = result.rows.map(row => {
-        // KST 기준 day_key_local 생성
-        const dayKeyLocal = new Date(row.collection_date).toLocaleDateString('ko-KR', {
-          timeZone: 'Asia/Seoul',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        }).replace(/\./g, '-').replace(/\s/g, '');
+        // KST 기준 day_key_local 생성 (YYYY-MM-DD 형식)
+        const date = new Date(row.collection_date);
+        const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+        const dayKeyLocal = kstDate.toISOString().split('T')[0];
         
         return {
           id: row.id,
@@ -1796,13 +1793,10 @@ async function autoCollectData() {
     console.log(`✅ 자동 분류 참조: ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
     // 6단계: 데이터 변환 및 저장
-    // KST 기준으로 오늘 날짜 생성
-    const today = new Date().toLocaleDateString('ko-KR', { 
-      timeZone: 'Asia/Seoul',
-      year: 'numeric',
-      month: '2-digit', 
-      day: '2-digit'
-    }).replace(/\./g, '-').replace(/\s/g, '');
+    // KST 기준으로 오늘 날짜 생성 (YYYY-MM-DD 형식)
+    const now = new Date();
+    const kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    const today = kstNow.toISOString().split('T')[0];
     const newData = uniqueVideos.map((video, index) => {
       const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
       const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
@@ -2092,13 +2086,10 @@ app.post('/api/sync/upload', async (req, res) => {
     // 실제 데이터 처리 - 최대값 보존 upsert
     if (operation === 'create' || operation === 'update') {
       if (tableName === 'unclassified_data') {
-        // day_key_local 계산 (KST 기준)
-        const dayKeyLocal = new Date(payload.collectionDate).toLocaleDateString('ko-KR', {
-          timeZone: 'Asia/Seoul',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        }).replace(/\./g, '-').replace(/\s/g, '');
+        // day_key_local 계산 (KST 기준, YYYY-MM-DD 형식)
+        const date = new Date(payload.collectionDate);
+        const kstDate = new Date(date.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+        const dayKeyLocal = kstDate.toISOString().split('T')[0];
         
         await client.query(`
           INSERT INTO unclassified_data (

@@ -595,9 +595,20 @@ class HybridService {
       return [];
     } catch (error) {
       console.error('❌ 미분류 데이터 조회 실패:', error);
+      console.error('❌ 에러 상세:', {
+        message: error instanceof Error ? error.message : '알 수 없는 오류',
+        stack: error instanceof Error ? error.stack : undefined,
+        error: error
+      });
       
       if (this.config.fallbackToLocal) {
-        return await indexedDBService.getUnclassifiedData();
+        console.log('🔄 로컬 IndexedDB로 폴백 시도...');
+        try {
+          return await indexedDBService.getUnclassifiedData();
+        } catch (localError) {
+          console.error('❌ 로컬 IndexedDB 조회도 실패:', localError);
+          return [];
+        }
       }
       
       return [];
