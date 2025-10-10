@@ -391,7 +391,18 @@ const DateClassificationDetail = () => {
       console.log('💾 데이터 저장 시작 - 동적 세부카테고리 사용:', dynamicSubCategories);
       
       // 하이브리드 저장 (IndexedDB + 서버)
-      const classifiedData = unclassifiedData.filter(item => item.status === 'classified');
+      // 기타(미분류)는 분류 완료가 아니므로 pending 상태도 제외
+      const classifiedData = unclassifiedData.filter(item => 
+        item.status === 'classified' && 
+        !(item.category === '기타' && item.subCategory === '기타(미분류)')
+      );
+      
+      // 디버깅용 로그
+      const etcUnclassifiedCount = unclassifiedData.filter(item => 
+        item.category === '기타' && item.subCategory === '기타(미분류)'
+      ).length;
+      console.log(`📊 기타(미분류) 영상 수: ${etcUnclassifiedCount}개 (분류 완료에서 제외됨)`);
+      console.log(`📊 실제 분류 완료 영상 수: ${classifiedData.length}개`);
       
       // 1. IndexedDB 날짜별 업데이트 (다른 날짜 데이터 보존) ✅
       console.log('💾 IndexedDB 날짜별 업데이트 - 미분류 데이터');
