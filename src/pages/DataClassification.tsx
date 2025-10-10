@@ -258,21 +258,32 @@ const DataClassification = () => {
         // 3. 자동수집 데이터 로드
         await loadAutoCollectedData();
         
-        // 4. 서버에서 최근 7일 데이터만 가져와서 IndexedDB에 저장 (효율성 개선)
-        const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
-        if (serverResponse.ok) {
-          const serverResult = await serverResponse.json();
-          if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
-            console.log(`📥 서버에서 최근 7일 데이터 ${serverResult.data.length}개 다운로드`);
-            
-            // IndexedDB에 저장 (기존 데이터 덮어쓰기)
-            await hybridService.saveUnclassifiedData(serverResult.data);
-            console.log(`💾 IndexedDB에 ${serverResult.data.length}개 데이터 저장 완료 (최근 7일)`);
+        // 4. IndexedDB 확인 (수집 시 자동 저장되므로 비어있을 때만 서버 다운로드)
+        let savedData = await hybridService.loadUnclassifiedData();
+        
+        // 4-1. IndexedDB가 비어있으면 서버에서 초기 다운로드 (첫 방문 또는 캐시 삭제 후)
+        if (!savedData || savedData.length === 0) {
+          console.log('📭 IndexedDB 비어있음 - 서버에서 초기 데이터 다운로드');
+          
+          const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
+          if (serverResponse.ok) {
+            const serverResult = await serverResponse.json();
+            if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
+              console.log(`📥 서버에서 최근 7일 데이터 ${serverResult.data.length}개 다운로드`);
+              
+              // IndexedDB에 저장
+              await hybridService.saveUnclassifiedData(serverResult.data);
+              console.log(`💾 IndexedDB에 ${serverResult.data.length}개 데이터 저장 완료`);
+              
+              // 다시 로드
+              savedData = await hybridService.loadUnclassifiedData();
+            }
           }
+        } else {
+          console.log(`✅ IndexedDB에서 데이터 로드: ${savedData.length}개 (수집 시 자동 갱신됨)`);
         }
         
         // 5. 하이브리드 서비스에서 실제 데이터 로드 (일관된 소스 사용)
-        const savedData = await hybridService.loadUnclassifiedData();
         if (savedData && savedData.length > 0) {
           // utils 함수들은 이미 정적 import됨
           const today = getKoreanDateString();
