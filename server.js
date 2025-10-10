@@ -1619,7 +1619,7 @@ async function autoCollectData() {
   let client; // PostgreSQL 클라이언트 변수 선언
   
   try {
-    const apiKey = process.env.VITE_YOUTUBE_API_KEY;
+    const apiKey = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_API_KEY;
     if (!apiKey) {
       console.error('❌ YouTube API Key가 설정되지 않았습니다.');
       return false;
