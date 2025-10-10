@@ -18,8 +18,17 @@ class DateRolloverService {
 
   private callbacks: Set<(dateKey: string) => void> = new Set();
   private intervalId: NodeJS.Timeout | null = null;
+  private cleanupIntervalId: NodeJS.Timeout | null = null;
+  private lastCleanupDate: string = '';
 
   constructor() {
+    // localStorage에서 마지막 정리 날짜 복원
+    const savedCleanupDate = localStorage.getItem('lastCleanupDate');
+    if (savedCleanupDate) {
+      this.lastCleanupDate = savedCleanupDate;
+      console.log('📅 마지막 정리 날짜 복원:', savedCleanupDate);
+    }
+    
     this.initialize();
   }
 
@@ -41,6 +50,36 @@ class DateRolloverService {
       console.log('🔄 5분 간격 자정 전환 확인');
       this.checkRollover();
     }, 5 * 60 * 1000); // 5분
+    
+    // 14일 데이터 자동 정리 (매일 새벽 1시 KST)
+    this.cleanupIntervalId = setInterval(() => {
+      this.checkAndPerformCleanup();
+    }, 60 * 60 * 1000); // 1시간마다 체크
+    
+    // 앱 시작 시 즉시 정리 체크
+    this.checkAndPerformCleanup();
+  }
+  
+  // 새벽 1시(KST) 확인 및 데이터 정리 실행
+  private async checkAndPerformCleanup(): Promise<void> {
+    try {
+      const now = new Date();
+      const kstTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+      const kstHour = kstTime.getHours();
+      const kstDate = kstTime.toISOString().split('T')[0];
+      
+      // 새벽 1시(01:00~01:59)이고, 오늘 아직 정리하지 않았으면 실행
+      if (kstHour === 1 && this.lastCleanupDate !== kstDate) {
+        console.log('🕐 새벽 1시(KST) 감지 - 14일 데이터 자동 정리 시작');
+        await this.performDailyCleanup();
+        this.lastCleanupDate = kstDate;
+        
+        // localStorage에 마지막 정리 날짜 저장 (재시작 시에도 중복 방지)
+        localStorage.setItem('lastCleanupDate', kstDate);
+      }
+    } catch (error) {
+      console.error('❌ 정리 시간 체크 실패:', error);
+    }
   }
 
   private async checkRollover() {
@@ -210,6 +249,10 @@ class DateRolloverService {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+    }
+    if (this.cleanupIntervalId) {
+      clearInterval(this.cleanupIntervalId);
+      this.cleanupIntervalId = null;
     }
     this.callbacks.clear();
   }
