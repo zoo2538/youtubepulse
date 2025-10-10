@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,6 +79,17 @@ const DateClassificationDetail = () => {
   const [showBulkActions, setShowBulkActions] = useState<boolean>(false);
   const [bulkCategory, setBulkCategory] = useState<string>('');
   const [bulkSubCategory, setBulkSubCategory] = useState<string>('');
+  
+  // 성능 최적화: 카테고리 옵션 메모이제이션
+  const categoryOptions = useMemo(() => 
+    Object.keys(dynamicSubCategories), 
+    [dynamicSubCategories]
+  );
+  
+  const subCategoryOptions = useMemo(() => 
+    bulkCategory ? (dynamicSubCategories[bulkCategory] || []) : [],
+    [bulkCategory, dynamicSubCategories]
+  );
 
   const handleLogout = () => {
     logout();
@@ -354,14 +365,16 @@ const DateClassificationDetail = () => {
   const endIndex = startIndex + itemsPerPage;
   const currentData = filteredData.slice(startIndex, endIndex);
 
-  // 개별 항목 업데이트
-  const updateItem = (id: number, updates: Partial<UnclassifiedData>) => {
-    setUnclassifiedData(prev => 
-      prev.map(item => 
-        item.id === id ? { ...item, ...updates } : item
-      )
-    );
-  };
+  // 개별 항목 업데이트 (최적화: useCallback + startTransition)
+  const updateItem = useCallback((id: number, updates: Partial<UnclassifiedData>) => {
+    startTransition(() => {
+      setUnclassifiedData(prev => 
+        prev.map(item => 
+          item.id === id ? { ...item, ...updates } : item
+        )
+      );
+    });
+  }, []);
 
   // 체크박스 핸들러
   const handleCheckboxChange = (id: number, checked: boolean) => {
@@ -1222,7 +1235,7 @@ const DateClassificationDetail = () => {
                           className="w-full p-2 border border-gray-300 rounded-md bg-white text-black"
                         >
                           <option value="">카테고리를 선택하세요</option>
-                          {Object.keys(dynamicSubCategories).map(category => (
+                          {categoryOptions.map(category => (
                             <option key={category} value={category}>{category}</option>
                           ))}
                         </select>
@@ -1238,7 +1251,7 @@ const DateClassificationDetail = () => {
                           className="w-full p-2 border border-gray-300 rounded-md bg-white text-black disabled:bg-gray-100"
                         >
                           <option value="">세부카테고리를 선택하세요</option>
-                          {bulkCategory && dynamicSubCategories[bulkCategory]?.map(subCategory => (
+                          {subCategoryOptions.map(subCategory => (
                             <option key={subCategory} value={subCategory}>{subCategory}</option>
                           ))}
                         </select>
@@ -1279,27 +1292,35 @@ const DateClassificationDetail = () => {
                             
                             const confirmMessage = `선택된 ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류하시겠습니까?`;
                             if (confirm(confirmMessage)) {
-                            setUnclassifiedData(prev => 
-                              prev.map(item => 
-                                selectedItems.has(item.id) 
-                                  ? { 
-                                      ...item, 
-                                      category: bulkCategory, 
-                                      subCategory: bulkSubCategory, 
-                                      status: bulkSubCategory === '기타(미분류)' ? 'pending' : 'classified' 
-                                    }
-                                  : item
-                              )
-                            );
-
-                              // 선택 해제 및 상태 초기화
+                              // 즉시 피드백: UI 먼저 업데이트
+                              const itemsToUpdate = selectedItems;
+                              const targetCategory = bulkCategory;
+                              const targetSubCategory = bulkSubCategory;
+                              
+                              // 선택 해제 및 상태 초기화 (즉시 실행)
                               setSelectedItems(new Set());
                               setShowBulkActions(false);
                               setBulkCategory('');
                               setBulkSubCategory('');
+                              
+                              // 데이터 업데이트는 우선순위 낮게 처리 (백그라운드)
+                              startTransition(() => {
+                                setUnclassifiedData(prev => 
+                                  prev.map(item => 
+                                    itemsToUpdate.has(item.id) 
+                                      ? { 
+                                          ...item, 
+                                          category: targetCategory, 
+                                          subCategory: targetSubCategory, 
+                                          status: targetSubCategory === '기타(미분류)' ? 'pending' : 'classified' 
+                                        }
+                                      : item
+                                  )
+                                );
+                              });
 
-                              console.log(`✅ 대량 분류 완료: ${selectedItems.size}개 항목을 "${bulkCategory} > ${bulkSubCategory}"로 분류`);
-                              alert(`✅ ${selectedItems.size}개 항목이 성공적으로 분류되었습니다!`);
+                              console.log(`✅ 대량 분류 완료: ${itemsToUpdate.size}개 항목을 "${targetCategory} > ${targetSubCategory}"로 분류`);
+                              alert(`✅ ${itemsToUpdate.size}개 항목이 성공적으로 분류되었습니다!`);
                             }
                           }}
                           className="bg-green-600 hover:bg-green-700 text-white px-6"
@@ -1436,7 +1457,7 @@ const DateClassificationDetail = () => {
                           <SelectValue placeholder="카테고리" />
                         </SelectTrigger>
                         <SelectContent className="bg-white text-black">
-                          {Object.keys(dynamicSubCategories).map((category) => (
+                          {categoryOptions.map((category) => (
                             <SelectItem key={category} value={category} className="bg-white text-black hover:bg-gray-100">
                               {category}
                             </SelectItem>
