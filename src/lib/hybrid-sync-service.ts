@@ -176,6 +176,16 @@ class HybridSyncService {
 
         const responseData = await response.json();
         
+        // 응답 형식 디버그 로그
+        console.log('🔍 서버 응답 형식 확인:', {
+          isArray: Array.isArray(responseData),
+          hasData: 'data' in responseData,
+          hasSuccess: 'success' in responseData,
+          hasRecords: 'records' in responseData,
+          dataType: responseData.data ? (Array.isArray(responseData.data) ? 'array' : typeof responseData.data) : 'none',
+          dataLength: responseData.data?.length || 0
+        });
+        
         // 응답 형식 확인 및 데이터 추출
         const data = Array.isArray(responseData) ? responseData : 
                      (responseData.data && Array.isArray(responseData.data) ? responseData.data : 
