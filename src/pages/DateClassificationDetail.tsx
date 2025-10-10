@@ -838,7 +838,7 @@ const DateClassificationDetail = () => {
         
         // 서버 동기화 (API 서버가 연결된 경우)
         try {
-          const response = await fetch('/api/backup/import', {
+          const response = await fetch('https://api.youthbepulse.com/api/backup/import', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
