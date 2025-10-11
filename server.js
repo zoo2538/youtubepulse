@@ -1940,40 +1940,38 @@ async function autoCollectData() {
     
     console.log(`✅ 채널: ${allChannels.length}개 수집`);
 
-    // 5단계: 14일 자동 분류 로직 조회
-    console.log('🔄 자동 분류 참조 데이터 조회 중...');
+    // 5단계: 14일 자동 분류 로직 조회 (실시간 최신 데이터)
+    console.log('🔄 자동 분류 참조 데이터 조회 중 (실시간)...');
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
     const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
     
     const client = await pool.connect();
+    
+    // unclassified_data 테이블에서 실시간 최신 분류 데이터 조회
     const classifiedResult = await client.query(`
-      SELECT data FROM classification_data 
-      WHERE data_type = 'unclassified' 
-      ORDER BY created_at DESC 
-      LIMIT 1
-    `);
+      SELECT DISTINCT ON (channel_id)
+        channel_id, category, sub_category, day_key_local
+      FROM unclassified_data
+      WHERE status = 'classified' 
+        AND category IS NOT NULL 
+        AND category != ''
+        AND sub_category IS NOT NULL
+        AND sub_category != ''
+        AND day_key_local >= $1
+      ORDER BY channel_id, day_key_local DESC
+    `, [fourteenDaysAgoString]);
     
     let classifiedChannelMap = new Map();
-    if (classifiedResult.rows.length > 0) {
-      const existingData = classifiedResult.rows[0].data || [];
-      const recentClassified = existingData.filter(item => 
-        item.status === 'classified' && item.collectionDate >= fourteenDaysAgoString
-      );
-      
-      recentClassified.forEach(item => {
-        if (!classifiedChannelMap.has(item.channelId) || 
-            item.collectionDate > (classifiedChannelMap.get(item.channelId)?.collectionDate || '')) {
-          classifiedChannelMap.set(item.channelId, {
-            category: item.category,
-            subCategory: item.subCategory,
-            collectionDate: item.collectionDate
-          });
-        }
+    classifiedResult.rows.forEach(row => {
+      classifiedChannelMap.set(row.channel_id, {
+        category: row.category,
+        subCategory: row.sub_category,
+        collectionDate: row.day_key_local
       });
-    }
+    });
     
-    console.log(`✅ 자동 분류 참조: ${classifiedChannelMap.size}개 채널 (최근 14일)`);
+    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
     // 6단계: 데이터 변환 및 저장
     // KST 기준으로 오늘 날짜 생성 (오전 9시 실행되므로 당일로 저장)
