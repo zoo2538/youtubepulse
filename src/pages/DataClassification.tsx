@@ -1098,37 +1098,32 @@ const DataClassification = () => {
           }
         });
         
-        // 하이브리드 저장 (IndexedDB는 전체, 서버는 오늘만)
+        // 하이브리드 저장 (IndexedDB + 서버 모두 전체 데이터 저장)
         try {
           // 1. IndexedDB에는 전체 데이터 저장
           await indexedDBService.saveUnclassifiedData(mergedData);
           console.log('✅ IndexedDB: 전체 데이터 저장 완료 (로컬 캐시)');
           
-          // 2. 서버에는 오늘 날짜 데이터만 저장 (일단 전체 시도, 실패하면 배치)
-          const todayData = mergedData.filter(item => {
-            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            return itemDate === today;
-          });
+          // 2. 서버에도 전체 데이터 저장 (7일간 모든 데이터)
+          console.log(`📊 서버 전체 데이터 저장: ${mergedData.length}개 (7일간)`);
           
-          console.log(`📊 오늘(${today}) 데이터만 서버 저장: ${todayData.length}개 / 전체 ${mergedData.length}개`);
-          
-          if (todayData.length > 0) {
+          if (mergedData.length > 0) {
             try {
               // 1차 시도: 전체 데이터 한 번에 전송
-              console.log(`📤 전체 데이터 한 번에 전송 시도: ${todayData.length}개`);
-              await apiService.saveUnclassifiedData(todayData);
-              console.log(`✅ 서버: 오늘(${today}) 데이터 한 번에 저장 완료`);
+              console.log(`📤 전체 데이터 한 번에 전송 시도: ${mergedData.length}개`);
+              await apiService.saveUnclassifiedData(mergedData);
+              console.log(`✅ 서버: 전체 데이터 한 번에 저장 완료`);
             } catch (error) {
               // 실패하면 500개씩 배치로 재시도
               console.warn(`⚠️ 전체 저장 실패, 500개씩 배치로 재시도...`, error);
               
               const BATCH_SIZE = 500;
-              const totalBatches = Math.ceil(todayData.length / BATCH_SIZE);
+              const totalBatches = Math.ceil(mergedData.length / BATCH_SIZE);
               
-              console.log(`📦 배치 업로드 시작: ${todayData.length}개 → ${totalBatches}개 배치 (500개씩)`);
+              console.log(`📦 배치 업로드 시작: ${mergedData.length}개 → ${totalBatches}개 배치 (500개씩)`);
               
-              for (let i = 0; i < todayData.length; i += BATCH_SIZE) {
-                const batch = todayData.slice(i, i + BATCH_SIZE);
+              for (let i = 0; i < mergedData.length; i += BATCH_SIZE) {
+                const batch = mergedData.slice(i, i + BATCH_SIZE);
                 const batchNum = Math.floor(i / BATCH_SIZE) + 1;
                 
                 console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
@@ -1141,39 +1136,37 @@ const DataClassification = () => {
                 }
                 
                 // 배치 간 1초 지연 (서버 부하 방지)
-                if (i + BATCH_SIZE < todayData.length) {
+                if (i + BATCH_SIZE < mergedData.length) {
                   await new Promise(resolve => setTimeout(resolve, 1000));
                 }
               }
               
-              console.log(`✅ 서버: 오늘(${today}) 데이터 배치 저장 완료 (${totalBatches}개 배치)`);
+              console.log(`✅ 서버: 전체 데이터 배치 저장 완료 (${totalBatches}개 배치)`);
             }
           }
           
-          // 3. 분류된 데이터 중 오늘 데이터만 저장 (일단 전체 시도, 실패하면 배치)
+          // 3. 분류된 데이터 전체 저장 (7일간 모든 분류 데이터)
           const classifiedItems = mergedData.filter(item => item.status === 'classified');
-          const todayClassifiedItems = classifiedItems.filter(item => {
-            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            return itemDate === today;
-          });
           
-          if (todayClassifiedItems.length > 0) {
+          console.log(`📊 서버 전체 분류 데이터 저장: ${classifiedItems.length}개 (7일간)`);
+          
+          if (classifiedItems.length > 0) {
             try {
               // 1차 시도: 전체 데이터 한 번에 전송
-              console.log(`📤 오늘 분류 데이터 한 번에 전송 시도: ${todayClassifiedItems.length}개`);
-              await apiService.saveClassifiedData(todayClassifiedItems);
-              console.log(`✅ 서버: 오늘(${today}) 분류 데이터 한 번에 저장 완료`);
+              console.log(`📤 전체 분류 데이터 한 번에 전송 시도: ${classifiedItems.length}개`);
+              await apiService.saveClassifiedData(classifiedItems);
+              console.log(`✅ 서버: 전체 분류 데이터 한 번에 저장 완료`);
             } catch (error) {
               // 실패하면 500개씩 배치로 재시도
               console.warn(`⚠️ 분류 데이터 전체 저장 실패, 500개씩 배치로 재시도...`, error);
               
               const BATCH_SIZE = 500;
-              const totalBatches = Math.ceil(todayClassifiedItems.length / BATCH_SIZE);
+              const totalBatches = Math.ceil(classifiedItems.length / BATCH_SIZE);
               
-              console.log(`📦 분류 데이터 배치 업로드 시작: ${todayClassifiedItems.length}개 → ${totalBatches}개 배치 (500개씩)`);
+              console.log(`📦 분류 데이터 배치 업로드 시작: ${classifiedItems.length}개 → ${totalBatches}개 배치 (500개씩)`);
               
-              for (let i = 0; i < todayClassifiedItems.length; i += BATCH_SIZE) {
-                const batch = todayClassifiedItems.slice(i, i + BATCH_SIZE);
+              for (let i = 0; i < classifiedItems.length; i += BATCH_SIZE) {
+                const batch = classifiedItems.slice(i, i + BATCH_SIZE);
                 const batchNum = Math.floor(i / BATCH_SIZE) + 1;
                 
                 console.log(`📦 분류 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
@@ -1186,12 +1179,12 @@ const DataClassification = () => {
                 }
                 
                 // 배치 간 1초 지연
-                if (i + BATCH_SIZE < todayClassifiedItems.length) {
+                if (i + BATCH_SIZE < classifiedItems.length) {
                   await new Promise(resolve => setTimeout(resolve, 1000));
                 }
               }
               
-              console.log(`✅ 서버: 오늘(${today}) 분류 데이터 배치 저장 완료 (${totalBatches}개 배치)`);
+              console.log(`✅ 서버: 전체 분류 데이터 배치 저장 완료 (${totalBatches}개 배치)`);
             }
             
             // 수동수집과 자동수집 분리 처리
