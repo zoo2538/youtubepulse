@@ -21,6 +21,7 @@ import {
   X
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
 import { subCategories, categoryColors } from "@/lib/subcategories";
 
 const ChannelDetail = () => {
@@ -69,71 +70,92 @@ const ChannelDetail = () => {
   useEffect(() => {
     const loadChannelData = async () => {
       try {
-        const storedData = await hybridService.getClassifiedData();
-        if (storedData && channelId) {
-          const data = storedData;
-          
-          // 해당 채널의 데이터만 필터링
-          const channelVideos = data.filter((item: any) => item.channelId === channelId);
-          
-          if (channelVideos.length > 0) {
-            const firstVideo = channelVideos[0];
-            const totalViews = channelVideos.reduce((sum: number, video: any) => sum + (video.viewCount || 0), 0);
-            const averageViews = Math.round(totalViews / channelVideos.length);
-            
-            // 수집일 기준 일별 조회수 데이터 생성
-            const today = new Date();
-            const dailyViews = [];
-            
-            // 최근 7일간의 수집일별 데이터 생성 (한국시간 기준)
-            for (let i = 6; i >= 0; i--) {
-              const date = new Date(today);
-              date.setDate(today.getDate() - i);
-              const dateStr = date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
-              
-              // 해당 날짜에 수집된 영상들의 조회수 합계 계산
-              const dailyViewCount = channelVideos
-                .filter((video: any) => {
-                  const videoDate = video.collectionDate || video.uploadDate;
-                  if (!videoDate) return false;
-                  const normalizedVideoDate = videoDate.split('T')[0];
-                  return normalizedVideoDate === dateStr;
-                })
-                .reduce((sum: number, video: any) => sum + (video.viewCount || 0), 0);
-              
-              dailyViews.push({
-                date: dateStr,
-                daily_view_count: dailyViewCount
-              });
-            }
-            
-            // 채널 썸네일 찾기 (썸네일이 있는 첫 번째 영상에서 가져오기)
-            const channelThumbnail = channelVideos.find((video: any) => 
-              video.thumbnailUrl && !video.thumbnailUrl.includes('placeholder')
-            )?.thumbnailUrl || 
-            `https://via.placeholder.com/64x64?text=${firstVideo.channelName?.substring(0, 2) || 'CH'}`;
-
-            setChannelData({
-              channelId: firstVideo.channelId,
-              channelName: firstVideo.channelName,
-              description: firstVideo.description || "비어있음",
-              category: firstVideo.category,
-              subCategory: firstVideo.subCategory || "미분류",
-              youtubeUrl: `https://www.youtube.com/channel/${firstVideo.channelId}`,
-              thumbnail: channelThumbnail,
-              totalViews,
-              averageViews,
-              videoCount: channelVideos.length,
-              dailyUploads: 2.71,
-              weeklyViews: totalViews,
-              avgVideoLength: 50.97,
-              shortsRatio: 100,
-              dailyViews,
-              lastModified: "6시간 전"
-            });
-
-            setVideos(channelVideos);
+        // unclassified_data에서 해당 채널의 분류된 데이터 조회 (메인 데이터 소스)
+        const unclassifiedData = await hybridService.loadUnclassifiedData();
+        const classifiedUnclassifiedData = unclassifiedData.filter((item: any) => 
+          item.channelId === channelId && item.status === 'classified'
+        );
+        
+        // classification_data에서도 조회 (백업)
+        const classifiedData = await hybridService.getClassifiedData();
+        const classifiedChannelData = classifiedData.filter((item: any) => item.channelId === channelId);
+        
+        // 두 소스 병합 (unclassified_data 우선)
+        const allChannelData = [...classifiedUnclassifiedData, ...classifiedChannelData];
+        
+        // 중복 제거 (videoId + dayKeyLocal 기준)
+        const uniqueMap = new Map();
+        allChannelData.forEach((item: any) => {
+          const key = `${item.videoId}-${item.dayKeyLocal || item.collectionDate}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, item);
           }
+        });
+        
+        const channelVideos = Array.from(uniqueMap.values());
+        
+        console.log(`📊 채널 상세 - channelId: ${channelId}`);
+        console.log(`📊 unclassified_data에서 찾은 데이터: ${classifiedUnclassifiedData.length}개`);
+        console.log(`📊 classification_data에서 찾은 데이터: ${classifiedChannelData.length}개`);
+        console.log(`📊 중복 제거 후 최종 데이터: ${channelVideos.length}개`);
+        
+        if (channelId && channelVideos.length > 0) {
+          const firstVideo = channelVideos[0];
+          const totalViews = channelVideos.reduce((sum: number, video: any) => sum + (video.viewCount || 0), 0);
+          const averageViews = Math.round(totalViews / channelVideos.length);
+          
+          // 수집일 기준 일별 조회수 데이터 생성
+          const today = new Date();
+          const dailyViews = [];
+          
+          // 최근 7일간의 수집일별 데이터 생성 (한국시간 기준)
+          for (let i = 6; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(today.getDate() - i);
+            const dateStr = date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+            
+            // 해당 날짜에 수집된 영상들의 조회수 합계 계산
+            const dailyViewCount = channelVideos
+              .filter((video: any) => {
+                const videoDate = video.collectionDate || video.uploadDate;
+                if (!videoDate) return false;
+                const normalizedVideoDate = videoDate.split('T')[0];
+                return normalizedVideoDate === dateStr;
+              })
+              .reduce((sum: number, video: any) => sum + (video.viewCount || 0), 0);
+            
+            dailyViews.push({
+              date: dateStr,
+              daily_view_count: dailyViewCount
+            });
+          }
+          
+          // 채널 썸네일 찾기 (썸네일이 있는 첫 번째 영상에서 가져오기)
+          const channelThumbnail = channelVideos.find((video: any) => 
+            video.thumbnailUrl && !video.thumbnailUrl.includes('placeholder')
+          )?.thumbnailUrl || 
+          `https://via.placeholder.com/64x64?text=${firstVideo.channelName?.substring(0, 2) || 'CH'}`;
+
+          setChannelData({
+            channelId: firstVideo.channelId,
+            channelName: firstVideo.channelName,
+            description: firstVideo.description || "비어있음",
+            category: firstVideo.category,
+            subCategory: firstVideo.subCategory || "미분류",
+            youtubeUrl: `https://www.youtube.com/channel/${firstVideo.channelId}`,
+            thumbnail: channelThumbnail,
+            totalViews,
+            averageViews,
+            videoCount: channelVideos.length,
+            dailyUploads: 2.71,
+            weeklyViews: totalViews,
+            avgVideoLength: 50.97,
+            shortsRatio: 100,
+            dailyViews,
+            lastModified: "6시간 전"
+          });
+
+          setVideos(channelVideos);
         }
         setIsLoading(false);
       } catch (error) {
