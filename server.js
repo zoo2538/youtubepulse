@@ -1886,7 +1886,12 @@ async function autoCollectData() {
             
             requestCount++;
             if (videosData.items) {
-              keywordVideos = [...keywordVideos, ...videosData.items];
+              // 키워드 정보를 함께 저장
+              const videosWithKeyword = videosData.items.map(item => ({
+                ...item,
+                searchKeyword: keyword // 어떤 키워드로 수집되었는지 기록
+              }));
+              keywordVideos = [...keywordVideos, ...videosWithKeyword];
             }
           } else {
             const errorText = await videosResponse.text();
@@ -1987,14 +1992,9 @@ async function autoCollectData() {
       // 키워드 정보 찾기 (키워드 수집에서 온 영상인지 확인)
       let sourceKeyword = 'trending';
       const keywordVideo = keywordVideos.find(kv => kv.id === video.id);
-      if (keywordVideo) {
-        // 키워드 수집에서 온 영상인 경우, 어떤 키워드로 수집되었는지 찾기
-        const testKeywords = ['브이로그']; // 테스트용 키워드 목록
-        for (const keyword of testKeywords) {
-          // 실제로는 키워드 매핑 로직이 필요하지만, 일단 기본값으로 설정
-          sourceKeyword = keyword;
-          break;
-        }
+      if (keywordVideo && keywordVideo.searchKeyword) {
+        // 키워드 수집에서 온 영상인 경우, 저장된 키워드 사용
+        sourceKeyword = keywordVideo.searchKeyword;
       }
       
       return {
