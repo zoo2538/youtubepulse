@@ -521,9 +521,13 @@ const System = () => {
             continue;
           }
           
-          // 조회수 필터링 제거 - 모든 결과 추가
+          // 조회수 필터링 제거 - 모든 결과 추가 (키워드 정보 포함)
           const videos = videosData.items || [];
-          keywordVideos = [...keywordVideos, ...videos];
+          const videosWithKeyword = videos.map(item => ({
+            ...item,
+            searchKeyword: keyword  // 어떤 키워드로 수집되었는지 기록
+          }));
+          keywordVideos = [...keywordVideos, ...videosWithKeyword];
           totalCollected += videos.length;
           
           console.log(`키워드 "${keyword}" 수집: ${videos.length}개 영상 추가 (총 ${keywordVideos.length}개)`);
@@ -697,6 +701,15 @@ const System = () => {
         // 오늘 수집된 모든 영상은 오늘 날짜로 설정 (기존 날짜 유지하지 않음)
         const collectionDate = today;
         
+        // 키워드 정보 확인
+        let sourceKeyword = 'trending';
+        let sourceType = 'trending';
+        if (video.searchKeyword) {
+          // 키워드 수집에서 온 영상
+          sourceKeyword = video.searchKeyword;
+          sourceType = 'keyword';
+        }
+        
         // 자동 분류 실행
         const autoClassification = autoClassificationService.classifyVideo(
           video.snippet.title,
@@ -720,6 +733,8 @@ const System = () => {
           collectionType: 'manual', // 수동 수집으로 명시
           collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
+          keyword: sourceKeyword, // 키워드 정보 추가
+          source: sourceType, // 수집 소스 추가 (trending or keyword)
           subCategory: existingClassification?.subCategory || autoClassification.subCategory,
           status: existingClassification ? "classified" as const : 
                   (autoClassification.confidence > 0.3 ? "classified" as const : "unclassified" as const),
