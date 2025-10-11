@@ -430,44 +430,27 @@ const DateClassificationDetail = () => {
       console.log('💾 IndexedDB 저장 - 전체 미분류 데이터 (로컬 캐시)');
       await indexedDBService.saveUnclassifiedData(mergedUnclassifiedData);
       
-      // 2-2. 서버에는 현재 날짜 데이터만 전송 (서버가 ON CONFLICT로 병합 처리)
-      console.log(`💾 서버 저장 - 현재 날짜(${selectedDate}) 데이터만 전송`);
+      // 2-2. 서버에는 현재 날짜 데이터를 교체 방식으로 전송 (DELETE + INSERT)
+      console.log(`💾 서버 저장 - 현재 날짜(${selectedDate}) 데이터 교체`);
       if (unclassifiedData.length > 0) {
         try {
-          // 배치 크기를 500개로 제한
-          const BATCH_SIZE = 500;
-          const totalBatches = Math.ceil(unclassifiedData.length / BATCH_SIZE);
+          // 날짜별 교체 API 사용 (DELETE + INSERT)
+          console.log(`🔄 ${selectedDate} 데이터 교체 중... (${unclassifiedData.length}개)`);
           
-          if (unclassifiedData.length <= BATCH_SIZE) {
-            // 500개 이하면 한 번에 전송
-            console.log(`📤 현재 날짜 데이터 전송: ${unclassifiedData.length}개`);
-            await apiService.saveUnclassifiedData(unclassifiedData);
-            console.log(`✅ 서버 저장 완료`);
+          const replaceResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              dates: [selectedDate],
+              data: unclassifiedData
+            })
+          });
+          
+          if (replaceResponse.ok) {
+            const replaceResult = await replaceResponse.json();
+            console.log(`✅ 서버: ${selectedDate} 데이터 교체 완료 (${replaceResult.inserted}개 삽입)`);
           } else {
-            // 500개 초과면 배치로 전송
-            console.log(`📦 배치 업로드 시작: ${unclassifiedData.length}개 → ${totalBatches}개 배치 (500개씩)`);
-            
-            for (let i = 0; i < unclassifiedData.length; i += BATCH_SIZE) {
-              const batch = unclassifiedData.slice(i, i + BATCH_SIZE);
-              const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-              
-              console.log(`📦 배치 ${batchNum}/${totalBatches} 전송 중... (${batch.length}개)`);
-              
-              try {
-                await apiService.saveUnclassifiedData(batch);
-                console.log(`✅ 배치 ${batchNum}/${totalBatches} 전송 완료`);
-              } catch (batchError) {
-                console.error(`❌ 배치 ${batchNum} 전송 실패:`, batchError);
-                throw batchError; // 에러를 다시 throw하여 상위에서 처리
-              }
-              
-              // 배치 간 500ms 지연
-              if (i + BATCH_SIZE < unclassifiedData.length) {
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
-            }
-            
-            console.log(`✅ 서버 배치 저장 완료 (${totalBatches}개 배치)`);
+            throw new Error(`서버 교체 실패: ${replaceResponse.status}`);
           }
         } catch (error) {
           console.error(`❌ 서버 저장 실패:`, error);
