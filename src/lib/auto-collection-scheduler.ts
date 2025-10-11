@@ -40,16 +40,18 @@ class AutoCollectionScheduler {
   }
 
   private initialize() {
-    // 앱 시작 시 즉시 확인
-    this.checkAndRun();
+    // ✅ 클라이언트 자동 수집 비활성화 (서버에서만 실행)
+    // 서버가 매일 00:10 KST에 자동 수집을 실행하므로
+    // 클라이언트는 서버에서 수집한 데이터를 다운로드만 함
     
-    // 가시성 변경 감지
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        // 로그 제거 - 필요시에만 출력
-        this.checkAndRun();
-      }
-    });
+    console.log('ℹ️ 클라이언트 자동 수집 비활성화 (서버 전용)');
+    
+    // 가시성 변경 감지 제거 (불필요)
+    // document.addEventListener('visibilitychange', () => {
+    //   if (!document.hidden) {
+    //     this.checkAndRun();
+    //   }
+    // });
   }
 
   private async checkAndRun() {
