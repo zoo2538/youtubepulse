@@ -616,28 +616,56 @@ const System = () => {
         }
       }
 
-      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 14일간)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 14일간, 서버 우선)
       let existingClassifiedData: any[] = [];
       try {
-        const allData = await hybridService.loadUnclassifiedData();
-        
-        // 최근 14일간의 분류된 데이터만 필터링
+        // 서버에서 최신 분류 데이터 조회 (실시간 최신 데이터)
+        console.log('📊 서버에서 실시간 분류 데이터 조회 중...');
         const fourteenDaysAgo = new Date();
         fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
         const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
         
-        existingClassifiedData = allData.filter((item: any) => {
-          const isClassified = item.status === 'classified';
-          const isRecent = item.collectionDate >= fourteenDaysAgoString;
-          return isClassified && isRecent;
-        });
-        
-        console.log(`📊 분류 데이터 참조 범위: 최근 14일 (${fourteenDaysAgoString} 이후)`);
-        console.log(`📊 전체 분류 데이터: ${allData.filter(item => item.status === 'classified').length}개`);
-        console.log(`📊 최근 14일 분류 데이터: ${existingClassifiedData.length}개`);
+        const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified');
+        if (serverResponse.ok) {
+          const serverResult = await serverResponse.json();
+          if (serverResult.success && serverResult.data) {
+            const allServerData = serverResult.data;
+            
+            existingClassifiedData = allServerData.filter((item: any) => {
+              const isClassified = item.status === 'classified';
+              const itemDate = item.dayKeyLocal || item.day_key_local || item.collectionDate || item.collection_date;
+              const isRecent = itemDate && itemDate >= fourteenDaysAgoString;
+              return isClassified && isRecent;
+            });
+            
+            console.log(`📊 서버에서 분류 데이터 로드 성공`);
+            console.log(`📊 분류 데이터 참조 범위: 최근 14일 (${fourteenDaysAgoString} 이후)`);
+            console.log(`📊 최근 14일 분류 데이터: ${existingClassifiedData.length}개`);
+          }
+        } else {
+          console.warn('서버 조회 실패, IndexedDB에서 로드 시도');
+          throw new Error('Server fetch failed');
+        }
       } catch (error) {
-        console.log('기존 분류 데이터 로드 실패, 새로 시작합니다.');
-        existingClassifiedData = [];
+        // 서버 실패 시 IndexedDB 폴백
+        console.log('📊 서버 조회 실패, IndexedDB에서 로드...');
+        try {
+          const allData = await hybridService.loadUnclassifiedData();
+          const fourteenDaysAgo = new Date();
+          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+          const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
+          
+          existingClassifiedData = allData.filter((item: any) => {
+            const isClassified = item.status === 'classified';
+            const isRecent = item.collectionDate >= fourteenDaysAgoString;
+            return isClassified && isRecent;
+          });
+          
+          console.log(`📊 IndexedDB에서 분류 데이터 로드: ${existingClassifiedData.length}개`);
+        } catch (idbError) {
+          console.log('기존 분류 데이터 로드 실패, 새로 시작합니다.');
+          existingClassifiedData = [];
+        }
       }
       
       const classifiedChannelMap = new Map();
