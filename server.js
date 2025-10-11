@@ -1976,14 +1976,12 @@ async function autoCollectData() {
     console.log(`✅ 자동 분류 참조: ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
     // 6단계: 데이터 변환 및 저장
-    // KST 기준으로 어제 날짜 생성 (자정 이후 실행되므로 전날로 저장)
+    // KST 기준으로 오늘 날짜 생성 (오전 9시 실행되므로 당일로 저장)
     const now = new Date();
     const kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
-    const yesterday = new Date(kstNow);
-    yesterday.setDate(yesterday.getDate() - 1); // 하루 빼기
-    const today = yesterday.toISOString().split('T')[0];
+    const today = kstNow.toISOString().split('T')[0];
     
-    console.log(`📅 수집 날짜 설정: ${today} (전날 데이터로 저장)`);
+    console.log(`📅 수집 날짜 설정: ${today} (당일 데이터로 저장)`);
     const newData = uniqueVideos.map((video, index) => {
       const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
       const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
@@ -2302,19 +2300,19 @@ app.post('/api/backup/import', async (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
   
-  // 자동 수집 cron job 설정 (매일 00:10 KST - 전날 데이터로 저장)
+  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
   // cron 표현식: '분 시 일 월 요일'
-  // '10 0 * * *' = 매일 00:10 (자정 10분 후)
-  cron.schedule('10 0 * * *', () => {
-    console.log('⏰ 자동 수집 스케줄 실행 (매일 00:10 KST)');
+  // '0 9 * * *' = 매일 09:00 (오전 9시)
+  cron.schedule('0 9 * * *', () => {
+    console.log('⏰ 자동 수집 스케줄 실행 (매일 09:00 KST)');
     console.log('🕐 실행 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
-    console.log('📅 전날 데이터로 저장됩니다');
+    console.log('📅 당일(오늘) 데이터로 저장됩니다');
     autoCollectData();
   }, {
     timezone: 'Asia/Seoul'
   });
   
-  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 00:10 (한국시간)');
+  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 09:00 (한국시간)');
   console.log('⏰ 다음 실행 예정:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
 });
 
