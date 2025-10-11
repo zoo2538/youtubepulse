@@ -1109,26 +1109,48 @@ const DataClassification = () => {
           
           if (mergedData.length > 0) {
             try {
-              // 날짜 범위 교체 API 사용 (DELETE + INSERT)
-              console.log(`🔄 서버 7일 데이터 교체 시작: ${sevenDays.join(', ')}`);
-              const replaceResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  dates: sevenDays,
-                  data: mergedData
-                })
-              });
+              // 날짜별로 하나씩 교체 (대용량 데이터 처리)
+              console.log(`🔄 서버 7일 데이터 날짜별 교체 시작: ${sevenDays.join(', ')}`);
               
-              if (replaceResponse.ok) {
-                const replaceResult = await replaceResponse.json();
-                console.log(`✅ 서버: 7일 데이터 교체 완료 (삭제: ${replaceResult.deleted}개 날짜, 삽입: ${replaceResult.inserted}개 항목)`);
-              } else {
-                throw new Error(`서버 교체 실패: ${replaceResponse.status}`);
+              let totalInserted = 0;
+              for (const date of sevenDays) {
+                const dateData = mergedData.filter(item => {
+                  const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+                  return itemDate === date;
+                });
+                
+                if (dateData.length === 0) {
+                  console.log(`⏭️ ${date}: 데이터 없음, 스킵`);
+                  continue;
+                }
+                
+                console.log(`🔄 ${date} 데이터 교체 중... (${dateData.length}개)`);
+                
+                const replaceResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    dates: [date],  // 날짜 1개씩
+                    data: dateData  // 해당 날짜 데이터만
+                  })
+                });
+                
+                if (replaceResponse.ok) {
+                  const replaceResult = await replaceResponse.json();
+                  totalInserted += replaceResult.inserted;
+                  console.log(`✅ ${date} 교체 완료 (${replaceResult.inserted}개)`);
+                } else {
+                  console.error(`❌ ${date} 교체 실패: ${replaceResponse.status}`);
+                }
+                
+                // 날짜 간 500ms 지연
+                await new Promise(resolve => setTimeout(resolve, 500));
               }
+              
+              console.log(`✅ 서버: 7일 데이터 전체 교체 완료 (${totalInserted}개 삽입)`);
             } catch (error) {
-              // 실패하면 500개씩 배치로 재시도
-              console.warn(`⚠️ 전체 저장 실패, 500개씩 배치로 재시도...`, error);
+              // 날짜별 교체 실패 시 기존 배치 방식으로 폴백
+              console.warn(`⚠️ 날짜별 교체 실패, 기존 UPSERT 배치 방식으로 재시도...`, error);
               
               const BATCH_SIZE = 500;
               const totalBatches = Math.ceil(mergedData.length / BATCH_SIZE);
