@@ -147,36 +147,15 @@ const DataClassification = () => {
         });
         
         if (result.success && result.data && Array.isArray(result.data) && result.data.length > 0) {
-          // 서버에서 이미 평면화된 배열로 반환됨
+          // 서버에서 이미 중복 제거된 실제 데이터 반환됨
           const autoCollectedData = result.data;
           
-          console.log(`🤖 자동수집 데이터 로드: ${autoCollectedData.length}개`);
-          
-          // 자동수집 데이터 중복 제거 (조회수 높은 것 우선)
-          const videoMap = new Map<string, any>();
-          const sortedAutoData = [...autoCollectedData].sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0));
-          
-          sortedAutoData.forEach(item => {
-            let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-            // ISO 타임스탬프 형식이면 날짜만 추출 (YYYY-MM-DD)
-            if (date && typeof date === 'string' && date.includes('T')) {
-              date = date.split('T')[0];
-            }
-            if (date && item.videoId) {
-              const videoKey = `${date}_${item.videoId}`;
-              if (!videoMap.has(videoKey)) {
-                videoMap.set(videoKey, item);
-              }
-            }
-          });
-          
-          const deduplicatedAutoData = Array.from(videoMap.values());
-          console.log(`🤖 자동수집 중복 제거: ${autoCollectedData.length}개 → ${deduplicatedAutoData.length}개`);
+          console.log(`🤖 자동수집 데이터 로드 (실제 저장 데이터): ${autoCollectedData.length}개`);
 
-          // 자동수집 데이터 통계 계산 (중복 제거된 데이터 사용)
+          // 자동수집 데이터 통계 계산
           const autoStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-          deduplicatedAutoData.forEach((item: any) => {
-            let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+          autoCollectedData.forEach((item: any) => {
+            let date = item.dayKeyLocal || item.day_key_local || item.collectionDate || item.collection_date || item.uploadDate || item.upload_date;
             // ISO 타임스탬프 형식이면 날짜만 추출 (YYYY-MM-DD)
             if (date && typeof date === 'string' && date.includes('T')) {
               date = date.split('T')[0];

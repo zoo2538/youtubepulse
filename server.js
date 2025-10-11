@@ -1442,7 +1442,7 @@ app.post('/api/auto-classified', async (req, res) => {
   }
 });
 
-// 자동 수집 데이터 조회 API
+// 자동 수집 데이터 조회 API (실제 저장된 데이터 기준)
 app.get('/api/auto-collected', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });
@@ -1450,26 +1450,31 @@ app.get('/api/auto-collected', async (req, res) => {
   
   try {
     const client = await pool.connect();
+    
+    // unclassified_data 테이블에서 실제 저장된 자동수집 데이터 조회 (최근 30일)
+    const today = new Date();
+    const kstToday = new Date(today.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+    const startDate = new Date(kstToday);
+    startDate.setDate(startDate.getDate() - 29); // 최근 30일
+    const startDateString = startDate.toISOString().split('T')[0];
+    
     const result = await client.query(`
-      SELECT data, created_at FROM classification_data 
-      WHERE data_type = 'auto_collected' 
-      ORDER BY created_at DESC
-    `);
+      SELECT 
+        id, video_id, channel_id, channel_name, video_title, 
+        video_description, view_count, like_count, comment_count,
+        upload_date, collection_date, thumbnail_url, 
+        category, sub_category, status, collection_type, day_key_local,
+        created_at
+      FROM unclassified_data
+      WHERE collection_type = 'auto' AND day_key_local >= $1
+      ORDER BY collection_date DESC, view_count DESC
+    `, [startDateString]);
     
     client.release();
     
-    // 모든 자동 수집 데이터를 평면화하여 반환
-    const allData = result.rows.flatMap(row => {
-      const items = Array.isArray(row.data) ? row.data : [row.data];
-      return items.map(item => ({
-        ...item,
-        collectedAt: row.created_at
-      }));
-    });
+    console.log(`📊 자동 수집 데이터 조회 (실제 저장 데이터): ${result.rows.length}개 (최근 30일)`);
     
-    console.log(`📊 자동 수집 데이터 조회: ${allData.length}개 (${result.rows.length}개 배치)`);
-    
-    res.json({ success: true, data: allData });
+    res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error('자동 수집 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get auto-collected data' });
