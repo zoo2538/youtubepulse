@@ -1104,15 +1104,28 @@ const DataClassification = () => {
           await indexedDBService.saveUnclassifiedData(mergedData);
           console.log('✅ IndexedDB: 전체 데이터 저장 완료 (로컬 캐시)');
           
-          // 2. 서버에도 전체 데이터 저장 (7일간 모든 데이터)
-          console.log(`📊 서버 전체 데이터 저장: ${mergedData.length}개 (7일간)`);
+          // 2. 서버에도 전체 데이터 저장 (7일간 모든 데이터 - DELETE + INSERT 방식)
+          console.log(`📊 서버 전체 데이터 교체 저장: ${mergedData.length}개 (7일간)`);
           
           if (mergedData.length > 0) {
             try {
-              // 1차 시도: 전체 데이터 한 번에 전송
-              console.log(`📤 전체 데이터 한 번에 전송 시도: ${mergedData.length}개`);
-              await apiService.saveUnclassifiedData(mergedData);
-              console.log(`✅ 서버: 전체 데이터 한 번에 저장 완료`);
+              // 날짜 범위 교체 API 사용 (DELETE + INSERT)
+              console.log(`🔄 서버 7일 데이터 교체 시작: ${sevenDays.join(', ')}`);
+              const replaceResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  dates: sevenDays,
+                  data: mergedData
+                })
+              });
+              
+              if (replaceResponse.ok) {
+                const replaceResult = await replaceResponse.json();
+                console.log(`✅ 서버: 7일 데이터 교체 완료 (삭제: ${replaceResult.deleted}개 날짜, 삽입: ${replaceResult.inserted}개 항목)`);
+              } else {
+                throw new Error(`서버 교체 실패: ${replaceResponse.status}`);
+              }
             } catch (error) {
               // 실패하면 500개씩 배치로 재시도
               console.warn(`⚠️ 전체 저장 실패, 500개씩 배치로 재시도...`, error);

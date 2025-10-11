@@ -2178,6 +2178,64 @@ app.post('/api/restore-backup', async (req, res) => {
   }
 });
 
+// 날짜 범위 데이터 교체 API (DELETE + INSERT)
+app.post('/api/replace-date-range', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  try {
+    const { dates, data } = req.body;
+    console.log(`🔄 날짜 범위 데이터 교체: ${dates.length}개 날짜, ${data.length}개 항목`);
+    
+    const client = await pool.connect();
+    
+    // 1. 해당 날짜들의 기존 데이터 삭제
+    await client.query(`
+      DELETE FROM unclassified_data
+      WHERE day_key_local = ANY($1::text[])
+    `, [dates]);
+    
+    console.log(`🗑️ 기존 데이터 삭제 완료: ${dates.join(', ')}`);
+    
+    // 2. 새 데이터 삽입 (배치 처리)
+    let insertCount = 0;
+    for (const item of data) {
+      const dayKeyLocal = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+      
+      await client.query(`
+        INSERT INTO unclassified_data (
+          video_id, channel_id, channel_name, video_title, 
+          video_description, view_count, like_count, comment_count,
+          upload_date, collection_date, thumbnail_url, 
+          category, sub_category, status, day_key_local, collection_type
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+      `, [
+        item.videoId, item.channelId, item.channelName, item.videoTitle,
+        item.videoDescription, item.viewCount || 0, item.likeCount || 0, item.commentCount || 0,
+        item.uploadDate, item.collectionDate, item.thumbnailUrl,
+        item.category || '', item.subCategory || '', item.status || 'unclassified',
+        dayKeyLocal, item.collectionType || 'manual'
+      ]);
+      
+      insertCount++;
+    }
+    
+    client.release();
+    
+    console.log(`✅ 날짜 범위 데이터 교체 완료: ${insertCount}개 삽입`);
+    
+    res.json({ 
+      success: true, 
+      deleted: dates.length,
+      inserted: insertCount
+    });
+  } catch (error) {
+    console.error('날짜 범위 데이터 교체 실패:', error);
+    res.status(500).json({ error: 'Failed to replace date range data' });
+  }
+});
+
 // 미분류 데이터 삭제 동기화 API
 app.post('/api/sync/delete-unclassified', async (req, res) => {
   if (!pool) {
