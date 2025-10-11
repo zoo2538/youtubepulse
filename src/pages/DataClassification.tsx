@@ -271,8 +271,8 @@ const DataClassification = () => {
             if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
               console.log(`📥 서버에서 최근 7일 데이터 ${serverResult.data.length}개 다운로드`);
               
-              // IndexedDB에 저장
-              await hybridService.saveUnclassifiedData(serverResult.data);
+              // IndexedDB에만 저장 (서버에 재업로드하지 않음)
+              await indexedDBService.saveUnclassifiedData(serverResult.data);
               console.log(`💾 IndexedDB에 ${serverResult.data.length}개 데이터 저장 완료`);
               
               // 다시 로드
