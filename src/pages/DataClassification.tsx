@@ -876,68 +876,21 @@ const DataClassification = () => {
     alert('✅ 자동 정리가 완료되었습니다.');
   };
 
-  // 부트스트랩 동기화 핸들러 (로컬 데이터를 서버로 강제 업로드)
-  const handleBootstrapSync = async () => {
-    if (!window.confirm('로컬 IndexedDB의 모든 데이터를 서버로 업로드하시겠습니까?\n\n이미 서버에 있는 데이터와 병합됩니다.')) {
-      return;
-    }
-    
-    try {
-      console.log('🚀 부트스트랩 동기화 핸들러 시작...');
-      setIsLoading(true);
-      
-      const result = await hybridService.bootstrapSync();
-      console.log('📊 부트스트랩 동기화 결과:', result);
-      
-      if (result.success) {
-        alert(`✅ 부트스트랩 동기화 완료!\n\n${result.message}`);
-        // 데이터 새로고침
-        window.dispatchEvent(new CustomEvent('dataUpdated', { 
-          detail: { type: 'bootstrapSync', timestamp: Date.now() } 
-        }));
-      } else {
-        alert(`❌ 부트스트랩 동기화 실패\n\n${result.message}`);
-      }
-    } catch (error) {
-      console.error('❌ 부트스트랩 동기화 오류:', error);
-      console.error('❌ 오류 상세:', {
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      alert(`부트스트랩 동기화 중 오류가 발생했습니다.\n\n${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // 부트스트랩 동기화 핸들러 (사용 안 함 - 삭제됨)
+  // const handleBootstrapSync = async () => { ... };
 
-  // 하이브리드 동기화 핸들러
+  // 서버 데이터 다운로드 핸들러 (서버 → IndexedDB 단방향)
   const handleHybridSync = async () => {
     try {
-      console.log('🔄 하이브리드 동기화 시작...');
+      console.log('📥 서버 데이터 다운로드 시작...');
       setIsLoading(true);
       
-      // 1. 동기화 상태 확인
-      const syncStatus = hybridSyncService.getSyncStatus();
-      console.log('📊 동기화 상태:', syncStatus);
-      
-      // 2. 서버와 로컬 데이터 병합 (최대값 보존)
-      const mergeResult = await loadAndMergeDays('overwrite');
-      console.log('📊 병합 결과:', mergeResult);
-      
-      // 2-1. IndexedDB에 최대값 보존 upsert 적용
-      if (mergeResult.mergedDays && mergeResult.mergedDays.length > 0) {
-        const allData = await hybridService.loadUnclassifiedData();
-        if (allData && allData.length > 0) {
-          await indexedDBService.upsertUnclassifiedDataWithMaxValues(allData);
-          console.log('✅ IndexedDB 최대값 보존 upsert 완료');
-        }
-      }
-      
-      // 3. 하이브리드 동기화 실행
+      // 1. 서버에서 전체 데이터 다운로드
+      console.log('📥 서버에서 최신 데이터 다운로드 중...');
       const syncResult = await hybridSyncService.performFullSync();
-      console.log('✅ 동기화 결과:', syncResult);
+      console.log('✅ 다운로드 결과:', syncResult);
       
-      // 4. 데이터 새로고침
+      // 2. 데이터 새로고침
       const loadData = async () => {
         try {
           const savedData = await hybridService.loadUnclassifiedData();
@@ -952,16 +905,22 @@ const DataClassification = () => {
               
               return {
                 ...baseItem,
-                collectionDate: baseItem.collectionDate || baseItem.uploadDate || today
+                collectionDate: baseItem.collectionDate || baseItem.uploadDate || today,
+                dayKeyLocal: baseItem.dayKeyLocal || baseItem.collectionDate || baseItem.uploadDate
               };
             });
             
-            setUnclassifiedData(sanitized);
+            // 중복 제거
+            const dedupedData = dedupeByVideoDay(sanitized as VideoItem[]);
+            setUnclassifiedData(dedupedData as UnclassifiedData[]);
             
-            // 날짜별 통계 업데이트
+            // 날짜별 통계 업데이트 (수동수집만)
             const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-            sanitized.forEach(item => {
+            dedupedData.forEach((item: UnclassifiedData) => {
               const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              const collectionType = item.collectionType || 'manual';
+              if (collectionType !== 'manual') return;
+              
               if (date) {
                 if (!newDateStats[date]) {
                   newDateStats[date] = { total: 0, classified: 0, progress: 0 };
@@ -979,6 +938,7 @@ const DataClassification = () => {
             });
             
             setDateStats(newDateStats);
+            console.log('📊 서버 다운로드 후 dateStats 재계산 (수동수집만):', newDateStats);
           }
         } catch (error) {
           console.error('❌ 데이터 새로고침 실패:', error);
@@ -987,12 +947,12 @@ const DataClassification = () => {
       
       await loadData();
       
-      // 5. 결과 표시
-      alert(`🔄 하이브리드 동기화 완료!\n업로드: ${syncResult.uploaded}개\n다운로드: ${syncResult.downloaded}개\n충돌 해결: ${syncResult.conflicts}개`);
+      // 3. 결과 표시
+      alert(`📥 서버 데이터 다운로드 완료!\n\n다운로드: ${syncResult.downloaded}개\n로컬 IndexedDB가 서버 데이터로 업데이트되었습니다.`);
       
     } catch (error) {
-      console.error('❌ 하이브리드 동기화 실패:', error);
-      alert('❌ 동기화 실패: ' + error.message);
+      console.error('❌ 서버 다운로드 실패:', error);
+      alert('❌ 다운로드 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     } finally {
       setIsLoading(false);
     }
@@ -2759,26 +2719,15 @@ const DataClassification = () => {
                 <span>백업 복원하기</span>
                           </Button>
               
-                          <Button
-                variant="outline" 
-                            size="sm"
-                onClick={handleBootstrapSync}
-                className="flex items-center space-x-1 border-green-500 text-green-600 hover:bg-green-50"
-                title="로컬 데이터를 서버로 강제 업로드 (최초 1회)"
-              >
-                <Upload className="w-4 h-4" />
-                <span>서버 업로드</span>
-                          </Button>
-              
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleHybridSync}
                 className="flex items-center space-x-1 border-blue-500 text-blue-600 hover:bg-blue-50"
-                title="서버와 로컬 데이터 동기화 + 중복 제거 + 최대값 보존"
+                title="서버에서 최신 데이터 다운로드하여 IndexedDB 동기화"
               >
                 <RefreshCw className="w-4 h-4" />
-                <span>하이브리드 동기화</span>
+                <span>서버 데이터 다운로드</span>
               </Button>
               
               <Button 
