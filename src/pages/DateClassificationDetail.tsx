@@ -167,21 +167,10 @@ const DateClassificationDetail = () => {
         
         // 선택된 날짜의 데이터만 필터링 (다양한 날짜 필드 확인)
         const filteredData = allData.filter(item => {
-          console.log('🔍 데이터 필터링 확인:', {
-            id: item.id,
-            dayKeyLocal: item.dayKeyLocal,
-            collectionDate: item.collectionDate,
-            uploadDate: item.uploadDate,
-            publishedAt: item.publishedAt,
-            collectionType: item.collectionType,
-            selectedDate
-          });
-          
           // 1. dayKeyLocal 우선 확인 (백업 복원 데이터) - 대시 문제 해결
           if (item.dayKeyLocal) {
             const normalizedDayKey = item.dayKeyLocal.replace(/-$/, ''); // 끝의 대시 제거
             if (normalizedDayKey === selectedDate) {
-              console.log('✅ dayKeyLocal 매치:', item.dayKeyLocal, '→', normalizedDayKey);
               return true;
             }
           }
@@ -190,7 +179,6 @@ const DateClassificationDetail = () => {
           if (item.collectionDate) {
             const collectionDateStr = item.collectionDate.split('T')[0]; // ISO 형식에서 날짜만 추출
             if (collectionDateStr === selectedDate) {
-              console.log('✅ collectionDate 매치:', item.collectionDate, '→', collectionDateStr);
               return true;
             }
           }
@@ -199,14 +187,12 @@ const DateClassificationDetail = () => {
           if (item.uploadDate) {
             const uploadDateStr = item.uploadDate.split('T')[0]; // ISO 형식에서 날짜만 추출
             if (uploadDateStr === selectedDate) {
-              console.log('✅ uploadDate 매치:', item.uploadDate, '→', uploadDateStr);
               return true;
             }
           }
           
           // 4. publishedAt 확인 (YYYY-MM-DD 형식)
           if (item.publishedAt && item.publishedAt.startsWith(selectedDate)) {
-            console.log('✅ publishedAt 매치:', item.publishedAt);
             return true;
           }
           
@@ -222,14 +208,12 @@ const DateClassificationDetail = () => {
             }
           }
           
-          console.log('❌ 매치되지 않음');
           return false;
         });
 
         // 수집 타입별 필터링 추가
         let typeFilteredData = filteredData;
         if (collectionType) {
-          console.log('🔍 수집 타입 필터링:', collectionType);
           if (collectionType === 'manual') {
             // 수동수집 데이터만 (collectionType이 없거나 'manual' 또는 undefined)
             typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual' || item.collectionType === undefined);
@@ -244,7 +228,6 @@ const DateClassificationDetail = () => {
             }
           }
           // 'total'인 경우 모든 데이터 (필터링 없음)
-          console.log('📊 수집 타입 필터링 후:', typeFilteredData.length, '개');
           
           // 자동수집 필터링 시 collectionType 분포 확인
           if (collectionType === 'auto') {
@@ -272,15 +255,11 @@ const DateClassificationDetail = () => {
           const videoKey = `${selectedDate}_${item.videoId}`;
           if (!videoMap.has(videoKey)) {
             videoMap.set(videoKey, item);
-          } else {
-            console.log('🔄 중복 데이터 제거 (조회수 낮음):', item.videoId, '제목:', item.videoTitle, '조회수:', item.viewCount);
           }
         });
         
         const dateData = Array.from(videoMap.values());
-        
-        console.log('📊 중복 제거 후 데이터 개수:', dateData.length);
-        console.log('📊 제거된 중복 개수:', typeFilteredData.length - dateData.length);
+        console.log(`📊 ${selectedDate} 중복 제거 완료: ${dateData.length}개 (제거: ${typeFilteredData.length - dateData.length}개)`);
         
         const finalData = dateData.map(item => ({
           ...item,
