@@ -519,19 +519,12 @@ const DataClassification = () => {
             console.log('⚠️ 데이터 충돌 발견:', mergeResult.conflicts);
           }
           
-          // 2. 병합된 데이터를 기반으로 통계 계산 (초기 로드와 동일한 로직)
+          // 2. 병합된 데이터를 기반으로 통계 계산 - 수동수집만 필터링
           const mergedDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
           
-          mergeResult.mergedDays.forEach(dayRow => {
-            mergedDateStats[dayRow.dayKey] = {
-              total: dayRow.total,
-              classified: dayRow.done,
-              progress: dayRow.total > 0 ? Math.round((dayRow.done / dayRow.total) * 100) : 0
-            };
-          });
-          
-          setDateStats(mergedDateStats);
-          console.log('📊 병합된 dateStats:', mergedDateStats);
+          // 🚨 주의: mergeResult.mergedDays는 전체 데이터이므로 사용하지 않음
+          // 대신 실제 로드된 데이터에서 수동수집만 재계산
+          console.log('📊 병합 완료, 실제 데이터에서 수동수집 통계 재계산 예정');
           
           // 3. 자동수집 데이터 로드
           await loadAutoCollectedData();
@@ -561,6 +554,38 @@ const DataClassification = () => {
             
             setUnclassifiedData(dedupedData as UnclassifiedData[]);
             console.log('✅ 하이브리드 서비스에서 로드 완료:', dedupedData.length);
+            
+            // 5. 실제 데이터 기반으로 dateStats 재계산 (수동수집만)
+            const actualDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+            
+            dedupedData.forEach((item: UnclassifiedData) => {
+              const dayKey = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              if (!dayKey) return;
+              
+              // 수동수집만 카운트 (dateStats는 수동수집 섹션에서 사용됨)
+              const collectionType = item.collectionType || 'manual';
+              if (collectionType !== 'manual') return;
+              
+              const normalizedKey = dayKey.split('T')[0];
+              
+              if (!actualDateStats[normalizedKey]) {
+                actualDateStats[normalizedKey] = { total: 0, classified: 0, progress: 0 };
+              }
+              
+              actualDateStats[normalizedKey].total++;
+              if (item.status === 'classified') {
+                actualDateStats[normalizedKey].classified++;
+              }
+            });
+            
+            // 진행률 계산
+            Object.keys(actualDateStats).forEach(date => {
+              const stats = actualDateStats[date];
+              stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+            });
+            
+            setDateStats(actualDateStats);
+            console.log('📊 페이지 포커스 - dateStats 재계산 (수동수집만):', actualDateStats);
           } else {
             console.log('📊 저장된 데이터 없음');
             setUnclassifiedData([]);
