@@ -1035,16 +1035,22 @@ const DataClassification = () => {
   
   // 일별 분류 진행률 일괄 저장 (하이브리드: IndexedDB + PostgreSQL)
   const handleBulkSaveProgress = async () => {
+    console.log('🔘 진행률 일괄 저장 버튼 클릭됨');
+    
     if (!BULK_PROGRESS_ENABLED) {
+      console.log('❌ BULK_PROGRESS_ENABLED = false, 비활성화됨');
       alert('⚠️ 진행률 일괄 저장 기능은 데이터 손실 위험이 있어 현재 비활성화되었습니다.\n\n진행률은 자동으로 계산되어 표시됩니다.');
       return;
     }
     
     // 백업 복원 중이면 일괄 저장 차단 (데이터 손실 방지)
     if ((window as any).restoreLock || sessionStorage.getItem('restoreInProgress')) {
+      console.log('❌ 백업 복원 중, 일괄 저장 차단');
       alert('⚠️ 백업 복원 중입니다. 복원이 완료된 후 다시 시도해주세요.');
       return;
     }
+    
+    console.log('✅ 진행률 일괄 저장 실행 가능, 시작합니다...');
     
     try {
       setIsLoading(true);
