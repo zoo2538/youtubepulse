@@ -410,15 +410,15 @@ const System = () => {
       console.log('=====================================');
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // 1단계: YouTube 공식 트렌드 수집 (상위 250개)
+      // 1단계: YouTube 공식 트렌드 수집 (상위 200개)
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       console.log('📺 1단계: YouTube 공식 트렌드 영상 수집 중...');
       let trendingVideos: any[] = [];
       
       try {
-        // 상위 250개 수집 (50개씩 5페이지)
+        // 상위 200개 수집 (50개씩 4페이지) - YouTube API 실제 제공량
         let nextPageToken = '';
-        for (let page = 0; page < 5; page++) {
+        for (let page = 0; page < 4; page++) {
           const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiConfig.youtubeApiKey}`;
           const trendingResponse = await fetch(trendingUrl);
           
@@ -431,6 +431,7 @@ const System = () => {
               console.log(`✅ 트렌드 영상 ${(page + 1) * 50}개 수집 중... (현재: ${trendingVideos.length}개)`);
               
               nextPageToken = trendingData.nextPageToken;
+              console.log(`📄 페이지 ${page + 1}: nextPageToken = ${nextPageToken ? '있음' : '없음 (더 이상 페이지 없음)'}`);
               if (!nextPageToken) break; // 더 이상 페이지 없음
             }
           } else {
@@ -1294,7 +1295,7 @@ const System = () => {
                           <div className="grid grid-cols-2 gap-3 mb-3">
                             <div className="bg-white p-2 rounded border border-blue-200">
                               <p className="text-xs text-blue-600 font-medium">📺 트렌드 영상</p>
-                              <p className="text-sm font-bold text-blue-900">상위 250개</p>
+                              <p className="text-sm font-bold text-blue-900">상위 200개</p>
                               <p className="text-xs text-muted-foreground">YouTube 공식 (한글만)</p>
                           </div>
                             <div className="bg-white p-2 rounded border border-blue-200">
@@ -1310,7 +1311,7 @@ const System = () => {
                             <div className="space-y-1 text-xs text-green-700">
                               <div className="flex justify-between">
                                 <span>트렌드 수집량:</span>
-                                <span className="font-medium">250개 (50개씩 5페이지)</span>
+                                <span className="font-medium">200개 (50개씩 4페이지)</span>
                           </div>
                               <div className="flex justify-between">
                                 <span>키워드 수집량:</span>
@@ -1318,7 +1319,7 @@ const System = () => {
                           </div>
                               <div className="flex justify-between">
                                 <span>예상 총 수집량:</span>
-                                <span className="font-medium text-green-600">{250 + (EXPANDED_KEYWORDS.length * 50)}개</span>
+                                <span className="font-medium text-green-600">{200 + (EXPANDED_KEYWORDS.length * 50)}개</span>
                         </div>
                               <div className="flex justify-between">
                                 <span>중복 제거:</span>
@@ -1330,7 +1331,7 @@ const System = () => {
                           <div className="text-xs text-blue-700 space-y-1 bg-blue-100/50 p-2 rounded">
                             <p>✓ 조회수 높은 순 자동 정렬</p>
                             <p>✓ 중복 시 조회수 높은 것 유지</p>
-                            <p>✓ 예상 수집: <strong>약 {Math.floor((250 + (EXPANDED_KEYWORDS.length * 50)) * 0.6).toLocaleString()}~{Math.floor((250 + (EXPANDED_KEYWORDS.length * 50)) * 0.7).toLocaleString()}개</strong> (중복 제거 후)</p>
+                            <p>✓ 예상 수집: <strong>약 {Math.floor((200 + (EXPANDED_KEYWORDS.length * 50)) * 0.6).toLocaleString()}~{Math.floor((200 + (EXPANDED_KEYWORDS.length * 50)) * 0.7).toLocaleString()}개</strong> (중복 제거 후)</p>
                         </div>
                         </div>
 

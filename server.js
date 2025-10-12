@@ -1765,12 +1765,12 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 (5페이지 = 250개)
-    console.log('📺 1단계: 트렌드 영상 수집 중... (5페이지)');
+    // 1단계: 트렌드 영상 수집 (4페이지 = 200개) - YouTube API 실제 제공량
+    console.log('📺 1단계: 트렌드 영상 수집 중... (4페이지)');
     let trendingVideos = [];
     let nextPageToken = '';
     
-    for (let page = 0; page < 5; page++) { // 5페이지 수집
+    for (let page = 0; page < 4; page++) { // 4페이지 수집
       const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
       console.log(`📺 페이지 ${page + 1} 요청: ${trendingUrl.substring(0, 100)}...`);
       
