@@ -1810,8 +1810,8 @@ async function autoCollectData() {
     });
     console.log(`✅ 트렌드: ${beforeFilter}개 → ${trendingVideos.length}개 (한글 필터링)`);
 
-    // 2단계: 키워드 기반 영상 수집 (전체 73개 키워드)
-    console.log('🔍 2단계: 키워드 영상 수집 중... (73개 키워드)');
+    // 2단계: 키워드 기반 영상 수집 (전체 73개 키워드 × 50개 = 최대 3,650개)
+    console.log('🔍 2단계: 키워드 영상 수집 중... (73개 키워드 × 50개)');
     let keywordVideos = [];
     
     // 전체 키워드 사용
@@ -1856,7 +1856,7 @@ async function autoCollectData() {
     
     for (const keyword of testKeywords) {
       console.log(`🔍 키워드 검색: "${keyword}"`);
-      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=10&regionCode=KR&order=viewCount&key=${apiKey}`;
+      const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
       const searchResponse = await fetch(searchUrl);
       
       if (searchResponse.ok) {
