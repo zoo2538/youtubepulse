@@ -2036,64 +2036,84 @@ async function autoCollectData() {
     `, ['auto_collected', JSON.stringify(newData)]);
     console.log('✅ classification_data 저장 완료');
     
-    // 2. unclassified_data 테이블에도 저장 (분류 작업용)
+    // 2. unclassified_data 테이블에도 저장 (분류 작업용) - 500개씩 배치 처리
     console.log(`💾 unclassified_data 테이블에도 저장 시작: ${newData.length}개`);
     let insertCount = 0;
     let updateCount = 0;
     
-    for (const item of newData) {
-      try {
-        const result = await client.query(`
-          INSERT INTO unclassified_data (
-            video_id, channel_id, channel_name, video_title, 
-            video_description, view_count, like_count, comment_count,
-            upload_date, collection_date, thumbnail_url, 
-            category, sub_category, status, day_key_local, collection_type, keyword
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-          ON CONFLICT (video_id, day_key_local) 
-          DO UPDATE SET
-            channel_id = EXCLUDED.channel_id,
-            channel_name = EXCLUDED.channel_name,
-            video_title = EXCLUDED.video_title,
-            video_description = EXCLUDED.video_description,
-            view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
-            like_count = GREATEST(unclassified_data.like_count, EXCLUDED.like_count),
-            comment_count = GREATEST(unclassified_data.comment_count, EXCLUDED.comment_count),
-            thumbnail_url = EXCLUDED.thumbnail_url,
-            category = COALESCE(unclassified_data.category, EXCLUDED.category),
-            sub_category = COALESCE(unclassified_data.sub_category, EXCLUDED.sub_category),
-            status = COALESCE(unclassified_data.status, EXCLUDED.status),
-            collection_type = EXCLUDED.collection_type,
-            keyword = COALESCE(unclassified_data.keyword, EXCLUDED.keyword),
-            updated_at = NOW()
-          RETURNING (xmax = 0) AS inserted
-        `, [
-          item.videoId, 
-          item.channelId, 
-          item.channelName, 
-          item.videoTitle,
-          item.videoDescription, 
-          item.viewCount || 0,
-          item.likeCount || 0,
-          item.commentCount || 0,
-          item.uploadDate, 
-          item.collectionDate,
-          item.thumbnailUrl, 
-          item.category || '', 
-          item.subCategory || '', 
-          item.status || 'unclassified',
-          today,
-          'auto',
-          item.keyword || ''
-        ]);
-        
-        if (result.rows[0].inserted) {
-          insertCount++;
-        } else {
-          updateCount++;
+    // 500개씩 배치 처리
+    const BATCH_SIZE = 500;
+    const totalBatches = Math.ceil(newData.length / BATCH_SIZE);
+    console.log(`📦 배치 처리 시작: ${newData.length}개 → ${totalBatches}개 배치 (${BATCH_SIZE}개씩)`);
+    
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const startIdx = batchIndex * BATCH_SIZE;
+      const endIdx = Math.min(startIdx + BATCH_SIZE, newData.length);
+      const batch = newData.slice(startIdx, endIdx);
+      
+      console.log(`📦 배치 ${batchIndex + 1}/${totalBatches} 처리 중... (${batch.length}개)`);
+      
+      for (const item of batch) {
+        try {
+          const result = await client.query(`
+            INSERT INTO unclassified_data (
+              video_id, channel_id, channel_name, video_title, 
+              video_description, view_count, like_count, comment_count,
+              upload_date, collection_date, thumbnail_url, 
+              category, sub_category, status, day_key_local, collection_type, keyword
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            ON CONFLICT (video_id, day_key_local) 
+            DO UPDATE SET
+              channel_id = EXCLUDED.channel_id,
+              channel_name = EXCLUDED.channel_name,
+              video_title = EXCLUDED.video_title,
+              video_description = EXCLUDED.video_description,
+              view_count = GREATEST(unclassified_data.view_count, EXCLUDED.view_count),
+              like_count = GREATEST(unclassified_data.like_count, EXCLUDED.like_count),
+              comment_count = GREATEST(unclassified_data.comment_count, EXCLUDED.comment_count),
+              thumbnail_url = EXCLUDED.thumbnail_url,
+              category = COALESCE(unclassified_data.category, EXCLUDED.category),
+              sub_category = COALESCE(unclassified_data.sub_category, EXCLUDED.sub_category),
+              status = COALESCE(unclassified_data.status, EXCLUDED.status),
+              collection_type = EXCLUDED.collection_type,
+              keyword = COALESCE(unclassified_data.keyword, EXCLUDED.keyword),
+              updated_at = NOW()
+            RETURNING (xmax = 0) AS inserted
+          `, [
+            item.videoId, 
+            item.channelId, 
+            item.channelName, 
+            item.videoTitle,
+            item.videoDescription, 
+            item.viewCount || 0,
+            item.likeCount || 0,
+            item.commentCount || 0,
+            item.uploadDate, 
+            item.collectionDate,
+            item.thumbnailUrl, 
+            item.category || '', 
+            item.subCategory || '', 
+            item.status || 'unclassified',
+            today,
+            'auto',
+            item.keyword || ''
+          ]);
+          
+          if (result.rows[0].inserted) {
+            insertCount++;
+          } else {
+            updateCount++;
+          }
+        } catch (itemError) {
+          console.error(`❌ 항목 저장 실패 (${item.videoId}):`, itemError.message);
         }
-      } catch (itemError) {
-        console.error(`❌ 항목 저장 실패 (${item.videoId}):`, itemError.message);
+      }
+      
+      console.log(`✅ 배치 ${batchIndex + 1}/${totalBatches} 완료 (누적: ${insertCount} 삽입, ${updateCount} 업데이트)`);
+      
+      // 배치 간 100ms 지연 (서버 부하 분산)
+      if (batchIndex < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
     

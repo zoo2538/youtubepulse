@@ -334,7 +334,7 @@ class HybridService {
     apiCall: (batch: any[]) => Promise<any>,
     operationName: string
   ): Promise<{ success: number; failed: number; deadLetterItems: any[] }> {
-    const INITIAL_BATCH_SIZE = 200; // 더 작은 초기 배치 크기
+    const INITIAL_BATCH_SIZE = 500; // 초기 배치 크기 500개
     const MIN_BATCH_SIZE = 50;
     const MAX_RETRIES = 3;
     
@@ -441,11 +441,11 @@ class HybridService {
     return { success: successCount, failed: failedCount, deadLetterItems };
   }
 
-  // 분류 데이터 저장 (어댑티브 배치 처리)
+  // 분류 데이터 저장 (어댑티브 배치 처리 - 500개씩)
   async saveClassifiedData(data: any): Promise<void> {
     try {
       if (this.config.useApiServer) {
-        if (Array.isArray(data) && data.length > 200) {
+        if (Array.isArray(data) && data.length > 500) {
           const result = await this.adaptiveBatchUpload(
             data,
             (batch) => apiService.saveClassifiedData(batch),
@@ -528,11 +528,11 @@ class HybridService {
     }
   }
 
-  // 미분류 데이터 저장 (어댑티브 배치 처리)
+  // 미분류 데이터 저장 (어댑티브 배치 처리 - 500개씩)
   async saveUnclassifiedData(data: any): Promise<void> {
     try {
       if (this.config.useApiServer) {
-        if (Array.isArray(data) && data.length > 200) {
+        if (Array.isArray(data) && data.length > 500) {
           const result = await this.adaptiveBatchUpload(
             data,
             (batch) => apiService.saveUnclassifiedData(batch),
