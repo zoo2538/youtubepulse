@@ -260,6 +260,42 @@ const DataClassification = () => {
           }
         } else {
           console.log(`✅ IndexedDB에서 데이터 로드: ${savedData.length}개 (수집 시 자동 갱신됨)`);
+          
+          // 4-2. 백그라운드에서 서버 데이터와 자동 동기화 (비동기, UI 블로킹 안 함)
+          console.log('🔄 백그라운드 자동 동기화 시작...');
+          setTimeout(async () => {
+            try {
+              const syncStartTime = Date.now();
+              const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
+              
+              if (serverResponse.ok) {
+                const serverResult = await serverResponse.json();
+                if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
+                  const serverDataLength = serverResult.data.length;
+                  const localDataLength = savedData?.length || 0;
+                  
+                  // 서버 데이터가 더 많으면 동기화
+                  if (serverDataLength > localDataLength) {
+                    console.log(`📥 자동 동기화: 서버 ${serverDataLength}개 > 로컬 ${localDataLength}개`);
+                    
+                    // IndexedDB 업데이트 (최대값 보존 upsert)
+                    await indexedDBService.saveUnclassifiedData(serverResult.data);
+                    console.log(`✅ 자동 동기화 완료: ${serverDataLength}개 (${Date.now() - syncStartTime}ms)`);
+                    
+                    // UI 업데이트를 위한 이벤트 발생
+                    window.dispatchEvent(new CustomEvent('data-updated', { 
+                      detail: { type: 'autoSync', count: serverDataLength } 
+                    }));
+                  } else {
+                    console.log(`✅ 자동 동기화: 최신 상태 (서버 ${serverDataLength}개 = 로컬 ${localDataLength}개)`);
+                  }
+                }
+              }
+            } catch (error) {
+              console.warn('⚠️ 백그라운드 동기화 실패 (무시):', error);
+              // 동기화 실패해도 로컬 데이터는 표시되므로 무시
+            }
+          }, 1000); // 1초 후 백그라운드 동기화 (UI 로딩 완료 후)
         }
         
         // 5. 하이브리드 서비스에서 실제 데이터 로드 (일관된 소스 사용)
