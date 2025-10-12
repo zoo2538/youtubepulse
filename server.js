@@ -2046,8 +2046,8 @@ async function autoCollectData() {
             video_id, channel_id, channel_name, video_title, 
             video_description, view_count, like_count, comment_count,
             upload_date, collection_date, thumbnail_url, 
-            category, sub_category, status, day_key_local, collection_type
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            category, sub_category, status, day_key_local, collection_type, keyword
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
           ON CONFLICT (video_id, day_key_local) 
           DO UPDATE SET
             channel_id = EXCLUDED.channel_id,
@@ -2062,6 +2062,7 @@ async function autoCollectData() {
             sub_category = COALESCE(unclassified_data.sub_category, EXCLUDED.sub_category),
             status = COALESCE(unclassified_data.status, EXCLUDED.status),
             collection_type = EXCLUDED.collection_type,
+            keyword = COALESCE(unclassified_data.keyword, EXCLUDED.keyword),
             updated_at = NOW()
           RETURNING (xmax = 0) AS inserted
         `, [
@@ -2080,7 +2081,8 @@ async function autoCollectData() {
           item.subCategory || '', 
           item.status || 'unclassified',
           today,
-          'auto'
+          'auto',
+          item.keyword || ''
         ]);
         
         if (result.rows[0].inserted) {
@@ -2354,22 +2356,59 @@ app.post('/api/backup/import', async (req, res) => {
 // 중복 라우트 제거됨 - 아래에 SPA 라우팅이 있음
 
 app.listen(PORT, '0.0.0.0', () => {
+  const startTime = new Date();
+  const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  console.log('='.repeat(80));
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
+  console.log(`⏰ 서버 시작 시간 (KST): ${startTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+  console.log(`⏰ 서버 시작 시간 (UTC): ${startTime.toISOString()}`);
+  console.log(`🌏 서버 타임존: Asia/Seoul`);
+  console.log('='.repeat(80));
   
   // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
   // cron 표현식: '분 시 일 월 요일'
   // '0 9 * * *' = 매일 09:00 (오전 9시)
-  cron.schedule('0 9 * * *', () => {
-    console.log('⏰ 자동 수집 스케줄 실행 (매일 09:00 KST)');
-    console.log('🕐 실행 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
+  const cronJob = cron.schedule('0 9 * * *', async () => {
+    const executeTime = new Date();
+    console.log('\n' + '='.repeat(80));
+    console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
+    console.log(`🕐 트리거 시간 (KST): ${executeTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+    console.log(`🕐 트리거 시간 (UTC): ${executeTime.toISOString()}`);
     console.log('📅 당일(오늘) 데이터로 저장됩니다');
-    autoCollectData();
+    console.log('='.repeat(80) + '\n');
+    
+    try {
+      const result = await autoCollectData();
+      if (result) {
+        console.log('\n✅ [크론잡] 자동 수집 완료 성공!');
+      } else {
+        console.log('\n⚠️ [크론잡] 자동 수집 실패 (false 반환)');
+      }
+    } catch (error) {
+      console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
+      console.error('❌ [크론잡] 오류 스택:', error.stack);
+    }
   }, {
-    timezone: 'Asia/Seoul'
+    timezone: 'Asia/Seoul',
+    scheduled: true
   });
   
-  console.log('⏰ 자동 수집 스케줄 등록 완료: 매일 09:00 (한국시간)');
-  console.log('⏰ 다음 실행 예정:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
+  // 다음 실행 시간 계산
+  const now = new Date();
+  const nextRun = new Date(now);
+  nextRun.setHours(9, 0, 0, 0);
+  if (nextRun <= now) {
+    nextRun.setDate(nextRun.getDate() + 1);
+  }
+  
+  console.log('\n📋 크론잡 설정 정보:');
+  console.log(`   - 스케줄: 매일 09:00 KST`);
+  console.log(`   - 타임존: Asia/Seoul`);
+  console.log(`   - 현재 시간 (KST): ${now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+  console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+  console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
+  console.log('='.repeat(80) + '\n');
 });
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
