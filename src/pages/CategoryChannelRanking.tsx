@@ -139,33 +139,62 @@ const CategoryChannelRanking = () => {
           console.log(`📊 카테고리 동영상 순위 - 사용할 데이터 샘플:`, dateFilteredData.slice(0, 3));
           
 
-          // 영상별 데이터로 변환하고 조회수 순으로 정렬
-          const videoArray = dateFilteredData
-            .map((item: any, index: number) => {
-              const videoId = item.videoId || item.id;
+          // 채널별로 조회수 집계
+          const channelGroups: any = {};
+          dateFilteredData.forEach((item: any) => {
+            if (!item.channelId) return;
+            
+            if (!channelGroups[item.channelId]) {
+              channelGroups[item.channelId] = {
+                channelId: item.channelId,
+                channelName: item.channelName,
+                category: item.category,
+                subCategory: item.subCategory,
+                todayViews: 0,
+                videos: [],
+                topVideo: null
+              };
+            }
+            
+            channelGroups[item.channelId].todayViews += item.viewCount || 0;
+            channelGroups[item.channelId].videos.push(item);
+            
+            // 가장 조회수가 높은 영상을 대표 영상으로 설정
+            if (!channelGroups[item.channelId].topVideo || 
+                (item.viewCount || 0) > (channelGroups[item.channelId].topVideo.viewCount || 0)) {
+              channelGroups[item.channelId].topVideo = item;
+            }
+          });
+
+          // 채널별 데이터로 변환하고 조회수 순으로 정렬
+          const channelArray = Object.values(channelGroups)
+            .map((channel: any) => {
+              const topVideo = channel.topVideo;
+              const videoId = topVideo?.videoId || topVideo?.id;
 
               return {
-                rank: index + 1,
-                thumbnail: item.thumbnailUrl || `https://via.placeholder.com/64x64?text=${item.videoTitle?.substring(0, 2) || 'YT'}`,
-                videoTitle: item.videoTitle || '제목 없음',
-                channelName: item.channelName || '채널명 없음',
-                todayViews: item.viewCount || 0,
-                category: item.category,
-                subCategory: item.subCategory || '미분류',
-                channelId: item.channelId,
+                rank: 0, // 순위는 나중에 설정
+                thumbnail: topVideo?.thumbnailUrl || `https://via.placeholder.com/64x64?text=${channel.channelName?.charAt(0) || 'C'}`,
+                videoTitle: topVideo?.videoTitle || '제목 없음',
+                channelName: channel.channelName || '채널명 없음',
+                todayViews: channel.todayViews,
+                category: channel.category,
+                subCategory: channel.subCategory || '미분류',
+                channelId: channel.channelId,
                 videoId: videoId,
                 topVideoUrl: videoId ? `https://www.youtube.com/watch?v=${videoId}` : '',
-                topVideoTitle: item.videoTitle || '',
-                description: item.description || item.videoDescription || ''
+                topVideoTitle: topVideo?.videoTitle || '',
+                description: topVideo?.description || topVideo?.videoDescription || '',
+                videoCount: channel.videos.length // 해당 채널의 영상 개수
               };
             })
             .sort((a, b) => b.todayViews - a.todayViews)
             .map((item, index) => ({ ...item, rank: index + 1 }));
           
-          console.log(`📊 카테고리 동영상 순위 - 생성된 동영상 데이터: ${videoArray.length}개`);
-          console.log(`📊 카테고리 동영상 순위 - 동영상 데이터 샘플:`, videoArray.slice(0, 3));
-          setChannelData(videoArray);
-          setFilteredChannelData(videoArray);
+          console.log(`📊 카테고리 채널 순위 - 생성된 채널 데이터: ${channelArray.length}개`);
+          console.log(`📊 카테고리 채널 순위 - 채널 데이터 샘플:`, channelArray.slice(0, 3));
+          setChannelData(channelArray);
+          setFilteredChannelData(channelArray);
         }
       } catch (error) {
         console.error('분류된 데이터 로드 실패:', error);
