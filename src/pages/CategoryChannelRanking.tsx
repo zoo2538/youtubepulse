@@ -5,11 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ExternalLink, Settings, Filter, Calendar } from "lucide-react";
+import { ArrowLeft, ExternalLink, Settings, Filter } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { subCategories, categoryColors } from "@/lib/subcategories";
-import { getKoreanDateString } from "@/lib/utils";
 
 interface ChannelRankingData {
   rank: number;
@@ -33,8 +32,6 @@ const CategoryChannelRanking = () => {
   const [classifiedData, setClassifiedData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString()); // 기본값: 오늘
-  const [availableDates, setAvailableDates] = useState<string[]>([]); // 사용 가능한 날짜 목록
 
   // 동적 카테고리 로드
   useEffect(() => {
@@ -62,18 +59,6 @@ const CategoryChannelRanking = () => {
     };
   }, []);
 
-  // 사용 가능한 날짜 목록 생성 (최근 7일)
-  useEffect(() => {
-    const dates = [];
-    for (let i = 0; i < 7; i++) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      dates.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));
-    }
-    setAvailableDates(dates);
-    console.log('📅 카테고리 채널 순위 - 사용 가능한 날짜 목록:', dates);
-  }, []);
-
   const formatNumber = (num: number): string => {
   if (num >= 1000000) {
     return (num / 1000000).toFixed(1) + 'M';
@@ -86,7 +71,7 @@ const CategoryChannelRanking = () => {
 
 // categoryColors는 subcategories.ts에서 import
 
-  // 분류된 데이터 로드 (날짜별 필터링 적용)
+  // 분류된 데이터 로드 (최신 데이터 기준)
   useEffect(() => {
     const loadClassifiedData = async () => {
       try {
@@ -117,40 +102,32 @@ const CategoryChannelRanking = () => {
           });
           console.log(`📊 카테고리별 데이터 개수:`, categoryCounts);
           
-          // 선택된 날짜 기준으로 데이터 필터링
-          const targetDate = selectedDate || getKoreanDateString();
-          let dateFilteredData = filteredData.filter((item: any) => {
-            const itemDate = item.collectionDate || item.uploadDate;
-            if (!itemDate) return false;
-            
-            // 다양한 날짜 형식 지원
-            const normalizedItemDate = itemDate.split('T')[0]; // ISO 형식에서 날짜 부분만 추출
-            
-            return normalizedItemDate === targetDate;
-          });
-          
-          // 선택된 날짜 데이터가 없으면 최근 데이터 사용
-          if (dateFilteredData.length === 0) {
-            console.log(`📅 ${targetDate} 데이터가 없음, 최근 데이터 사용`);
-            dateFilteredData = filteredData;
-          }
-          
-          console.log(`📅 데이터 필터링: ${filteredData.length}개 → ${dateFilteredData.length}개`);
-          console.log(`📊 카테고리 동영상 순위 - 사용할 데이터 샘플:`, dateFilteredData.slice(0, 3));
-          
-
-          // 같은 영상(videoId) 중에서 조회수가 가장 높은 것만 선택
+          // 각 영상(videoId)별로 가장 최신 날짜의 데이터만 선택
           const videoGroups: any = {};
-          dateFilteredData.forEach((item: any) => {
+          filteredData.forEach((item: any) => {
             const videoId = item.videoId || item.id;
             if (!videoId) return;
             
-            // 해당 영상의 첫 번째 데이터이거나, 현재 데이터의 조회수가 더 높으면 업데이트
-            if (!videoGroups[videoId] || 
-                (item.viewCount || 0) > (videoGroups[videoId].viewCount || 0)) {
+            const itemDate = item.collectionDate || item.uploadDate;
+            if (!itemDate) return;
+            
+            // 해당 영상의 첫 번째 데이터이거나, 현재 데이터의 날짜가 더 최신이면 업데이트
+            if (!videoGroups[videoId]) {
               videoGroups[videoId] = item;
+            } else {
+              const existingDate = new Date(videoGroups[videoId].collectionDate || videoGroups[videoId].uploadDate);
+              const currentDate = new Date(itemDate);
+              
+              // 날짜가 더 최신이거나, 날짜가 같으면 조회수가 더 높은 것 선택
+              if (currentDate > existingDate || 
+                  (currentDate.getTime() === existingDate.getTime() && 
+                   (item.viewCount || 0) > (videoGroups[videoId].viewCount || 0))) {
+                videoGroups[videoId] = item;
+              }
             }
           });
+          
+          console.log(`📊 최신 데이터 선택 완료: ${filteredData.length}개 → ${Object.keys(videoGroups).length}개`);
 
           // 중복 제거된 영상들을 배열로 변환하고 조회수 순으로 정렬
           const channelArray = Object.values(videoGroups)
@@ -186,7 +163,7 @@ const CategoryChannelRanking = () => {
     };
 
     loadClassifiedData();
-  }, [category, selectedDate]);
+  }, [category]);
 
   // 세부카테고리 필터링 함수
   const applySubCategoryFilter = () => {
@@ -338,23 +315,6 @@ const CategoryChannelRanking = () => {
               
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2">
-                  <Calendar className="w-4 h-4 text-muted-foreground" />
-                  <label className="text-sm font-medium text-muted-foreground">날짜:</label>
-                  <Select value={selectedDate} onValueChange={setSelectedDate}>
-                    <SelectTrigger className="w-44">
-                      <SelectValue placeholder="날짜 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableDates.map(date => (
-                        <SelectItem key={date} value={date}>
-                          {date === getKoreanDateString() ? `오늘 (${date})` : date}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex items-center space-x-2">
                   <label className="text-sm font-medium text-muted-foreground">세부카테고리:</label>
                   <Select value={selectedSubCategory} onValueChange={setSelectedSubCategory}>
                     <SelectTrigger className="w-48">
@@ -372,7 +332,7 @@ const CategoryChannelRanking = () => {
                 </div>
                 
                 <div className="text-sm text-muted-foreground">
-                  {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중)
+                  {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중) • 최신 데이터 기준
                 </div>
               </div>
             </div>
