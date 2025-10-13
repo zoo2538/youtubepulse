@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ExternalLink, Settings, Filter } from "lucide-react";
+import { ArrowLeft, ExternalLink, Settings, Filter, Calendar } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { subCategories, categoryColors } from "@/lib/subcategories";
+import { getKoreanDateString } from "@/lib/utils";
 
 interface ChannelRankingData {
   rank: number;
@@ -32,6 +33,8 @@ const CategoryChannelRanking = () => {
   const [classifiedData, setClassifiedData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
+  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString()); // 기본값: 오늘
+  const [availableDates, setAvailableDates] = useState<string[]>([]); // 사용 가능한 날짜 목록
 
   // 동적 카테고리 로드
   useEffect(() => {
@@ -57,6 +60,18 @@ const CategoryChannelRanking = () => {
     return () => {
       window.removeEventListener('categoriesUpdated', handleCategoriesUpdate);
     };
+  }, []);
+
+  // 사용 가능한 날짜 목록 생성 (최근 7일)
+  useEffect(() => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));
+    }
+    setAvailableDates(dates);
+    console.log('📅 카테고리 채널 순위 - 사용 가능한 날짜 목록:', dates);
   }, []);
 
   const formatNumber = (num: number): string => {
@@ -102,9 +117,8 @@ const CategoryChannelRanking = () => {
           });
           console.log(`📊 카테고리별 데이터 개수:`, categoryCounts);
           
-          // 최근 데이터 사용 (오늘 데이터가 없으면 최근 데이터 사용)
-          const now = new Date();
-          const today = now.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+          // 선택된 날짜 기준으로 데이터 필터링
+          const targetDate = selectedDate || getKoreanDateString();
           let dateFilteredData = filteredData.filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
             if (!itemDate) return false;
@@ -112,12 +126,12 @@ const CategoryChannelRanking = () => {
             // 다양한 날짜 형식 지원
             const normalizedItemDate = itemDate.split('T')[0]; // ISO 형식에서 날짜 부분만 추출
             
-            return normalizedItemDate === today;
+            return normalizedItemDate === targetDate;
           });
           
-          // 오늘 데이터가 없으면 최근 데이터 사용
+          // 선택된 날짜 데이터가 없으면 최근 데이터 사용
           if (dateFilteredData.length === 0) {
-            console.log(`📅 오늘(${today}) 데이터가 없음, 최근 데이터 사용`);
+            console.log(`📅 ${targetDate} 데이터가 없음, 최근 데이터 사용`);
             dateFilteredData = filteredData;
           }
           
@@ -159,7 +173,7 @@ const CategoryChannelRanking = () => {
     };
 
     loadClassifiedData();
-  }, [category]);
+  }, [category, selectedDate]);
 
   // 세부카테고리 필터링 함수
   const applySubCategoryFilter = () => {
@@ -298,31 +312,51 @@ const CategoryChannelRanking = () => {
           </div>
         </div>
 
-        {/* 세부카테고리 필터 */}
+        {/* 필터 섹션 */}
         {channelData.length > 0 && (
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <Filter className="w-4 h-4 text-blue-600" />
                 <label className="text-sm font-medium text-foreground">
-                  세부카테고리 필터
+                  필터 설정
                 </label>
               </div>
               
               <div className="flex items-center space-x-4">
-                <Select value={selectedSubCategory} onValueChange={setSelectedSubCategory}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="세부카테고리 선택" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체</SelectItem>
-                    {dynamicSubCategories[category]?.map(subCategory => (
-                      <SelectItem key={subCategory} value={subCategory}>
-                        {subCategory}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center space-x-2">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <label className="text-sm font-medium text-muted-foreground">날짜:</label>
+                  <Select value={selectedDate} onValueChange={setSelectedDate}>
+                    <SelectTrigger className="w-44">
+                      <SelectValue placeholder="날짜 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableDates.map(date => (
+                        <SelectItem key={date} value={date}>
+                          {date === getKoreanDateString() ? `오늘 (${date})` : date}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <label className="text-sm font-medium text-muted-foreground">세부카테고리:</label>
+                  <Select value={selectedSubCategory} onValueChange={setSelectedSubCategory}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="세부카테고리 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">전체</SelectItem>
+                      {dynamicSubCategories[category]?.map(subCategory => (
+                        <SelectItem key={subCategory} value={subCategory}>
+                          {subCategory}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 
                 <div className="text-sm text-muted-foreground">
                   {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중)
