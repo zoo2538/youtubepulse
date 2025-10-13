@@ -102,32 +102,53 @@ const CategoryChannelRanking = () => {
           });
           console.log(`📊 카테고리별 데이터 개수:`, categoryCounts);
           
-          // 각 영상(videoId)별로 가장 최신 날짜의 데이터만 선택
-          const videoGroups: any = {};
+          // 가장 최근 수집 날짜 찾기
+          let latestDate: Date | null = null;
           filteredData.forEach((item: any) => {
-            const videoId = item.videoId || item.id;
-            if (!videoId) return;
-            
             const itemDate = item.collectionDate || item.uploadDate;
             if (!itemDate) return;
             
-            // 해당 영상의 첫 번째 데이터이거나, 현재 데이터의 날짜가 더 최신이면 업데이트
-            if (!videoGroups[videoId]) {
-              videoGroups[videoId] = item;
-            } else {
-              const existingDate = new Date(videoGroups[videoId].collectionDate || videoGroups[videoId].uploadDate);
-              const currentDate = new Date(itemDate);
-              
-              // 날짜가 더 최신이거나, 날짜가 같으면 조회수가 더 높은 것 선택
-              if (currentDate > existingDate || 
-                  (currentDate.getTime() === existingDate.getTime() && 
-                   (item.viewCount || 0) > (videoGroups[videoId].viewCount || 0))) {
-                videoGroups[videoId] = item;
-              }
+            const currentDate = new Date(itemDate);
+            if (!latestDate || currentDate > latestDate) {
+              latestDate = currentDate;
             }
           });
           
-          console.log(`📊 최신 데이터 선택 완료: ${filteredData.length}개 → ${Object.keys(videoGroups).length}개`);
+          if (!latestDate) {
+            console.log('📅 수집된 데이터가 없습니다.');
+            setChannelData([]);
+            setFilteredChannelData([]);
+            return;
+          }
+          
+          const latestDateString = latestDate.toISOString().split('T')[0];
+          console.log(`📅 가장 최근 수집 날짜: ${latestDateString}`);
+          
+          // 가장 최근 날짜의 데이터만 필터링
+          const latestData = filteredData.filter((item: any) => {
+            const itemDate = item.collectionDate || item.uploadDate;
+            if (!itemDate) return false;
+            
+            const itemDateString = itemDate.split('T')[0];
+            return itemDateString === latestDateString;
+          });
+          
+          console.log(`📊 가장 최근 날짜 데이터: ${filteredData.length}개 → ${latestData.length}개`);
+          
+          // 같은 영상(videoId) 중에서 조회수가 가장 높은 것만 선택
+          const videoGroups: any = {};
+          latestData.forEach((item: any) => {
+            const videoId = item.videoId || item.id;
+            if (!videoId) return;
+            
+            // 해당 영상의 첫 번째 데이터이거나, 현재 데이터의 조회수가 더 높으면 업데이트
+            if (!videoGroups[videoId] || 
+                (item.viewCount || 0) > (videoGroups[videoId].viewCount || 0)) {
+              videoGroups[videoId] = item;
+            }
+          });
+          
+          console.log(`📊 중복 제거 완료: ${latestData.length}개 → ${Object.keys(videoGroups).length}개`);
 
           // 중복 제거된 영상들을 배열로 변환하고 조회수 순으로 정렬
           const channelArray = Object.values(videoGroups)
@@ -332,7 +353,7 @@ const CategoryChannelRanking = () => {
                 </div>
                 
                 <div className="text-sm text-muted-foreground">
-                  {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중) • 최신 데이터 기준
+                  {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중) • 가장 최근 수집 데이터만 표시
                 </div>
               </div>
             </div>
