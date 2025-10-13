@@ -38,7 +38,6 @@ import DataCollectionManager from "@/components/DataCollectionManager";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { dataMigrationService } from "@/lib/data-migration-service";
-import { autoClassificationService } from "@/lib/auto-classification-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
 import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { CacheCleanup } from "@/lib/cache-cleanup";
@@ -739,12 +738,9 @@ const System = () => {
           sourceType = 'keyword';
         }
         
-        // 자동 분류 실행
-        const autoClassification = autoClassificationService.classifyVideo(
-          video.snippet.title,
-          video.snippet.description,
-          video.snippet.channelTitle
-        );
+        // 14일 데이터 기반 분류만 사용 (키워드 자동 분류 제거)
+        // - 14일 데이터에 있으면: 그 분류 사용 (classified)
+        // - 14일 데이터에 없으면: 수동 분류 대기 (unclassified)
         
         return {
           id: Date.now() + index,
@@ -758,18 +754,15 @@ const System = () => {
           uploadDate: video.snippet.publishedAt.split('T')[0],
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
-          category: existingClassification?.category || autoClassification.category,
+          category: existingClassification?.category || '', // 14일 데이터만 사용, 없으면 빈값
           collectionType: 'manual', // 수동 수집으로 명시
           collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
           keyword: sourceKeyword, // 키워드 정보 추가
           source: sourceType, // 수집 소스 추가 (trending or keyword)
-          subCategory: existingClassification?.subCategory || autoClassification.subCategory,
-          status: existingClassification ? "classified" as const : 
-                  (autoClassification.confidence > 0.3 ? "classified" as const : "unclassified" as const),
-          autoClassified: !existingClassification && autoClassification.confidence > 0.3,
-          classificationConfidence: autoClassification.confidence,
-          matchedKeywords: autoClassification.matchedKeywords
+          subCategory: existingClassification?.subCategory || '', // 14일 데이터만 사용, 없으면 빈값
+          status: existingClassification ? "classified" as const : "unclassified" as const, // 14일 데이터 없으면 무조건 unclassified
+          autoClassified: !!existingClassification // 14일 데이터로 자동 분류된 경우만 true
         };
       });
 

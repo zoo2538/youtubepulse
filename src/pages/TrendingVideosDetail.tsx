@@ -66,7 +66,8 @@ const TrendingVideosDetail = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString()); // 기본값: 오늘
+  const [availableDates, setAvailableDates] = useState<string[]>([]); // 사용 가능한 날짜 목록
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
   const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
@@ -92,6 +93,18 @@ const TrendingVideosDetail = () => {
   // 하드코딩된 카테고리 사용 (동적 로딩 제거)
   useEffect(() => {
     console.log('📊 하드코딩된 카테고리 사용:', subCategories);
+  }, []);
+
+  // 사용 가능한 날짜 목록 생성 (최근 7일)
+  useEffect(() => {
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      dates.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));
+    }
+    setAvailableDates(dates);
+    console.log('📅 사용 가능한 날짜 목록:', dates);
   }, []);
 
   // 데이터 로드
@@ -271,6 +284,23 @@ const TrendingVideosDetail = () => {
             </div>
             
             <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-2">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <label className="text-sm font-medium text-muted-foreground">날짜:</label>
+                <Select value={selectedDate} onValueChange={setSelectedDate}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="날짜 선택" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDates.map(date => (
+                      <SelectItem key={date} value={date}>
+                        {date === getKoreanDateString() ? `오늘 (${date})` : date}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <label className="text-sm font-medium text-muted-foreground">카테고리:</label>
                 <Select value={selectedCategory} onValueChange={handleCategoryChange}>

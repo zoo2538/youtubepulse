@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>로컬 키워드 분류 초기화</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .btn {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .btn:hover {
+      background-color: #c82333;
+    }
+    .btn-secondary {
+      background-color: #6c757d;
+    }
+    .btn-secondary:hover {
+      background-color: #5a6268;
+    }
+    #log {
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 20px;
+      max-height: 500px;
+      overflow-y: auto;
+      font-family: monospace;
+      font-size: 14px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .warning {
+      background-color: #fff3cd;
+      border: 1px solid #ffc107;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      color: #856404;
+    }
+    .info {
+      background-color: #d1ecf1;
+      border: 1px solid #17a2b8;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      color: #0c5460;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔄 로컬 키워드 기반 자동 분류 초기화</h1>
+    
+    <div class="warning">
+      <strong>⚠️ 주의:</strong> 이 도구는 로컬 IndexedDB에서 키워드 기반으로 자동 분류된 데이터를 찾아서 미분류 상태로 변경합니다.
+      <br><br>
+      다음 조건에 해당하는 데이터가 초기화됩니다:
+      <ul>
+        <li><code>classificationConfidence</code> 또는 <code>matchedKeywords</code> 필드가 있는 데이터</li>
+        <li><code>autoClassified: true</code>이고 <code>status: 'classified'</code>인 데이터</li>
+      </ul>
+      <strong>14일 데이터 기반 자동 분류는 유지됩니다.</strong>
+    </div>
+    
+    <div class="info">
+      <strong>ℹ️ 안내:</strong> 초기화 후 서버에 업로드하려면 "데이터 분류 관리" 페이지에서 "진행률 일괄 저장" 버튼을 클릭하세요.
+    </div>
+    
+    <button class="btn" onclick="checkData()">1단계: 키워드 분류 데이터 확인</button>
+    <button class="btn" onclick="resetData()" id="resetBtn" disabled>2단계: 미분류로 변경</button>
+    <button class="btn btn-secondary" onclick="location.href='/'">홈으로</button>
+    
+    <div id="log"></div>
+  </div>
+
+  <script>
+    let keywordClassifiedData = [];
+    
+    function log(message) {
+      const logDiv = document.getElementById('log');
+      logDiv.textContent += message + '\n';
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+    
+    function clearLog() {
+      document.getElementById('log').textContent = '';
+    }
+    
+    async function openDB() {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open('YouTubePulseDB', 3);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    
+    async function loadUnclassifiedData() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['unclassifiedData'], 'readonly');
+        const store = transaction.objectStore('unclassifiedData');
+        const request = store.getAll();
+        
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    
+    async function saveUnclassifiedData(data) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction(['unclassifiedData'], 'readwrite');
+        const store = transaction.objectStore('unclassifiedData');
+        
+        let completed = 0;
+        const total = data.length;
+        
+        data.forEach(item => {
+          const request = store.put(item);
+          request.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              resolve();
+            }
+          };
+          request.onerror = () => {
+            console.error('저장 실패:', item.id);
+          };
+        });
+      });
+    }
+    
+    async function checkData() {
+      clearLog();
+      log('🔍 로컬 IndexedDB 데이터 확인 중...\n');
+      
+      try {
+        const allData = await loadUnclassifiedData();
+        log(`✅ 전체 데이터: ${allData.length}개\n`);
+        
+        // 키워드 기반 자동 분류 데이터 찾기
+        keywordClassifiedData = allData.filter(item => {
+          const hasConfidence = item.classificationConfidence !== undefined && item.classificationConfidence !== null;
+          const hasKeywords = item.matchedKeywords && item.matchedKeywords.length > 0;
+          const isAutoClassified = item.autoClassified === true;
+          const isClassified = item.status === 'classified';
+          
+          return (hasConfidence || hasKeywords) && isAutoClassified && isClassified;
+        });
+        
+        log(`🔍 키워드 기반 자동 분류 데이터: ${keywordClassifiedData.length}개\n`);
+        
+        if (keywordClassifiedData.length === 0) {
+          log('✅ 키워드 기반 자동 분류 데이터 없음!');
+          document.getElementById('resetBtn').disabled = true;
+          return;
+        }
+        
+        // 날짜별 분포
+        const dateDistribution = {};
+        keywordClassifiedData.forEach(item => {
+          let date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+          if (date && typeof date === 'string' && date.includes('T')) {
+            date = date.split('T')[0];
+          }
+          if (date) {
+            dateDistribution[date] = (dateDistribution[date] || 0) + 1;
+          }
+        });
+        
+        log('📅 날짜별 키워드 분류 데이터 분포:');
+        Object.keys(dateDistribution).sort().forEach(date => {
+          log(`   ${date}: ${dateDistribution[date]}개`);
+        });
+        
+        log('\n📋 샘플 데이터 (최대 5개):');
+        keywordClassifiedData.slice(0, 5).forEach(item => {
+          log(`   - ${item.videoTitle.substring(0, 50)}...`);
+          log(`     카테고리: ${item.category} > ${item.subCategory}`);
+          log(`     신뢰도: ${item.classificationConfidence || 'N/A'}`);
+          log(`     키워드: ${item.matchedKeywords ? item.matchedKeywords.join(', ') : 'N/A'}`);
+          log('');
+        });
+        
+        document.getElementById('resetBtn').disabled = false;
+        log('✅ 확인 완료! 위의 "2단계" 버튼을 클릭하여 미분류로 변경하세요.');
+        
+      } catch (error) {
+        log('❌ 오류 발생: ' + error.message);
+        console.error(error);
+      }
+    }
+    
+    async function resetData() {
+      if (keywordClassifiedData.length === 0) {
+        alert('먼저 1단계를 실행하세요.');
+        return;
+      }
+      
+      if (!confirm(`${keywordClassifiedData.length}개의 키워드 기반 자동 분류 데이터를 미분류로 변경하시겠습니까?`)) {
+        return;
+      }
+      
+      clearLog();
+      log('🔄 미분류로 변경 중...\n');
+      
+      try {
+        // 전체 데이터 로드
+        const allData = await loadUnclassifiedData();
+        
+        // 키워드 분류 데이터의 ID 세트 생성
+        const keywordIds = new Set(keywordClassifiedData.map(item => item.id));
+        
+        // 데이터 업데이트
+        const updatedData = allData.map(item => {
+          if (keywordIds.has(item.id)) {
+            return {
+              ...item,
+              status: 'unclassified',
+              category: '',
+              subCategory: '',
+              autoClassified: false,
+              classificationConfidence: undefined,
+              matchedKeywords: undefined
+            };
+          }
+          return item;
+        });
+        
+        // 저장
+        log('💾 IndexedDB에 저장 중...');
+        await saveUnclassifiedData(updatedData);
+        
+        log(`✅ ${keywordClassifiedData.length}개 데이터 미분류로 변경 완료!\n`);
+        log('📤 다음 단계: "데이터 분류 관리" 페이지에서 "진행률 일괄 저장" 버튼을 클릭하여 서버에 업로드하세요.');
+        
+        keywordClassifiedData = [];
+        document.getElementById('resetBtn').disabled = true;
+        
+      } catch (error) {
+        log('❌ 오류 발생: ' + error.message);
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>
+

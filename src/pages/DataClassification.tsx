@@ -530,6 +530,8 @@ const DataClassification = () => {
         console.log('🔄 수동수집 동기화 완료 이벤트 - 즉시 UI 갱신');
       } else if (event.detail.type === 'autoSync') {
         console.log('🔄 자동수집 동기화 완료 이벤트 - 즉시 UI 갱신');
+      } else if (event.detail.type === 'bulkSaveProgress') {
+        console.log('🔄 진행률 일괄 저장 완료 이벤트 - 즉시 UI 갱신');
       } else {
         console.log('🔒 알 수 없는 이벤트 타입 - 데이터 로드 차단:', event.detail.type);
         return;
