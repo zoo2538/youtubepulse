@@ -563,54 +563,50 @@ class IndexedDBService {
   async updateClassifiedDataByDate(dateData: any[], targetDate: string): Promise<void> {
     if (!this.db) await this.init();
     
+    console.log(`💾 IndexedDB 분류 데이터 업데이트 - ${targetDate}:`, dateData.length, '개');
+    
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
       const store = transaction.objectStore('classifiedData');
       
-      // 기존 데이터 로드
-      const getAllRequest = store.getAll();
-      getAllRequest.onsuccess = () => {
-        const existingData = getAllRequest.result;
+      // 기존 데이터 완전 삭제 (캐시 누적 방지)
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        console.log('🗑️ 기존 분류 데이터 완전 삭제 완료 (캐시 누적 방지)');
         
-        // 대상 날짜의 데이터 제거
-        const filteredData = existingData.filter(item => {
-          const itemDate = item.collectionDate || item.uploadDate;
-          return itemDate !== targetDate;
-        });
+        let completed = 0;
+        const total = dateData.length;
         
-        // 새 데이터와 기존 데이터 결합
-        const combinedData = [...filteredData, ...dateData];
-        
-        // 모든 데이터 삭제 후 새로 저장
-        const clearRequest = store.clear();
-        clearRequest.onsuccess = () => {
-          let completed = 0;
-          const total = combinedData.length;
-          
-          if (total === 0) {
-            resolve();
-            return;
-          }
+        if (total === 0) {
+          console.log(`✅ ${targetDate} 분류 데이터 업데이트 완료: 데이터 없음`);
+          resolve();
+          return;
+        }
 
-          combinedData.forEach((item, index) => {
-            // id가 없는 경우 자동 생성
-            if (!item.id) {
-              item.id = Date.now() + index;
+        // 새로운 데이터만 저장 (가장 최근 데이터)
+        dateData.forEach((item, index) => {
+          // id가 없는 경우 자동 생성
+          if (!item.id) {
+            item.id = Date.now() + index;
+          }
+          const putRequest = store.put(item);
+          putRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              console.log(`✅ ${targetDate} 분류 데이터 업데이트 완료: ${dateData.length}개 저장 (캐시 초기화됨)`);
+              resolve();
             }
-            const putRequest = store.put(item);
-            putRequest.onsuccess = () => {
-              completed++;
-              if (completed === total) {
-                console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정`);
-                resolve();
-              }
-            };
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-        };
-        clearRequest.onerror = () => reject(clearRequest.error);
+          };
+          putRequest.onerror = () => {
+            console.error('❌ 분류 데이터 저장 실패:', putRequest.error);
+            reject(putRequest.error);
+          };
+        });
       };
-      getAllRequest.onerror = () => reject(getAllRequest.error);
+      clearRequest.onerror = () => {
+        console.error('❌ 분류 데이터 삭제 실패:', clearRequest.error);
+        reject(clearRequest.error);
+      };
     });
   }
 
@@ -669,51 +665,44 @@ class IndexedDBService {
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
-      // 먼저 전체 데이터를 로드
-      const loadRequest = store.getAll();
-      loadRequest.onsuccess = () => {
-        const allData = loadRequest.result;
+      // 기존 데이터 완전 삭제 (캐시 누적 방지)
+      const clearRequest = store.clear();
+      clearRequest.onsuccess = () => {
+        console.log('🗑️ 기존 데이터 완전 삭제 완료 (캐시 누적 방지)');
         
-        // 해당 날짜가 아닌 데이터만 필터링
-        const otherDatesData = allData.filter(item => {
-          const itemDate = item.collectionDate || item.uploadDate;
-          return itemDate !== targetDate;
-        });
+        let completed = 0;
+        const total = dateData.length;
         
-        // 새로운 데이터와 기존 데이터를 합침
-        const finalData = [...otherDatesData, ...dateData];
-        
-        // 기존 데이터를 모두 삭제하고 새로운 데이터로 교체
-        const clearRequest = store.clear();
-        clearRequest.onsuccess = () => {
-          let completed = 0;
-          const total = finalData.length;
-          
-          if (total === 0) {
-            console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정`);
-            resolve();
-            return;
-          }
+        if (total === 0) {
+          console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: 데이터 없음`);
+          resolve();
+          return;
+        }
 
-          finalData.forEach((item, index) => {
-            // id가 없는 경우 자동 생성
-            if (!item.id) {
-              item.id = Date.now() + index;
+        // 새로운 데이터만 저장 (가장 최근 데이터)
+        dateData.forEach((item, index) => {
+          // id가 없는 경우 자동 생성
+          if (!item.id) {
+            item.id = Date.now() + index;
+          }
+          const putRequest = store.put(item);
+          putRequest.onsuccess = () => {
+            completed++;
+            if (completed === total) {
+              console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 저장 (캐시 초기화됨)`);
+              resolve();
             }
-            const putRequest = store.put(item);
-            putRequest.onsuccess = () => {
-              completed++;
-              if (completed === total) {
-                console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정`);
-                resolve();
-              }
-            };
-            putRequest.onerror = () => reject(putRequest.error);
-          });
-        };
-        clearRequest.onerror = () => reject(clearRequest.error);
+          };
+          putRequest.onerror = () => {
+            console.error('❌ 데이터 저장 실패:', putRequest.error);
+            reject(putRequest.error);
+          };
+        });
       };
-      loadRequest.onerror = () => reject(loadRequest.error);
+      clearRequest.onerror = () => {
+        console.error('❌ 데이터 삭제 실패:', clearRequest.error);
+        reject(clearRequest.error);
+      };
     });
   }
 
