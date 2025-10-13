@@ -174,24 +174,39 @@ class IndexedDBService {
 
     console.log(`🔄 백업 복원 시작: ${data.length}개 항목`);
     
-    // 1. 비동기 준비: 날짜 키 단일화 (KST yyyy-MM-dd)
-    const normalizedData = data.map(item => {
-      const dayKeyLocal = this.normalizeDayKey(item.dayKeyLocal || item.collectionDate || item.uploadDate);
-      return {
-        ...item,
-        dayKeyLocal,
-        // ID 보장
-        id: item.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`
-      };
-    });
+    // 1. 비동기 준비: 날짜 키 단일화 (KST yyyy-MM-dd) 및 유효성 검증
+    const normalizedData = data
+      .filter(item => {
+        // videoId가 없는 항목 제외
+        if (!item.videoId) {
+          console.warn('❌ videoId가 없는 항목 제외:', item);
+          return false;
+        }
+        return true;
+      })
+      .map(item => {
+        const dayKeyLocal = this.normalizeDayKey(item.dayKeyLocal || item.collectionDate || item.uploadDate);
+        return {
+          ...item,
+          dayKeyLocal,
+          // ID 보장
+          id: item.id || `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${Math.random().toString(36).substr(2, 9)}`
+        };
+      });
     
     console.log(`✅ 날짜 키 단일화 완료: ${normalizedData.length}개 항목`);
     
-    // 2. 중복 제거 처리
+    // 2. 중복 제거 처리 (강화된 로직)
     const uniqueItems = new Map<string, any>();
     
     // 중복 제거: (videoId, dayKeyLocal) 조합으로 유니크하게 만들기
     normalizedData.forEach(item => {
+      // videoId와 dayKeyLocal이 모두 존재하는지 재확인
+      if (!item.videoId || !item.dayKeyLocal) {
+        console.warn('❌ 필수 필드가 없는 항목 제외:', { videoId: item.videoId, dayKeyLocal: item.dayKeyLocal });
+        return;
+      }
+      
       const key = `${item.videoId}|${item.dayKeyLocal}`;
       if (uniqueItems.has(key)) {
         // 기존 항목과 병합 (최대값 보존)
@@ -207,6 +222,7 @@ class IndexedDBService {
           subCategory: item.subCategory || existing.subCategory
         };
         uniqueItems.set(key, merged);
+        console.log(`🔄 중복 항목 병합: ${key} (조회수: ${existing.viewCount} → ${merged.viewCount})`);
       } else {
         uniqueItems.set(key, item);
       }
@@ -487,6 +503,17 @@ class IndexedDBService {
       return Promise.reject(new Error('Data must be an array'));
     }
     
+    // 유효한 데이터만 필터링 (ID가 있는 항목만)
+    const validData = data.filter(item => {
+      if (!item.id) {
+        console.warn('❌ ID가 없는 분류 데이터 제외:', item);
+        return false;
+      }
+      return true;
+    });
+    
+    console.log(`📊 분류 데이터 저장: ${data.length}개 → ${validData.length}개 (유효한 데이터)`);
+    
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
       const store = transaction.objectStore('classifiedData');
@@ -496,14 +523,14 @@ class IndexedDBService {
       clearRequest.onsuccess = () => {
         // 새 데이터 추가
         let completed = 0;
-        const total = data.length;
+        const total = validData.length;
         
         if (total === 0) {
           resolve();
           return;
         }
 
-        data.forEach((item) => {
+        validData.forEach((item) => {
           const putRequest = store.put(item);
           putRequest.onsuccess = () => {
             completed++;
