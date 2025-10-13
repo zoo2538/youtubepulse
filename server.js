@@ -700,7 +700,7 @@ app.get('/api/classified', async (req, res) => {
     const { date } = req.query;
     const client = await pool.connect();
     
-    // unclassified_data 테이블에서 status='classified'인 데이터 조회
+    // unclassified_data 테이블에서 status='classified'이고 collection_type='manual'인 데이터 조회
     let query = `
       SELECT 
         id,
@@ -723,7 +723,7 @@ app.get('/api/classified', async (req, res) => {
         created_at as "createdAt",
         updated_at as "updatedAt"
       FROM unclassified_data
-      WHERE status = 'classified'
+      WHERE status = 'classified' AND (collection_type = 'manual' OR collection_type IS NULL)
     `;
     
     const params = [];
