@@ -139,53 +139,37 @@ const CategoryChannelRanking = () => {
           console.log(`📊 카테고리 동영상 순위 - 사용할 데이터 샘플:`, dateFilteredData.slice(0, 3));
           
 
-          // 채널별로 조회수 집계
-          const channelGroups: any = {};
+          // 같은 영상(videoId) 중에서 조회수가 가장 높은 것만 선택
+          const videoGroups: any = {};
           dateFilteredData.forEach((item: any) => {
-            if (!item.channelId) return;
+            const videoId = item.videoId || item.id;
+            if (!videoId) return;
             
-            if (!channelGroups[item.channelId]) {
-              channelGroups[item.channelId] = {
-                channelId: item.channelId,
-                channelName: item.channelName,
-                category: item.category,
-                subCategory: item.subCategory,
-                todayViews: 0,
-                videos: [],
-                topVideo: null
-              };
-            }
-            
-            channelGroups[item.channelId].todayViews += item.viewCount || 0;
-            channelGroups[item.channelId].videos.push(item);
-            
-            // 가장 조회수가 높은 영상을 대표 영상으로 설정
-            if (!channelGroups[item.channelId].topVideo || 
-                (item.viewCount || 0) > (channelGroups[item.channelId].topVideo.viewCount || 0)) {
-              channelGroups[item.channelId].topVideo = item;
+            // 해당 영상의 첫 번째 데이터이거나, 현재 데이터의 조회수가 더 높으면 업데이트
+            if (!videoGroups[videoId] || 
+                (item.viewCount || 0) > (videoGroups[videoId].viewCount || 0)) {
+              videoGroups[videoId] = item;
             }
           });
 
-          // 채널별 데이터로 변환하고 조회수 순으로 정렬
-          const channelArray = Object.values(channelGroups)
-            .map((channel: any) => {
-              const topVideo = channel.topVideo;
-              const videoId = topVideo?.videoId || topVideo?.id;
+          // 중복 제거된 영상들을 배열로 변환하고 조회수 순으로 정렬
+          const channelArray = Object.values(videoGroups)
+            .map((item: any, index: number) => {
+              const videoId = item.videoId || item.id;
 
               return {
-                rank: 0, // 순위는 나중에 설정
-                thumbnail: topVideo?.thumbnailUrl || `https://via.placeholder.com/64x64?text=${channel.channelName?.charAt(0) || 'C'}`,
-                videoTitle: topVideo?.videoTitle || '제목 없음',
-                channelName: channel.channelName || '채널명 없음',
-                todayViews: channel.todayViews,
-                category: channel.category,
-                subCategory: channel.subCategory || '미분류',
-                channelId: channel.channelId,
+                rank: index + 1,
+                thumbnail: item.thumbnailUrl || `https://via.placeholder.com/64x64?text=${item.videoTitle?.substring(0, 2) || 'YT'}`,
+                videoTitle: item.videoTitle || '제목 없음',
+                channelName: item.channelName || '채널명 없음',
+                todayViews: item.viewCount || 0,
+                category: item.category,
+                subCategory: item.subCategory || '미분류',
+                channelId: item.channelId,
                 videoId: videoId,
                 topVideoUrl: videoId ? `https://www.youtube.com/watch?v=${videoId}` : '',
-                topVideoTitle: topVideo?.videoTitle || '',
-                description: topVideo?.description || topVideo?.videoDescription || '',
-                videoCount: channel.videos.length // 해당 채널의 영상 개수
+                topVideoTitle: item.videoTitle || '',
+                description: item.description || item.videoDescription || ''
               };
             })
             .sort((a, b) => b.todayViews - a.todayViews)
