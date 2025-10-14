@@ -119,6 +119,15 @@ const DataClassification = () => {
   const dynamicSubCategories = subCategories;
   const isAdmin = userRole === 'admin'; // 관리자 권한 확인
 
+  // 관리자 권한 확인 - 관리자가 아니면 대시보드로 리다이렉트
+  React.useEffect(() => {
+    if (!isAdmin && userRole) {
+      console.log('❌ 관리자 권한 없음 - 대시보드로 리다이렉트');
+      alert('⚠️ 관리자만 접근 가능한 페이지입니다.');
+      navigate('/dashboard');
+    }
+  }, [isAdmin, userRole, navigate]);
+
   const handleLogout = () => {
     logout(); // AuthContext의 logout이 이미 navigate를 처리함
   };

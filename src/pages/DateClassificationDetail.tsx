@@ -59,8 +59,8 @@ interface UnclassifiedData {
 const DateClassificationDetail = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { logout, userEmail } = useAuth();
-  const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
+  const { logout, userEmail, userRole } = useAuth();
+  const isAdmin = userRole === 'admin'; // 관리자 권한 확인
   
   const selectedDate = searchParams.get('date') || (() => {
     const now = new Date();
@@ -95,6 +95,15 @@ const DateClassificationDetail = () => {
     logout();
     navigate('/');
   };
+
+  // 관리자 권한 확인 - 관리자가 아니면 대시보드로 리다이렉트
+  React.useEffect(() => {
+    if (!isAdmin && userRole) {
+      console.log('❌ 관리자 권한 없음 - 대시보드로 리다이렉트');
+      alert('⚠️ 관리자만 접근 가능한 페이지입니다.');
+      navigate('/dashboard');
+    }
+  }, [isAdmin, userRole, navigate]);
 
   // 카테고리 데이터 로드
   // 하드코딩된 카테고리 사용 (동적 로딩 제거)
