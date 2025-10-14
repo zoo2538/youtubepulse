@@ -2388,10 +2388,11 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌏 서버 타임존: Asia/Seoul`);
   console.log('='.repeat(80));
   
-  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
+  // 자동 수집 cron job 설정 (매일 10:00 KST - 당일 데이터로 저장)
   // cron 표현식: '분 시 일 월 요일'
-  // '0 9 * * *' = 매일 09:00 (오전 9시)
-  const cronJob = cron.schedule('0 9 * * *', async () => {
+  // '0 10 * * *' = 매일 10:00 (오전 10시)
+  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 10시에 실행
+  const cronJob = cron.schedule('0 10 * * *', async () => {
     const executeTime = new Date();
     console.log('\n' + '='.repeat(80));
     console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
@@ -2419,13 +2420,13 @@ app.listen(PORT, '0.0.0.0', () => {
   // 다음 실행 시간 계산
   const now = new Date();
   const nextRun = new Date(now);
-  nextRun.setHours(9, 0, 0, 0);
+  nextRun.setHours(10, 0, 0, 0);
   if (nextRun <= now) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
   
   console.log('\n📋 크론잡 설정 정보:');
-  console.log(`   - 스케줄: 매일 09:00 KST`);
+  console.log(`   - 스케줄: 매일 10:00 KST (할당량 초기화 1시간 후)`);
   console.log(`   - 타임존: Asia/Seoul`);
   console.log(`   - 현재 시간 (KST): ${now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
