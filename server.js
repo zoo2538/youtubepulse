@@ -2377,9 +2377,55 @@ app.post('/api/backup/import', async (req, res) => {
 
 // 중복 라우트 제거됨 - 아래에 SPA 라우팅이 있음
 
+// 크론잡 실행 이력 저장 (메모리)
+const cronJobHistory = [];
+const MAX_HISTORY = 50; // 최대 50개 이력 저장
+
+function addCronHistory(status, message, error = null) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    timestampKST: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    status, // 'started', 'success', 'failed'
+    message,
+    error: error ? error.message : null
+  };
+  
+  cronJobHistory.unshift(entry);
+  
+  // 최대 개수 유지
+  if (cronJobHistory.length > MAX_HISTORY) {
+    cronJobHistory.pop();
+  }
+}
+
+// 크론잡 실행 이력 조회 API
+app.get('/api/cron/history', (req, res) => {
+  const now = new Date();
+  const nextRun = new Date(now);
+  nextRun.setHours(10, 0, 0, 0);
+  if (nextRun <= now) {
+    nextRun.setDate(nextRun.getDate() + 1);
+  }
+  
+  res.json({
+    success: true,
+    serverStartTime: global.serverStartTime || new Date().toISOString(),
+    cronSchedule: '매일 10:00 KST',
+    currentTime: now.toISOString(),
+    currentTimeKST: now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    nextRun: nextRun.toISOString(),
+    nextRunKST: nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    historyCount: cronJobHistory.length,
+    history: cronJobHistory.slice(0, 20) // 최근 20개만 반환
+  });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  // 서버 시작 시간 저장
+  global.serverStartTime = startTime.toISOString();
   
   console.log('='.repeat(80));
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
@@ -2401,16 +2447,22 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('📅 당일(오늘) 데이터로 저장됩니다');
     console.log('='.repeat(80) + '\n');
     
+    // 이력 기록: 시작
+    addCronHistory('started', '자동 수집 시작');
+    
     try {
       const result = await autoCollectData();
       if (result) {
         console.log('\n✅ [크론잡] 자동 수집 완료 성공!');
+        addCronHistory('success', '자동 수집 완료 성공');
       } else {
         console.log('\n⚠️ [크론잡] 자동 수집 실패 (false 반환)');
+        addCronHistory('failed', '자동 수집 실패 (false 반환)');
       }
     } catch (error) {
       console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
       console.error('❌ [크론잡] 오류 스택:', error.stack);
+      addCronHistory('failed', '자동 수집 중 오류 발생', error);
     }
   }, {
     timezone: 'Asia/Seoul',
