@@ -1065,23 +1065,38 @@ app.post('/api/data/cleanup', async (req, res) => {
     
     const client = await pool.connect();
     
-    // classification_data 테이블에서 오래된 데이터 삭제
-    const result = await client.query(`
+    // 1. unclassified_data 테이블에서 오래된 데이터 삭제
+    const unclassifiedResult = await client.query(`
+      DELETE FROM unclassified_data
+      WHERE day_key_local < $1
+      RETURNING video_id
+    `, [cutoffDateString]);
+    
+    const unclassifiedDeletedCount = unclassifiedResult.rowCount || 0;
+    console.log(`🗑️ unclassified_data 테이블: ${unclassifiedDeletedCount}개 삭제`);
+    
+    // 2. classification_data 테이블에서 오래된 데이터 삭제
+    const classificationResult = await client.query(`
       DELETE FROM classification_data
       WHERE (data->>'collectionDate')::date < $1
          OR (data->>'uploadDate')::date < $1
       RETURNING data_type
     `, [cutoffDateString]);
     
+    const classificationDeletedCount = classificationResult.rowCount || 0;
+    console.log(`🗑️ classification_data 테이블: ${classificationDeletedCount}개 삭제`);
+    
     client.release();
     
-    const deletedCount = result.rowCount || 0;
-    console.log(`✅ ${deletedCount}개의 오래된 데이터 삭제 완료`);
+    const totalDeletedCount = unclassifiedDeletedCount + classificationDeletedCount;
+    console.log(`✅ 총 ${totalDeletedCount}개의 오래된 데이터 삭제 완료`);
     
     res.json({ 
       success: true, 
-      message: `${deletedCount}개의 오래된 데이터를 삭제했습니다.`,
-      deletedCount,
+      message: `${totalDeletedCount}개의 오래된 데이터를 삭제했습니다.`,
+      deletedCount: totalDeletedCount,
+      unclassifiedDeleted: unclassifiedDeletedCount,
+      classificationDeleted: classificationDeletedCount,
       cutoffDate: cutoffDateString
     });
   } catch (error) {
@@ -3090,24 +3105,39 @@ async function autoCleanupOldData() {
     
     const client = await pool.connect();
     
-    // classification_data 테이블에서 오래된 데이터 삭제
-    const result = await client.query(`
+    // 1. unclassified_data 테이블에서 오래된 데이터 삭제
+    const unclassifiedResult = await client.query(`
+      DELETE FROM unclassified_data
+      WHERE day_key_local < $1
+      RETURNING video_id
+    `, [cutoffDateString]);
+    
+    const unclassifiedDeletedCount = unclassifiedResult.rowCount || 0;
+    console.log(`🗑️ unclassified_data 테이블: ${unclassifiedDeletedCount}개 삭제`);
+    
+    // 2. classification_data 테이블에서 오래된 데이터 삭제
+    const classificationResult = await client.query(`
       DELETE FROM classification_data
       WHERE (data->>'collectionDate')::date < $1
          OR (data->>'uploadDate')::date < $1
       RETURNING data_type, data->>'id' as id
     `, [cutoffDateString]);
     
+    const classificationDeletedCount = classificationResult.rowCount || 0;
+    console.log(`🗑️ classification_data 테이블: ${classificationDeletedCount}개 삭제`);
+    
     client.release();
     
-    const deletedCount = result.rowCount || 0;
+    const totalDeletedCount = unclassifiedDeletedCount + classificationDeletedCount;
     
     console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`🗑️ 자동 정리 완료: ${deletedCount}개 삭제`);
+    console.log(`🗑️ 자동 정리 완료: 총 ${totalDeletedCount}개 삭제`);
+    console.log(`🗑️   - unclassified_data: ${unclassifiedDeletedCount}개`);
+    console.log(`🗑️   - classification_data: ${classificationDeletedCount}개`);
     console.log(`🗑️ 시간: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
     console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
-    return deletedCount;
+    return totalDeletedCount;
   } catch (error) {
     console.error('❌ 자동 데이터 정리 실패:', error);
     return 0;
