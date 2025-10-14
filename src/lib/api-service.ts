@@ -59,6 +59,14 @@ class ApiService {
       }
 
       const data = await response.json();
+      
+      // 서버가 이미 { success, data } 형식으로 반환하는 경우 그대로 반환
+      if (data && typeof data === 'object' && 'success' in data && 'data' in data) {
+        console.log('📦 서버 응답이 이미 표준 형식:', { success: data.success, dataLength: data.data?.length });
+        return data;
+      }
+      
+      // 그렇지 않으면 래핑
       return { success: true, data };
     } catch (error) {
       console.error('API 요청 실패:', error);
