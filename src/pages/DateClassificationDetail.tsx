@@ -140,17 +140,28 @@ const DateClassificationDetail = () => {
                 console.log(`✅ 서버에서 자동수집 데이터 로드 (${selectedDate}):`, allData.length, '개');
               }
             }
-          } else {
-            // 일반 데이터 (수동수집/전체) - classification_data 테이블 사용하여 일관성 보장
-            console.log('📊 일반 데이터 - classified API 사용 (classification_data 테이블)...');
+          } else if (collectionType === 'manual') {
+            // 수동수집 데이터 - classified API 사용 (collection_type='manual' 필터링)
+            console.log('📊 수동수집 데이터 - classified API 사용...');
             const response = await fetch(`https://api.youthbepulse.com/api/classified?date=${selectedDate}`);
             if (response.ok) {
               const serverData = await response.json();
               if (serverData.success && serverData.data && serverData.data.length > 0) {
-                // 서버에서 이미 날짜별로 필터링된 데이터 사용 (중복 필터링 방지)
                 allData = serverData.data;
-                dataSource = 'server-classified';
-                console.log('✅ 서버에서 classified 데이터 로드 (classification_data 테이블, 날짜별 필터링됨):', allData.length, '개');
+                dataSource = 'server-manual';
+                console.log('✅ 서버에서 수동수집 데이터 로드:', allData.length, '개');
+              }
+            }
+          } else if (collectionType === 'total') {
+            // 전체 데이터 - unclassified_data 테이블에서 날짜별로 조회
+            console.log('📊 전체 데이터 - unclassified_data 테이블 사용...');
+            const response = await fetch(`https://api.youthbepulse.com/api/unclassified-by-date?date=${selectedDate}`);
+            if (response.ok) {
+              const serverData = await response.json();
+              if (serverData.success && serverData.data && serverData.data.length > 0) {
+                allData = serverData.data;
+                dataSource = 'server-total';
+                console.log('✅ 서버에서 전체 데이터 로드 (수동+자동):', allData.length, '개');
               }
             }
           }

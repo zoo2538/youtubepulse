@@ -751,10 +751,70 @@ app.get('/api/classified', async (req, res) => {
       console.log(`📅 날짜 (${date}): ${data.length}개`);
     }
     
-    res.json(data);
+    res.json({ success: true, data });
   } catch (error) {
     console.error('분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get classified data' });
+  }
+});
+
+// 날짜별 전체 데이터 조회 (수동+자동)
+app.get('/api/unclassified-by-date', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { date } = req.query;
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter is required' });
+    }
+    
+    const client = await pool.connect();
+    
+    // unclassified_data 테이블에서 해당 날짜의 모든 데이터 조회 (수동+자동)
+    const query = `
+      SELECT 
+        id,
+        video_id as "videoId",
+        channel_id as "channelId",
+        channel_name as "channelName",
+        video_title as "videoTitle",
+        video_description as "videoDescription",
+        view_count as "viewCount",
+        like_count as "likeCount",
+        comment_count as "commentCount",
+        upload_date as "uploadDate",
+        collection_date as "collectionDate",
+        thumbnail_url as "thumbnailUrl",
+        category,
+        sub_category as "subCategory",
+        status,
+        day_key_local as "dayKeyLocal",
+        collection_type as "collectionType",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      FROM unclassified_data
+      WHERE day_key_local = $1
+      ORDER BY view_count DESC
+    `;
+    
+    const result = await client.query(query, [date]);
+    client.release();
+    
+    // collectionType 기본값 설정
+    const data = result.rows.map(item => ({
+      ...item,
+      collectionType: item.collectionType || 'manual'
+    }));
+    
+    console.log(`📊 날짜별 전체 데이터 조회 (${date}): ${data.length}개`);
+    
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('날짜별 전체 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get data by date' });
   }
 });
 
