@@ -569,43 +569,64 @@ class IndexedDBService {
       const transaction = this.db!.transaction(['classifiedData'], 'readwrite');
       const store = transaction.objectStore('classifiedData');
       
-      // 기존 데이터 완전 삭제 (캐시 누적 방지)
-      const clearRequest = store.clear();
-      clearRequest.onsuccess = () => {
-        console.log('🗑️ 기존 분류 데이터 완전 삭제 완료 (캐시 누적 방지)');
+      // 1. 전체 데이터 로드
+      const getAllRequest = store.getAll();
+      getAllRequest.onsuccess = () => {
+        const allData = getAllRequest.result;
+        console.log(`📊 IndexedDB 전체 분류 데이터: ${allData.length}개`);
         
-        let completed = 0;
-        const total = dateData.length;
-        
-        if (total === 0) {
-          console.log(`✅ ${targetDate} 분류 데이터 업데이트 완료: 데이터 없음`);
-          resolve();
-          return;
-        }
-
-        // 새로운 데이터만 저장 (가장 최근 데이터)
-        dateData.forEach((item, index) => {
-          // id가 없는 경우 자동 생성
-          if (!item.id) {
-            item.id = Date.now() + index;
-          }
-          const putRequest = store.put(item);
-          putRequest.onsuccess = () => {
-            completed++;
-            if (completed === total) {
-              console.log(`✅ ${targetDate} 분류 데이터 업데이트 완료: ${dateData.length}개 저장 (캐시 초기화됨)`);
-              resolve();
-            }
-          };
-          putRequest.onerror = () => {
-            console.error('❌ 분류 데이터 저장 실패:', putRequest.error);
-            reject(putRequest.error);
-          };
+        // 2. 해당 날짜가 아닌 데이터만 필터링 (다른 날짜 데이터 보존)
+        const otherDatesData = allData.filter(item => {
+          const itemDate = (item.dayKeyLocal || item.collectionDate || item.uploadDate || '').split('T')[0];
+          return itemDate !== targetDate;
         });
+        console.log(`📊 다른 날짜 분류 데이터: ${otherDatesData.length}개`);
+        
+        // 3. 다른 날짜 데이터 + 새 날짜 데이터 병합
+        const mergedData = [...otherDatesData, ...dateData];
+        console.log(`📊 병합 분류 데이터: ${mergedData.length}개 (다른 날짜: ${otherDatesData.length} + 새 날짜: ${dateData.length})`);
+        
+        // 4. 전체 삭제 후 병합 데이터 저장
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => {
+          console.log(`🗑️ 전체 삭제 완료, 병합 분류 데이터 저장 시작`);
+          
+          let completed = 0;
+          const total = mergedData.length;
+          
+          if (total === 0) {
+            console.log(`✅ ${targetDate} 분류 데이터 업데이트 완료: 데이터 없음`);
+            resolve();
+            return;
+          }
+
+          mergedData.forEach((item, index) => {
+            // id가 없는 경우 자동 생성
+            if (!item.id) {
+              item.id = Date.now() + index;
+            }
+            const putRequest = store.put(item);
+            putRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                console.log(`✅ ${targetDate} 분류 데이터 업데이트 완료: ${dateData.length}개 추가/수정, 전체 ${mergedData.length}개 유지`);
+                resolve();
+              }
+            };
+            putRequest.onerror = () => {
+              console.error('❌ 분류 데이터 저장 실패:', putRequest.error);
+              reject(putRequest.error);
+            };
+          });
+        };
+        clearRequest.onerror = () => {
+          console.error('❌ 분류 데이터 삭제 실패:', clearRequest.error);
+          reject(clearRequest.error);
+        };
       };
-      clearRequest.onerror = () => {
-        console.error('❌ 분류 데이터 삭제 실패:', clearRequest.error);
-        reject(clearRequest.error);
+      getAllRequest.onerror = () => {
+        console.error('❌ 분류 데이터 로드 실패:', getAllRequest.error);
+        reject(getAllRequest.error);
       };
     });
   }
@@ -665,43 +686,64 @@ class IndexedDBService {
       const transaction = this.db!.transaction(['unclassifiedData'], 'readwrite');
       const store = transaction.objectStore('unclassifiedData');
       
-      // 기존 데이터 완전 삭제 (캐시 누적 방지)
-      const clearRequest = store.clear();
-      clearRequest.onsuccess = () => {
-        console.log('🗑️ 기존 데이터 완전 삭제 완료 (캐시 누적 방지)');
+      // 1. 전체 데이터 로드
+      const getAllRequest = store.getAll();
+      getAllRequest.onsuccess = () => {
+        const allData = getAllRequest.result;
+        console.log(`📊 IndexedDB 전체 데이터: ${allData.length}개`);
         
-        let completed = 0;
-        const total = dateData.length;
-        
-        if (total === 0) {
-          console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: 데이터 없음`);
-          resolve();
-          return;
-        }
-
-        // 새로운 데이터만 저장 (가장 최근 데이터)
-        dateData.forEach((item, index) => {
-          // id가 없는 경우 자동 생성
-          if (!item.id) {
-            item.id = Date.now() + index;
-          }
-          const putRequest = store.put(item);
-          putRequest.onsuccess = () => {
-            completed++;
-            if (completed === total) {
-              console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 저장 (캐시 초기화됨)`);
-              resolve();
-            }
-          };
-          putRequest.onerror = () => {
-            console.error('❌ 데이터 저장 실패:', putRequest.error);
-            reject(putRequest.error);
-          };
+        // 2. 해당 날짜가 아닌 데이터만 필터링 (다른 날짜 데이터 보존)
+        const otherDatesData = allData.filter(item => {
+          const itemDate = (item.dayKeyLocal || item.collectionDate || item.uploadDate || '').split('T')[0];
+          return itemDate !== targetDate;
         });
+        console.log(`📊 다른 날짜 데이터: ${otherDatesData.length}개`);
+        
+        // 3. 다른 날짜 데이터 + 새 날짜 데이터 병합
+        const mergedData = [...otherDatesData, ...dateData];
+        console.log(`📊 병합 데이터: ${mergedData.length}개 (다른 날짜: ${otherDatesData.length} + 새 날짜: ${dateData.length})`);
+        
+        // 4. 전체 삭제 후 병합 데이터 저장
+        const clearRequest = store.clear();
+        clearRequest.onsuccess = () => {
+          console.log(`🗑️ 전체 삭제 완료, 병합 데이터 저장 시작`);
+          
+          let completed = 0;
+          const total = mergedData.length;
+          
+          if (total === 0) {
+            console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: 데이터 없음`);
+            resolve();
+            return;
+          }
+
+          mergedData.forEach((item, index) => {
+            // id가 없는 경우 자동 생성
+            if (!item.id) {
+              item.id = Date.now() + index;
+            }
+            const putRequest = store.put(item);
+            putRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                console.log(`✅ ${targetDate} 날짜 데이터 업데이트 완료: ${dateData.length}개 추가/수정, 전체 ${mergedData.length}개 유지`);
+                resolve();
+              }
+            };
+            putRequest.onerror = () => {
+              console.error('❌ 데이터 저장 실패:', putRequest.error);
+              reject(putRequest.error);
+            };
+          });
+        };
+        clearRequest.onerror = () => {
+          console.error('❌ 데이터 삭제 실패:', clearRequest.error);
+          reject(clearRequest.error);
+        };
       };
-      clearRequest.onerror = () => {
-        console.error('❌ 데이터 삭제 실패:', clearRequest.error);
-        reject(clearRequest.error);
+      getAllRequest.onerror = () => {
+        console.error('❌ 데이터 로드 실패:', getAllRequest.error);
+        reject(getAllRequest.error);
       };
     });
   }
