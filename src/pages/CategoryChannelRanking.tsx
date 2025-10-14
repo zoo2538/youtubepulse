@@ -102,38 +102,33 @@ const CategoryChannelRanking = () => {
           });
           console.log(`📊 카테고리별 데이터 개수:`, categoryCounts);
           
-          // 가장 최근 수집 날짜 찾기
-          let latestDate: Date | null = null;
-          filteredData.forEach((item: any) => {
+          // 최근 7일 날짜 범위 계산
+          const today = new Date();
+          const sevenDaysAgo = new Date(today);
+          sevenDaysAgo.setDate(today.getDate() - 7);
+          const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+          
+          console.log(`📅 최근 7일 범위: ${sevenDaysAgoString} ~ 현재`);
+          
+          // 최근 7일 데이터만 필터링
+          const last7DaysData = filteredData.filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
-            if (!itemDate) return;
+            if (!itemDate) return false;
             
-            const currentDate = new Date(itemDate);
-            if (!latestDate || currentDate > latestDate) {
-              latestDate = currentDate;
-            }
+            const itemDateString = itemDate.split('T')[0];
+            return itemDateString >= sevenDaysAgoString;
           });
           
-          if (!latestDate) {
-            console.log('📅 수집된 데이터가 없습니다.');
+          console.log(`📊 최근 7일 데이터: ${filteredData.length}개 → ${last7DaysData.length}개`);
+          
+          if (last7DaysData.length === 0) {
+            console.log('📅 최근 7일 데이터가 없습니다.');
             setChannelData([]);
             setFilteredChannelData([]);
             return;
           }
           
-          const latestDateString = latestDate.toISOString().split('T')[0];
-          console.log(`📅 가장 최근 수집 날짜: ${latestDateString}`);
-          
-          // 가장 최근 날짜의 데이터만 필터링
-          const latestData = filteredData.filter((item: any) => {
-            const itemDate = item.collectionDate || item.uploadDate;
-            if (!itemDate) return false;
-            
-            const itemDateString = itemDate.split('T')[0];
-            return itemDateString === latestDateString;
-          });
-          
-          console.log(`📊 가장 최근 날짜 데이터: ${filteredData.length}개 → ${latestData.length}개`);
+          const latestData = last7DaysData;
           
           // 같은 영상(videoId) 중에서 조회수가 가장 높은 것만 선택
           const videoGroups: any = {};
@@ -353,7 +348,7 @@ const CategoryChannelRanking = () => {
                 </div>
                 
                 <div className="text-sm text-muted-foreground">
-                  {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중) • 가장 최근 수집 데이터만 표시
+                  {filteredChannelData.length}개 표시 (전체 {channelData.length}개 중) • 최근 7일 데이터 (조회수 최대값 기준)
                 </div>
               </div>
             </div>
