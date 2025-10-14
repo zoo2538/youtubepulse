@@ -15,13 +15,32 @@ export async function postLoginSync({ api, idb, lastSyncAt }: PostLoginSyncConte
   try {
     console.log('🔄 로그인 후 하이브리드 동기화 시작...');
     
-    // 1. 로컬→서버 업로드 큐 재생
-    console.log('[1/3] 로컬→서버 업로드 큐 재생...');
+    // 1. 서버에서 분류 완료 데이터 전체 로드 (IndexedDB 캐시 갱신)
+    console.log('[1/4] 서버→로컬 분류 데이터 전체 로드...');
+    let classifiedLoaded = 0;
+    try {
+      const classifiedResponse = await api.get('/api/classified');
+      if (classifiedResponse.success && classifiedResponse.data && Array.isArray(classifiedResponse.data)) {
+        console.log(`📦 서버에서 분류 데이터 로드: ${classifiedResponse.data.length}개`);
+        classifiedLoaded = classifiedResponse.data.length;
+        
+        // IndexedDB에 저장 (캐시 갱신)
+        await idb.saveClassifiedData(classifiedResponse.data);
+        console.log('✅ IndexedDB 분류 데이터 캐시 갱신 완료');
+      } else {
+        console.warn('⚠️ 서버 분류 데이터 없음 또는 형식 오류');
+      }
+    } catch (classifiedError) {
+      console.error('❌ 분류 데이터 로드 실패:', classifiedError);
+    }
+    
+    // 2. 로컬→서버 업로드 큐 재생
+    console.log('[2/4] 로컬→서버 업로드 큐 재생...');
     const uploadResult = await hybridSyncService.performFullSync();
     console.log('✅ 업로드 큐 재생 완료:', uploadResult);
     
-    // 2. 서버→로컬 증분 동기화
-    console.log('[2/3] 서버→로컬 증분 동기화...');
+    // 3. 서버→로컬 증분 동기화
+    console.log('[3/4] 서버→로컬 증분 동기화...');
     const since = lastSyncAt ?? new Date(Date.now() - 24 * 3600 * 1000).toISOString();
     const delta = await api.get(`/api/sync/download?since=${since}`);
     
@@ -33,8 +52,8 @@ export async function postLoginSync({ api, idb, lastSyncAt }: PostLoginSyncConte
       console.log('📊 서버 증분 동기화: 변경사항 없음');
     }
     
-    // 3. 동기화 완료 상태 업데이트
-    console.log('[3/3] 동기화 상태 업데이트...');
+    // 4. 동기화 완료 상태 업데이트
+    console.log('[4/4] 동기화 상태 업데이트...');
     const syncedAt = new Date().toISOString();
     await idb.saveSystemConfig('lastSyncAt', syncedAt);
     
@@ -43,7 +62,8 @@ export async function postLoginSync({ api, idb, lastSyncAt }: PostLoginSyncConte
       success: true, 
       syncedAt,
       uploaded: uploadResult.uploaded || 0,
-      downloaded: delta?.items?.length || 0
+      downloaded: delta?.items?.length || 0,
+      classifiedLoaded
     };
     
   } catch (error) {

@@ -751,6 +751,7 @@ app.get('/api/classified', async (req, res) => {
       console.log(`📅 날짜 (${date}): ${data.length}개`);
     }
     
+    // 응답 형식: { success: true, data: [] }로 통일
     res.json({ success: true, data });
   } catch (error) {
     console.error('분류 데이터 조회 실패:', error);
