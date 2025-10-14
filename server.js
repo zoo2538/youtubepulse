@@ -758,7 +758,7 @@ app.get('/api/classified', async (req, res) => {
   }
 });
 
-// 날짜별 전체 데이터 조회 (수동+자동)
+// 날짜별 전체 데이터 조회 (수동+자동, 분류+미분류 모두)
 app.get('/api/unclassified-by-date', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });
@@ -773,7 +773,7 @@ app.get('/api/unclassified-by-date', async (req, res) => {
     
     const client = await pool.connect();
     
-    // unclassified_data 테이블에서 해당 날짜의 모든 데이터 조회 (수동+자동)
+    // unclassified_data 테이블에서 해당 날짜의 모든 데이터 조회 (status, collection_type 필터 없음)
     const query = `
       SELECT 
         id,
@@ -809,7 +809,11 @@ app.get('/api/unclassified-by-date', async (req, res) => {
       collectionType: item.collectionType || 'manual'
     }));
     
-    console.log(`📊 날짜별 전체 데이터 조회 (${date}): ${data.length}개`);
+    console.log(`📊 날짜별 전체 데이터 조회 (${date}): ${data.length}개 (분류+미분류 모두 포함)`);
+    console.log(`   - status='classified': ${data.filter(item => item.status === 'classified').length}개`);
+    console.log(`   - status='unclassified': ${data.filter(item => item.status === 'unclassified').length}개`);
+    console.log(`   - collection_type='auto': ${data.filter(item => item.collectionType === 'auto').length}개`);
+    console.log(`   - collection_type='manual': ${data.filter(item => item.collectionType === 'manual').length}개`);
     
     res.json({ success: true, data });
   } catch (error) {
