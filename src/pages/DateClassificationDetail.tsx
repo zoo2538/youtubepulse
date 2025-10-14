@@ -74,6 +74,7 @@ const DateClassificationDetail = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [selectedRow, setSelectedRow] = useState<number | null>(null); // 클릭한 행 추적
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
   const [showBulkActions, setShowBulkActions] = useState<boolean>(false);
@@ -1366,8 +1367,16 @@ const DateClassificationDetail = () => {
               </thead>
               <tbody>
                 {currentData.map((item) => (
-                  <tr key={item.id} className="border-b">
-                    <TableCell className="align-top py-3 w-12">
+                  <tr 
+                    key={item.id} 
+                    className={`border-b cursor-pointer transition-colors ${
+                      selectedRow === item.id || selectedItems.has(item.id)
+                        ? 'bg-blue-600/40 hover:bg-blue-500/50' 
+                        : 'hover:bg-gray-700/30'
+                    }`}
+                    onClick={() => setSelectedRow(item.id)}
+                  >
+                    <TableCell className="align-top py-3 w-12" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedItems.has(item.id)}
@@ -1448,7 +1457,7 @@ const DateClassificationDetail = () => {
                       </div>
                     </TableCell>
                     
-                    <TableCell className="align-top py-3">
+                    <TableCell className="align-top py-3" onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={item.category || ''}
                         onValueChange={(value) => updateItem(item.id, { 
@@ -1470,7 +1479,7 @@ const DateClassificationDetail = () => {
                       </Select>
                     </TableCell>
                     
-                    <TableCell className="align-top py-3">
+                    <TableCell className="align-top py-3" onClick={(e) => e.stopPropagation()}>
                       <Select
                         value={item.subCategory || ''}
                         onValueChange={(value) => {
