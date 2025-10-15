@@ -1845,50 +1845,10 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 (4페이지 = 200개) - YouTube API 실제 제공량
-    console.log('📺 1단계: 트렌드 영상 수집 중... (4페이지)');
+    // 1단계: 트렌드 영상 수집 - 키워드 검색만 사용하므로 비활성화
+    console.log('📺 1단계: 트렌드 영상 수집 건너뛰기 (키워드 검색만 사용)');
     let trendingVideos = [];
-    let nextPageToken = '';
-    
-    for (let page = 0; page < 4; page++) { // 4페이지 수집
-      const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
-      console.log(`📺 페이지 ${page + 1} 요청: ${trendingUrl.substring(0, 100)}...`);
-      
-      const response = await fetch(trendingUrl);
-      console.log(`📺 페이지 ${page + 1} 응답 상태: ${response.status}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`📺 페이지 ${page + 1} 응답 데이터: items=${data.items?.length || 0}, nextPageToken=${data.nextPageToken ? '있음' : '없음'}`);
-        
-        if (data.error) {
-          console.error(`❌ YouTube API 오류:`, data.error);
-          throw new Error(`YouTube API 오류: ${data.error.message}`);
-        }
-        
-        requestCount++;
-        if (data.items) {
-          trendingVideos = [...trendingVideos, ...data.items];
-          nextPageToken = data.nextPageToken;
-          if (!nextPageToken) break;
-        }
-      } else {
-        const errorText = await response.text();
-        console.error(`❌ YouTube API 요청 실패: ${response.status} - ${errorText}`);
-        throw new Error(`YouTube API 요청 실패: ${response.status}`);
-      }
-      
-      if (page < 4) await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    // 한글 필터링
-    const beforeFilter = trendingVideos.length;
-    trendingVideos = trendingVideos.filter(video => {
-      const title = video.snippet?.title || '';
-      const channelName = video.snippet?.channelTitle || '';
-      return /[가-힣]/.test(title) || /[가-힣]/.test(channelName);
-    });
-    console.log(`✅ 트렌드: ${beforeFilter}개 → ${trendingVideos.length}개 (한글 필터링)`);
+    console.log('✅ 트렌드: 건너뜀 (키워드 검색으로 충분한 데이터 확보)');
 
     // 2단계: 키워드 기반 영상 수집 (전체 75개 키워드 × 50개 = 최대 3,750개)
     console.log('🔍 2단계: 키워드 영상 수집 중... (75개 키워드 × 50개)');
