@@ -2509,11 +2509,12 @@ app.listen(PORT, '0.0.0.0', () => {
     scheduled: true
   });
   
-  // 다음 실행 시간 계산
+  // 다음 실행 시간 계산 (KST 기준)
   const now = new Date();
-  const nextRun = new Date(now);
+  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const nextRun = new Date(kstNow);
   nextRun.setHours(10, 0, 0, 0);
-  if (nextRun <= now) {
+  if (nextRun <= kstNow) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
   
