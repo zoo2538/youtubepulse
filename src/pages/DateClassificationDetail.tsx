@@ -174,9 +174,21 @@ const DateClassificationDetail = () => {
         if (allData.length === 0) {
           try {
             console.log('📊 서버에 데이터 없음, IndexedDB에서 시도...');
-            allData = await indexedDBService.loadUnclassifiedData();
+            const indexedDBData = await indexedDBService.loadUnclassifiedData();
+            
+            // IndexedDB 데이터도 수집 타입별로 필터링
+            if (collectionType === 'auto') {
+              allData = indexedDBData.filter(item => item.collectionType === 'auto');
+              console.log(`✅ IndexedDB에서 자동수집 데이터만 로드: ${allData.length}개 (전체: ${indexedDBData.length}개)`);
+            } else if (collectionType === 'manual') {
+              allData = indexedDBData.filter(item => !item.collectionType || item.collectionType === 'manual');
+              console.log(`✅ IndexedDB에서 수동수집 데이터만 로드: ${allData.length}개 (전체: ${indexedDBData.length}개)`);
+            } else {
+              allData = indexedDBData;
+              console.log('✅ IndexedDB에서 전체 데이터 로드:', allData.length, '개');
+            }
+            
             dataSource = 'indexeddb';
-            console.log('✅ IndexedDB에서 데이터 로드:', allData.length, '개');
           } catch (dbError) {
             console.error('❌ IndexedDB 로드 실패:', dbError);
             allData = [];
@@ -232,21 +244,15 @@ const DateClassificationDetail = () => {
           return false;
         });
 
-        // 수집 타입별 필터링 추가
+        // 수집 타입별 필터링 추가 (모든 데이터 소스에 대해 일관되게 적용)
         let typeFilteredData = filteredData;
         if (collectionType) {
           if (collectionType === 'manual') {
-            // 수동수집 데이터만 (collectionType이 없거나 'manual' 또는 undefined)
-            typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual' || item.collectionType === undefined);
+            // 수동수집 데이터만 (collectionType이 없거나 'manual')
+            typeFilteredData = filteredData.filter(item => !item.collectionType || item.collectionType === 'manual');
           } else if (collectionType === 'auto') {
-            // 자동수집 데이터만 (서버 데이터는 collectionType이 undefined)
-            if (dataSource === 'server-auto') {
-              // 서버 자동수집 데이터는 이미 필터링됨
-              typeFilteredData = filteredData;
-            } else {
-              // 로컬 데이터에서는 명시적으로 'auto'로 설정된 것만
-              typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
-            }
+            // 자동수집 데이터만 (collectionType === 'auto')
+            typeFilteredData = filteredData.filter(item => item.collectionType === 'auto');
           }
           // 'total'인 경우 모든 데이터 (필터링 없음)
           
