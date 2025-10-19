@@ -234,19 +234,6 @@ const System = () => {
     }
   };
 
-  // K푸드 → 요리/한식 마이그레이션 핸들러
-  const handleKFoodMigration = async () => {
-    if (window.confirm('기존 데이터의 "K푸드" 세부카테고리를 "요리/한식"으로 변경하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
-      try {
-        const { migrateKFoodToKoreanCooking } = await import('../lib/kfood-migration');
-        await migrateKFoodToKoreanCooking();
-        alert('K푸드 → 요리/한식 마이그레이션이 완료되었습니다!');
-      } catch (error) {
-        console.error('K푸드 마이그레이션 오류:', error);
-        alert('K푸드 마이그레이션 중 오류가 발생했습니다.');
-      }
-    }
-  };
 
   // API 설정 수동 불러오기 핸들러
   const handleReloadApiConfig = () => {
@@ -277,40 +264,6 @@ const System = () => {
     }
   };
 
-  // 세부카테고리 강제 새로고침 핸들러
-  const handleForceRefreshCategories = () => {
-    try {
-      // 브라우저 캐시 강제 삭제
-      if ('caches' in window) {
-        caches.keys().then(names => {
-          names.forEach(name => {
-            caches.delete(name);
-          });
-        });
-      }
-      
-      // localStorage에서 관련 캐시 삭제
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('category') || key.includes('subcategory'))) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => localStorage.removeItem(key));
-      
-      console.log('🔄 세부카테고리 강제 새로고침 완료');
-      alert('세부카테고리 캐시를 삭제했습니다! 페이지를 새로고침하세요.');
-      
-      // 2초 후 자동 새로고침
-      setTimeout(() => {
-        window.location.reload();
-      }, 2000);
-    } catch (error) {
-      console.error('세부카테고리 새로고침 오류:', error);
-      alert('세부카테고리 새로고침에 실패했습니다.');
-    }
-  };
 
   // 캐시 정리 핸들러
   const handleCacheCleanup = async () => {
@@ -1193,27 +1146,11 @@ const System = () => {
               </Link>
               <Button 
                 variant="outline" 
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-                onClick={handleKFoodMigration}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                K푸드 → 요리/한식
-              </Button>
-              <Button 
-                variant="outline" 
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={handleReloadApiConfig}
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 API 설정 불러오기
-              </Button>
-              <Button 
-                variant="outline" 
-                className="bg-purple-600 hover:bg-purple-700 text-white"
-                onClick={handleForceRefreshCategories}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                세부카테고리 새로고침
               </Button>
             </div>
           </div>
