@@ -89,6 +89,13 @@ const System = () => {
       customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
     });
     
+    // 디버깅: localStorage 값 직접 확인
+    console.log('🔍 localStorage 직접 확인:', {
+      youtubeApiKey: localStorage.getItem('youtubeApiKey'),
+      customApiKey: localStorage.getItem('customApiKey'),
+      customApiUrl: localStorage.getItem('customApiUrl')
+    });
+    
     return {
       youtubeApiKey: savedApiKey,
       youtubeApiEnabled: !!savedApiKey,
@@ -181,12 +188,20 @@ const System = () => {
   useEffect(() => {
     const saveApiConfig = () => {
       try {
+        console.log('💾 API 설정 자동 저장 중:', {
+          youtubeApiKey: apiConfig.youtubeApiKey ? '설정됨' : '미설정',
+          customApiKey: apiConfig.customApiKey ? '설정됨' : '미설정',
+          customApiUrl: apiConfig.customApiUrl
+        });
+        
         localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey || '');
         localStorage.setItem('customApiUrl', apiConfig.customApiUrl || '');
         localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
         localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
         localStorage.setItem('youtubeApiEnabled', apiConfig.youtubeApiEnabled.toString());
         localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
+        
+        console.log('✅ API 설정 저장 완료');
       } catch (error) {
         console.error('설정 자동 저장 오류:', error);
       }
@@ -216,6 +231,84 @@ const System = () => {
         console.error('데이터 정리 오류:', error);
         alert('데이터 정리 중 오류가 발생했습니다.');
       }
+    }
+  };
+
+  // K푸드 → 요리/한식 마이그레이션 핸들러
+  const handleKFoodMigration = async () => {
+    if (window.confirm('기존 데이터의 "K푸드" 세부카테고리를 "요리/한식"으로 변경하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+      try {
+        const { migrateKFoodToKoreanCooking } = await import('../lib/kfood-migration');
+        await migrateKFoodToKoreanCooking();
+        alert('K푸드 → 요리/한식 마이그레이션이 완료되었습니다!');
+      } catch (error) {
+        console.error('K푸드 마이그레이션 오류:', error);
+        alert('K푸드 마이그레이션 중 오류가 발생했습니다.');
+      }
+    }
+  };
+
+  // API 설정 수동 불러오기 핸들러
+  const handleReloadApiConfig = () => {
+    try {
+      const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
+      const savedCustomApiUrl = localStorage.getItem('customApiUrl') || 'https://api.youthbepulse.com';
+      const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
+      const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
+      const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
+      
+      setApiConfig({
+        youtubeApiKey: savedApiKey,
+        youtubeApiEnabled: savedYoutubeApiEnabled,
+        customApiUrl: savedCustomApiUrl,
+        customApiEnabled: savedCustomApiEnabled,
+        customApiKey: savedCustomApiKey
+      });
+      
+      console.log('🔄 API 설정 수동 불러오기 완료:', {
+        youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
+        customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
+      });
+      
+      alert('API 설정을 불러왔습니다!');
+    } catch (error) {
+      console.error('API 설정 불러오기 오류:', error);
+      alert('API 설정 불러오기에 실패했습니다.');
+    }
+  };
+
+  // 세부카테고리 강제 새로고침 핸들러
+  const handleForceRefreshCategories = () => {
+    try {
+      // 브라우저 캐시 강제 삭제
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => {
+            caches.delete(name);
+          });
+        });
+      }
+      
+      // localStorage에서 관련 캐시 삭제
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('category') || key.includes('subcategory'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      console.log('🔄 세부카테고리 강제 새로고침 완료');
+      alert('세부카테고리 캐시를 삭제했습니다! 페이지를 새로고침하세요.');
+      
+      // 2초 후 자동 새로고침
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (error) {
+      console.error('세부카테고리 새로고침 오류:', error);
+      alert('세부카테고리 새로고침에 실패했습니다.');
     }
   };
 
@@ -1098,6 +1191,30 @@ const System = () => {
                   데이터 분류 관리
                 </Button>
               </Link>
+              <Button 
+                variant="outline" 
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleKFoodMigration}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                K푸드 → 요리/한식
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={handleReloadApiConfig}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                API 설정 불러오기
+              </Button>
+              <Button 
+                variant="outline" 
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+                onClick={handleForceRefreshCategories}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                세부카테고리 새로고침
+              </Button>
             </div>
           </div>
 
