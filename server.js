@@ -2442,7 +2442,7 @@ function addCronHistory(status, message, error = null) {
 app.get('/api/cron/history', (req, res) => {
   const now = new Date();
   const nextRun = new Date(now);
-  nextRun.setHours(10, 0, 0, 0);
+  nextRun.setHours(9, 0, 0, 0);
   if (nextRun <= now) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
@@ -2450,7 +2450,7 @@ app.get('/api/cron/history', (req, res) => {
   res.json({
     success: true,
     serverStartTime: global.serverStartTime || new Date().toISOString(),
-    cronSchedule: '매일 10:00 KST',
+    cronSchedule: '매일 09:00 KST',
     currentTime: now.toISOString(),
     currentTimeKST: now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
     nextRun: nextRun.toISOString(),
@@ -2474,11 +2474,11 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌏 서버 타임존: Asia/Seoul`);
   console.log('='.repeat(80));
   
-  // 자동 수집 cron job 설정 (매일 10:00 KST - 당일 데이터로 저장)
+  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
   // cron 표현식: '분 시 일 월 요일'
-  // '0 10 * * *' = 매일 10:00 (오전 10시)
-  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 10시에 실행
-  const cronJob = cron.schedule('0 10 * * *', async () => {
+  // '0 9 * * *' = 매일 09:00 (오전 9시)
+  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 9시에 실행
+  const cronJob = cron.schedule('0 9 * * *', async () => {
     const executeTime = new Date();
     console.log('\n' + '='.repeat(80));
     console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
