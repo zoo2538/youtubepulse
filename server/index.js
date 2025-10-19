@@ -700,7 +700,7 @@ app.get('/api/classified', async (req, res) => {
     const { date } = req.query;
     const client = await pool.connect();
     
-    // unclassified_data 테이블에서 status='classified'인 데이터 조회
+    // unclassified_data 테이블에서 status='classified'이고 collection_type='manual'인 데이터 조회
     let query = `
       SELECT 
         id,
@@ -723,7 +723,7 @@ app.get('/api/classified', async (req, res) => {
         created_at as "createdAt",
         updated_at as "updatedAt"
       FROM unclassified_data
-      WHERE status = 'classified'
+      WHERE status = 'classified' AND (collection_type = 'manual' OR collection_type IS NULL)
     `;
     
     const params = [];
@@ -751,10 +751,75 @@ app.get('/api/classified', async (req, res) => {
       console.log(`📅 날짜 (${date}): ${data.length}개`);
     }
     
-    res.json(data);
+    // 응답 형식: { success: true, data: [] }로 통일
+    res.json({ success: true, data });
   } catch (error) {
     console.error('분류 데이터 조회 실패:', error);
     res.status(500).json({ error: 'Failed to get classified data' });
+  }
+});
+
+// 날짜별 전체 데이터 조회 (수동+자동, 분류+미분류 모두)
+app.get('/api/unclassified-by-date', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+  
+  try {
+    const { date } = req.query;
+    
+    if (!date) {
+      return res.status(400).json({ error: 'Date parameter is required' });
+    }
+    
+    const client = await pool.connect();
+    
+    // unclassified_data 테이블에서 해당 날짜의 모든 데이터 조회 (status, collection_type 필터 없음)
+    const query = `
+      SELECT 
+        id,
+        video_id as "videoId",
+        channel_id as "channelId",
+        channel_name as "channelName",
+        video_title as "videoTitle",
+        video_description as "videoDescription",
+        view_count as "viewCount",
+        like_count as "likeCount",
+        comment_count as "commentCount",
+        upload_date as "uploadDate",
+        collection_date as "collectionDate",
+        thumbnail_url as "thumbnailUrl",
+        category,
+        sub_category as "subCategory",
+        status,
+        day_key_local as "dayKeyLocal",
+        collection_type as "collectionType",
+        created_at as "createdAt",
+        updated_at as "updatedAt"
+      FROM unclassified_data
+      WHERE day_key_local = $1
+      ORDER BY view_count DESC
+    `;
+    
+    const result = await client.query(query, [date]);
+    client.release();
+    
+    // collectionType 기본값 설정
+    const data = result.rows.map(item => ({
+      ...item,
+      collectionType: item.collectionType || 'manual'
+    }));
+    
+    console.log(`📊 날짜별 전체 데이터 조회 (${date}): ${data.length}개 (분류+미분류 모두 포함)`);
+    console.log(`   - status='classified': ${data.filter(item => item.status === 'classified').length}개`);
+    console.log(`   - status='unclassified': ${data.filter(item => item.status === 'unclassified').length}개`);
+    console.log(`   - collection_type='auto': ${data.filter(item => item.collectionType === 'auto').length}개`);
+    console.log(`   - collection_type='manual': ${data.filter(item => item.collectionType === 'manual').length}개`);
+    
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('날짜별 전체 데이터 조회 실패:', error);
+    res.status(500).json({ error: 'Failed to get data by date' });
   }
 });
 
@@ -1000,23 +1065,38 @@ app.post('/api/data/cleanup', async (req, res) => {
     
     const client = await pool.connect();
     
-    // classification_data 테이블에서 오래된 데이터 삭제
-    const result = await client.query(`
+    // 1. unclassified_data 테이블에서 오래된 데이터 삭제
+    const unclassifiedResult = await client.query(`
+      DELETE FROM unclassified_data
+      WHERE day_key_local < $1
+      RETURNING video_id
+    `, [cutoffDateString]);
+    
+    const unclassifiedDeletedCount = unclassifiedResult.rowCount || 0;
+    console.log(`🗑️ unclassified_data 테이블: ${unclassifiedDeletedCount}개 삭제`);
+    
+    // 2. classification_data 테이블에서 오래된 데이터 삭제
+    const classificationResult = await client.query(`
       DELETE FROM classification_data
       WHERE (data->>'collectionDate')::date < $1
          OR (data->>'uploadDate')::date < $1
       RETURNING data_type
     `, [cutoffDateString]);
     
+    const classificationDeletedCount = classificationResult.rowCount || 0;
+    console.log(`🗑️ classification_data 테이블: ${classificationDeletedCount}개 삭제`);
+    
     client.release();
     
-    const deletedCount = result.rowCount || 0;
-    console.log(`✅ ${deletedCount}개의 오래된 데이터 삭제 완료`);
+    const totalDeletedCount = unclassifiedDeletedCount + classificationDeletedCount;
+    console.log(`✅ 총 ${totalDeletedCount}개의 오래된 데이터 삭제 완료`);
     
     res.json({ 
       success: true, 
-      message: `${deletedCount}개의 오래된 데이터를 삭제했습니다.`,
-      deletedCount,
+      message: `${totalDeletedCount}개의 오래된 데이터를 삭제했습니다.`,
+      deletedCount: totalDeletedCount,
+      unclassifiedDeleted: unclassifiedDeletedCount,
+      classificationDeleted: classificationDeletedCount,
       cutoffDate: cutoffDateString
     });
   } catch (error) {
@@ -1765,50 +1845,10 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 (4페이지 = 200개) - YouTube API 실제 제공량
-    console.log('📺 1단계: 트렌드 영상 수집 중... (4페이지)');
+    // 1단계: 트렌드 영상 수집 - 키워드 검색만 사용하므로 비활성화
+    console.log('📺 1단계: 트렌드 영상 수집 건너뛰기 (키워드 검색만 사용)');
     let trendingVideos = [];
-    let nextPageToken = '';
-    
-    for (let page = 0; page < 4; page++) { // 4페이지 수집
-      const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
-      console.log(`📺 페이지 ${page + 1} 요청: ${trendingUrl.substring(0, 100)}...`);
-      
-      const response = await fetch(trendingUrl);
-      console.log(`📺 페이지 ${page + 1} 응답 상태: ${response.status}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`📺 페이지 ${page + 1} 응답 데이터: items=${data.items?.length || 0}, nextPageToken=${data.nextPageToken ? '있음' : '없음'}`);
-        
-        if (data.error) {
-          console.error(`❌ YouTube API 오류:`, data.error);
-          throw new Error(`YouTube API 오류: ${data.error.message}`);
-        }
-        
-        requestCount++;
-        if (data.items) {
-          trendingVideos = [...trendingVideos, ...data.items];
-          nextPageToken = data.nextPageToken;
-          if (!nextPageToken) break;
-        }
-      } else {
-        const errorText = await response.text();
-        console.error(`❌ YouTube API 요청 실패: ${response.status} - ${errorText}`);
-        throw new Error(`YouTube API 요청 실패: ${response.status}`);
-      }
-      
-      if (page < 4) await new Promise(resolve => setTimeout(resolve, 500));
-    }
-    
-    // 한글 필터링
-    const beforeFilter = trendingVideos.length;
-    trendingVideos = trendingVideos.filter(video => {
-      const title = video.snippet?.title || '';
-      const channelName = video.snippet?.channelTitle || '';
-      return /[가-힣]/.test(title) || /[가-힣]/.test(channelName);
-    });
-    console.log(`✅ 트렌드: ${beforeFilter}개 → ${trendingVideos.length}개 (한글 필터링)`);
+    console.log('✅ 트렌드: 건너뜀 (키워드 검색으로 충분한 데이터 확보)');
 
     // 2단계: 키워드 기반 영상 수집 (전체 75개 키워드 × 50개 = 최대 3,750개)
     console.log('🔍 2단계: 키워드 영상 수집 중... (75개 키워드 × 50개)');
@@ -2377,9 +2417,55 @@ app.post('/api/backup/import', async (req, res) => {
 
 // 중복 라우트 제거됨 - 아래에 SPA 라우팅이 있음
 
+// 크론잡 실행 이력 저장 (메모리)
+const cronJobHistory = [];
+const MAX_HISTORY = 50; // 최대 50개 이력 저장
+
+function addCronHistory(status, message, error = null) {
+  const entry = {
+    timestamp: new Date().toISOString(),
+    timestampKST: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    status, // 'started', 'success', 'failed'
+    message,
+    error: error ? error.message : null
+  };
+  
+  cronJobHistory.unshift(entry);
+  
+  // 최대 개수 유지
+  if (cronJobHistory.length > MAX_HISTORY) {
+    cronJobHistory.pop();
+  }
+}
+
+// 크론잡 실행 이력 조회 API
+app.get('/api/cron/history', (req, res) => {
+  const now = new Date();
+  const nextRun = new Date(now);
+  nextRun.setHours(10, 0, 0, 0);
+  if (nextRun <= now) {
+    nextRun.setDate(nextRun.getDate() + 1);
+  }
+  
+  res.json({
+    success: true,
+    serverStartTime: global.serverStartTime || new Date().toISOString(),
+    cronSchedule: '매일 10:00 KST',
+    currentTime: now.toISOString(),
+    currentTimeKST: now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    nextRun: nextRun.toISOString(),
+    nextRunKST: nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
+    historyCount: cronJobHistory.length,
+    history: cronJobHistory.slice(0, 20) // 최근 20개만 반환
+  });
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  // 서버 시작 시간 저장
+  global.serverStartTime = startTime.toISOString();
   
   console.log('='.repeat(80));
   console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
@@ -2388,10 +2474,11 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌏 서버 타임존: Asia/Seoul`);
   console.log('='.repeat(80));
   
-  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
+  // 자동 수집 cron job 설정 (매일 10:00 KST - 당일 데이터로 저장)
   // cron 표현식: '분 시 일 월 요일'
-  // '0 9 * * *' = 매일 09:00 (오전 9시)
-  const cronJob = cron.schedule('0 9 * * *', async () => {
+  // '0 10 * * *' = 매일 10:00 (오전 10시)
+  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 10시에 실행
+  const cronJob = cron.schedule('0 10 * * *', async () => {
     const executeTime = new Date();
     console.log('\n' + '='.repeat(80));
     console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
@@ -2400,32 +2487,39 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('📅 당일(오늘) 데이터로 저장됩니다');
     console.log('='.repeat(80) + '\n');
     
+    // 이력 기록: 시작
+    addCronHistory('started', '자동 수집 시작');
+    
     try {
       const result = await autoCollectData();
       if (result) {
         console.log('\n✅ [크론잡] 자동 수집 완료 성공!');
+        addCronHistory('success', '자동 수집 완료 성공');
       } else {
         console.log('\n⚠️ [크론잡] 자동 수집 실패 (false 반환)');
+        addCronHistory('failed', '자동 수집 실패 (false 반환)');
       }
     } catch (error) {
       console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
       console.error('❌ [크론잡] 오류 스택:', error.stack);
+      addCronHistory('failed', '자동 수집 중 오류 발생', error);
     }
   }, {
     timezone: 'Asia/Seoul',
     scheduled: true
   });
   
-  // 다음 실행 시간 계산
+  // 다음 실행 시간 계산 (KST 기준)
   const now = new Date();
-  const nextRun = new Date(now);
-  nextRun.setHours(9, 0, 0, 0);
-  if (nextRun <= now) {
+  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const nextRun = new Date(kstNow);
+  nextRun.setHours(10, 0, 0, 0);
+  if (nextRun <= kstNow) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
   
   console.log('\n📋 크론잡 설정 정보:');
-  console.log(`   - 스케줄: 매일 09:00 KST`);
+  console.log(`   - 스케줄: 매일 10:00 KST (할당량 초기화 1시간 후)`);
   console.log(`   - 타임존: Asia/Seoul`);
   console.log(`   - 현재 시간 (KST): ${now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
@@ -2972,24 +3066,39 @@ async function autoCleanupOldData() {
     
     const client = await pool.connect();
     
-    // classification_data 테이블에서 오래된 데이터 삭제
-    const result = await client.query(`
+    // 1. unclassified_data 테이블에서 오래된 데이터 삭제
+    const unclassifiedResult = await client.query(`
+      DELETE FROM unclassified_data
+      WHERE day_key_local < $1
+      RETURNING video_id
+    `, [cutoffDateString]);
+    
+    const unclassifiedDeletedCount = unclassifiedResult.rowCount || 0;
+    console.log(`🗑️ unclassified_data 테이블: ${unclassifiedDeletedCount}개 삭제`);
+    
+    // 2. classification_data 테이블에서 오래된 데이터 삭제
+    const classificationResult = await client.query(`
       DELETE FROM classification_data
       WHERE (data->>'collectionDate')::date < $1
          OR (data->>'uploadDate')::date < $1
       RETURNING data_type, data->>'id' as id
     `, [cutoffDateString]);
     
+    const classificationDeletedCount = classificationResult.rowCount || 0;
+    console.log(`🗑️ classification_data 테이블: ${classificationDeletedCount}개 삭제`);
+    
     client.release();
     
-    const deletedCount = result.rowCount || 0;
+    const totalDeletedCount = unclassifiedDeletedCount + classificationDeletedCount;
     
     console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`🗑️ 자동 정리 완료: ${deletedCount}개 삭제`);
+    console.log(`🗑️ 자동 정리 완료: 총 ${totalDeletedCount}개 삭제`);
+    console.log(`🗑️   - unclassified_data: ${unclassifiedDeletedCount}개`);
+    console.log(`🗑️   - classification_data: ${classificationDeletedCount}개`);
     console.log(`🗑️ 시간: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
     console.log('🗑️ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     
-    return deletedCount;
+    return totalDeletedCount;
   } catch (error) {
     console.error('❌ 자동 데이터 정리 실패:', error);
     return 0;
