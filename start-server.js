@@ -19,13 +19,21 @@ console.log('- PORT:', process.env.PORT);
 console.log('- DATABASE_URL:', process.env.DATABASE_URL ? '설정됨' : '미설정');
 
 // 서버 시작 - 전체 서버 우선 실행
+console.log('🔍 전체 서버 파일 존재 확인:', require('fs').existsSync('./dist/server/index.js'));
+console.log('🔍 간단한 서버 파일 존재 확인:', require('fs').existsSync('./simple-server.js'));
+
 try {
+  console.log('🚀 전체 서버 시작 시도...');
   require('./dist/server/index.js');
   console.log('✅ 전체 서버 시작 성공');
 } catch (error) {
   console.error('❌ 전체 서버 시작 실패:', error);
+  console.error('❌ 오류 상세:', error.message);
+  console.error('❌ 오류 스택:', error.stack);
+  
   // 폴백: 간단한 서버 시도
   try {
+    console.log('🔄 간단한 서버로 폴백 시도...');
     require('./simple-server.js');
     console.log('✅ 간단한 서버 시작 성공 (폴백)');
   } catch (fallbackError) {
