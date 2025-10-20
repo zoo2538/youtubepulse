@@ -1,5 +1,6 @@
 // IndexedDB와 API 서버를 함께 사용하는 하이브리드 서비스
 import { indexedDBService } from './indexeddb-service';
+import { hybridDBService } from './hybrid-db-service';
 import { apiService } from './api-service';
 import { outboxService } from './outbox-service';
 
@@ -496,12 +497,12 @@ class HybridService {
         if (classifiedData.length > 0) {
           console.log('✅ API 서버에서 분류 데이터 조회 완료:', classifiedData.length, '개');
           
-          // 서버에서 받은 데이터로 IndexedDB 캐시 갱신
+          // 개선된 안전한 배치 저장
           try {
-            await indexedDBService.saveClassifiedData(classifiedData);
-            console.log('✅ IndexedDB 캐시 갱신 완료');
+            await hybridDBService.saveDataInBatches(classifiedData, 500);
+            console.log('✅ 안전한 IndexedDB 캐시 갱신 완료');
           } catch (cacheError) {
-            console.warn('⚠️ IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
+            console.warn('⚠️ 안전한 IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
           }
           
           return classifiedData;
@@ -509,8 +510,9 @@ class HybridService {
       }
 
       if (this.config.fallbackToLocal) {
-        const localData = await indexedDBService.loadClassifiedData();
-        console.log('⚠️ 로컬 IndexedDB에서 분류 데이터 조회 (서버 연결 실패)');
+        // 개선된 HybridDBService 사용
+        const localData = await hybridDBService.loadAllData();
+        console.log('⚠️ 안전한 IndexedDB에서 분류 데이터 조회 (서버 연결 실패)');
         return localData;
       }
 
@@ -519,8 +521,9 @@ class HybridService {
       console.error('❌ 분류 데이터 조회 실패:', error);
       
       if (this.config.fallbackToLocal) {
-        const localData = await indexedDBService.loadClassifiedData();
-        console.log('⚠️ 오류 발생, 로컬 IndexedDB 폴백');
+        // 개선된 HybridDBService 사용
+        const localData = await hybridDBService.loadAllData();
+        console.log('⚠️ 오류 발생, 안전한 IndexedDB 폴백');
         return localData;
       }
       
@@ -615,12 +618,12 @@ class HybridService {
     }
   }
 
-  // 미분류 데이터 로드 (getUnclassifiedData의 alias)
+  // 미분류 데이터 로드 (개선된 안전한 방식)
   async loadUnclassifiedData(): Promise<any[]> {
     try {
-      // IndexedDB에서 직접 로드 (API 서버는 아직 이 기능 없음)
-      const localData = await indexedDBService.loadUnclassifiedData();
-      console.log('✅ 하이브리드: IndexedDB에서 미분류 데이터 로드');
+      // 개선된 HybridDBService 사용 (연결 상태 확인 + 재시도 메커니즘)
+      const localData = await hybridDBService.loadAllData();
+      console.log('✅ 하이브리드: 안전한 IndexedDB에서 미분류 데이터 로드');
       return localData;
     } catch (error) {
       console.error('❌ 미분류 데이터 로드 실패:', error);
