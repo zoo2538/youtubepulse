@@ -965,25 +965,27 @@ const DataClassification = () => {
       const serverData = result.data;
       console.log(`📥 서버에서 전체 데이터 다운로드: ${serverData.length}개 레코드`);
       
-      // 2. 서버 데이터의 날짜별로 선택적 삭제 (전체 삭제 대신)
-      console.log('🗑️ 서버 데이터 날짜별 선택적 삭제 중...');
+      // 2. 서버 데이터의 날짜별로 선택적 교체 (삭제 + 저장)
+      console.log('🔄 서버 데이터 날짜별 선택적 교체 중...');
       
       // 서버 데이터에서 고유한 날짜들 추출
       const uniqueDates = [...new Set(serverData.map(item => 
         item.dayKeyLocal || item.collectionDate || item.uploadDate
       ).filter(date => date))];
       
-      console.log(`📅 삭제할 날짜들: ${uniqueDates.join(', ')}`);
+      console.log(`📅 교체할 날짜들: ${uniqueDates.join(', ')}`);
       
-      // 각 날짜별로 기존 데이터 삭제
+      // 각 날짜별로 기존 데이터 삭제 후 새 데이터 저장
       for (const date of uniqueDates) {
-        const deletedCount = await hybridDBService.clearDataByDate(date);
-        console.log(`🗑️ ${date} 날짜 데이터 삭제: ${deletedCount}개`);
+        const dateData = serverData.filter(item => {
+          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+          return itemDate === date;
+        });
+        
+        console.log(`🔄 ${date} 날짜 데이터 교체 중... (${dateData.length}개)`);
+        await hybridDBService.replaceDataByDate(date, dateData);
+        console.log(`✅ ${date} 날짜 데이터 교체 완료: ${dateData.length}개`);
       }
-      
-      // 3. 서버 데이터를 안전한 배치 저장
-      console.log('💾 서버 데이터를 IndexedDB에 배치 저장 중...');
-      await hybridDBService.saveDataInBatches(serverData, 500);
       
       // 4. 저장된 데이터 로드 및 UI 업데이트
       console.log('📊 저장된 데이터 로드 중...');
@@ -1186,21 +1188,37 @@ const DataClassification = () => {
           }
         });
         
-        // 하이브리드 저장 (IndexedDB + 서버 모두 전체 데이터 저장)
+        // 하이브리드 저장 (IndexedDB + 서버 모두 날짜별 교체)
         try {
-          // 1. IndexedDB에는 전체 데이터 저장
-          await hybridDBService.saveDataInBatches(mergedData, 500);
-          console.log('✅ IndexedDB: 전체 데이터 저장 완료 (로컬 캐시)');
+          // 1. IndexedDB: 날짜별로 교체 저장
+          console.log(`🔄 IndexedDB 7일 데이터 날짜별 교체 시작: ${sevenDays.join(', ')}`);
           
-          // 2. 서버에도 전체 데이터 저장 (7일간 모든 데이터 - DELETE + INSERT 방식)
-          console.log(`📊 서버 전체 데이터 교체 저장: ${mergedData.length}개 (7일간)`);
+          let totalIndexedDBInserted = 0;
+          for (const date of sevenDays) {
+            const dateData = mergedData.filter(item => {
+              const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+              return itemDate === date;
+            });
+            
+            if (dateData.length === 0) {
+              console.log(`⏭️ IndexedDB ${date}: 데이터 없음, 스킵`);
+              continue;
+            }
+            
+            console.log(`🔄 IndexedDB ${date} 데이터 교체 중... (${dateData.length}개)`);
+            await hybridDBService.replaceDataByDate(date, dateData);
+            console.log(`✅ IndexedDB ${date} 데이터 교체 완료: ${dateData.length}개`);
+            totalIndexedDBInserted += dateData.length;
+          }
+          
+          console.log(`✅ IndexedDB 전체 데이터 교체 완료: ${totalIndexedDBInserted}개 (7일간)`);
+          
+          // 2. 서버: 날짜별로 교체 저장
+          console.log(`🔄 서버 7일 데이터 날짜별 교체 시작: ${sevenDays.join(', ')}`);
           
           if (mergedData.length > 0) {
             try {
-              // 날짜별로 하나씩 교체 (대용량 데이터 처리)
-              console.log(`🔄 서버 7일 데이터 날짜별 교체 시작: ${sevenDays.join(', ')}`);
-              
-              let totalInserted = 0;
+              let totalServerInserted = 0;
               for (const date of sevenDays) {
                 const dateData = mergedData.filter(item => {
                   const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
@@ -1208,11 +1226,11 @@ const DataClassification = () => {
                 });
                 
                 if (dateData.length === 0) {
-                  console.log(`⏭️ ${date}: 데이터 없음, 스킵`);
+                  console.log(`⏭️ 서버 ${date}: 데이터 없음, 스킵`);
                   continue;
                 }
                 
-                console.log(`🔄 ${date} 데이터 교체 중... (${dateData.length}개)`);
+                console.log(`🔄 서버 ${date} 데이터 교체 중... (${dateData.length}개)`);
                 
                 const replaceResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
                   method: 'POST',
@@ -1223,19 +1241,21 @@ const DataClassification = () => {
                   })
                 });
                 
-                if (replaceResponse.ok) {
-                  const replaceResult = await replaceResponse.json();
-                  totalInserted += replaceResult.inserted;
-                  console.log(`✅ ${date} 교체 완료 (${replaceResult.inserted}개)`);
-                } else {
-                  console.error(`❌ ${date} 교체 실패: ${replaceResponse.status}`);
+                if (!replaceResponse.ok) {
+                  throw new Error(`서버 ${date} 데이터 교체 실패: ${replaceResponse.status}`);
                 }
                 
-                // 날짜 간 500ms 지연
-                await new Promise(resolve => setTimeout(resolve, 500));
+                const replaceResult = await replaceResponse.json();
+                console.log(`✅ 서버 ${date} 데이터 교체 완료: ${replaceResult.inserted || dateData.length}개`);
+                totalServerInserted += replaceResult.inserted || dateData.length;
+                
+                // 날짜 간 간격 (서버 부하 방지)
+                if (date !== sevenDays[sevenDays.length - 1]) {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
               }
               
-              console.log(`✅ 서버: 7일 데이터 전체 교체 완료 (${totalInserted}개 삽입)`);
+              console.log(`🎉 서버 전체 데이터 교체 완료: ${totalServerInserted}개 (7일간)`);
             } catch (error) {
               // 날짜별 교체 실패 시 기존 배치 방식으로 폴백
               console.warn(`⚠️ 날짜별 교체 실패, 기존 UPSERT 배치 방식으로 재시도...`, error);

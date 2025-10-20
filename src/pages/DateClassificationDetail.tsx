@@ -438,24 +438,12 @@ const DateClassificationDetail = () => {
       // 2. 서버에 날짜별 업데이트 (현재 날짜 데이터만 전송) ✅
       console.log('💾 서버 날짜별 업데이트 시작...');
       
-      // 2-1. IndexedDB에는 전체 데이터 저장 (로컬 캐시)
-      const allUnclassifiedData = await hybridService.getUnclassifiedData();
-      console.log(`💾 서버 전체 미분류 데이터: ${allUnclassifiedData.length}개`);
+      // 2-1. IndexedDB에는 날짜별 선택적 교체 저장 (로컬 캐시)
+      console.log(`💾 IndexedDB 날짜별 선택적 교체 저장: ${selectedDate}`);
       
-      const otherDatesData = allUnclassifiedData.filter(item => {
-        const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-        const normalizedItemDate = itemDate && typeof itemDate === 'string' && itemDate.includes('T') 
-          ? itemDate.split('T')[0] 
-          : itemDate;
-        return normalizedItemDate !== selectedDate;
-      });
-      console.log(`💾 다른 날짜 데이터: ${otherDatesData.length}개`);
-      
-      const mergedUnclassifiedData = [...otherDatesData, ...unclassifiedData];
-      console.log(`💾 병합된 전체 데이터: ${mergedUnclassifiedData.length}개`);
-      
-      console.log('💾 IndexedDB 저장 - 전체 미분류 데이터 (로컬 캐시)');
-      await indexedDBService.saveUnclassifiedData(mergedUnclassifiedData);
+      // 해당 날짜의 기존 데이터 삭제 후 새 데이터 저장
+      await hybridDBService.replaceDataByDate(selectedDate, unclassifiedData);
+      console.log(`✅ IndexedDB ${selectedDate} 날짜 데이터 교체 완료: ${unclassifiedData.length}개`);
       
       // 2-2. 서버에는 현재 날짜 데이터를 교체 방식으로 전송 (DELETE + INSERT, 배치 처리)
       console.log(`💾 서버 저장 - 현재 날짜(${selectedDate}) 데이터 교체`);
@@ -516,25 +504,13 @@ const DateClassificationDetail = () => {
         }
       }
       
-      // 2-3. 분류 데이터도 동일한 방식으로 처리
+      // 2-3. 분류 데이터도 날짜별 선택적 교체로 처리
       if (classifiedData.length > 0) {
-        const allClassifiedData = await hybridService.getClassifiedData();
-        console.log(`💾 서버 전체 분류 데이터: ${allClassifiedData.length}개`);
+        console.log(`💾 분류 데이터 날짜별 선택적 교체 저장: ${selectedDate}`);
         
-        const otherDatesClassifiedData = allClassifiedData.filter(item => {
-          const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-          const normalizedItemDate = itemDate && typeof itemDate === 'string' && itemDate.includes('T') 
-            ? itemDate.split('T')[0] 
-            : itemDate;
-          return normalizedItemDate !== selectedDate;
-        });
-        console.log(`💾 다른 날짜 분류 데이터: ${otherDatesClassifiedData.length}개`);
-        
-        const mergedClassifiedData = [...otherDatesClassifiedData, ...classifiedData];
-        console.log(`💾 병합된 전체 분류 데이터: ${mergedClassifiedData.length}개`);
-        
-        console.log('💾 IndexedDB 저장 - 전체 분류 데이터 (로컬 캐시)');
-        await indexedDBService.saveClassifiedData(mergedClassifiedData);
+        // 해당 날짜의 분류 데이터만 교체 저장
+        await hybridDBService.replaceDataByDate(selectedDate, classifiedData);
+        console.log(`✅ IndexedDB ${selectedDate} 날짜 분류 데이터 교체 완료: ${classifiedData.length}개`);
         
         // 서버에는 현재 날짜 분류 데이터만 전송
         console.log(`💾 서버 저장 - 현재 날짜(${selectedDate}) 분류 데이터만 전송`);
