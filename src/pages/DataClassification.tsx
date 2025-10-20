@@ -288,9 +288,21 @@ const DataClassification = () => {
                   if (serverDataLength > localDataLength) {
                     console.log(`📥 자동 동기화: 서버 ${serverDataLength}개 > 로컬 ${localDataLength}개`);
                     
-                    // 기존 데이터 삭제 후 새 데이터 저장
-                    console.log('🗑️ 자동 동기화: 기존 IndexedDB 데이터 삭제 중...');
-                    await hybridDBService.clearData();
+                 // 서버 데이터의 날짜별로 선택적 삭제
+                 console.log('🗑️ 자동 동기화: 서버 데이터 날짜별 선택적 삭제 중...');
+                 
+                 // 서버 데이터에서 고유한 날짜들 추출
+                 const uniqueDates = [...new Set(serverResult.data.map(item => 
+                   item.dayKeyLocal || item.collectionDate || item.uploadDate
+                 ).filter(date => date))];
+                 
+                 console.log(`📅 자동 동기화 삭제할 날짜들: ${uniqueDates.join(', ')}`);
+                 
+                 // 각 날짜별로 기존 데이터 삭제
+                 for (const date of uniqueDates) {
+                   const deletedCount = await hybridDBService.clearDataByDate(date);
+                   console.log(`🗑️ 자동 동기화 ${date} 날짜 데이터 삭제: ${deletedCount}개`);
+                 }
                     
                     // IndexedDB 업데이트 (삭제 후 저장)
                     await hybridDBService.saveDataInBatches(serverResult.data, 500);
@@ -953,9 +965,21 @@ const DataClassification = () => {
       const serverData = result.data;
       console.log(`📥 서버에서 전체 데이터 다운로드: ${serverData.length}개 레코드`);
       
-      // 2. 기존 IndexedDB 데이터 삭제
-      console.log('🗑️ 기존 IndexedDB 데이터 삭제 중...');
-      await hybridDBService.clearData();
+      // 2. 서버 데이터의 날짜별로 선택적 삭제 (전체 삭제 대신)
+      console.log('🗑️ 서버 데이터 날짜별 선택적 삭제 중...');
+      
+      // 서버 데이터에서 고유한 날짜들 추출
+      const uniqueDates = [...new Set(serverData.map(item => 
+        item.dayKeyLocal || item.collectionDate || item.uploadDate
+      ).filter(date => date))];
+      
+      console.log(`📅 삭제할 날짜들: ${uniqueDates.join(', ')}`);
+      
+      // 각 날짜별로 기존 데이터 삭제
+      for (const date of uniqueDates) {
+        const deletedCount = await hybridDBService.clearDataByDate(date);
+        console.log(`🗑️ ${date} 날짜 데이터 삭제: ${deletedCount}개`);
+      }
       
       // 3. 서버 데이터를 안전한 배치 저장
       console.log('💾 서버 데이터를 IndexedDB에 배치 저장 중...');

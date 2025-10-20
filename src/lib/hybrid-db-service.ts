@@ -222,6 +222,88 @@ export class HybridDBService {
   }
 
   /**
+   * 날짜별 선택적 데이터 삭제
+   */
+  async clearDataByDate(targetDate: string): Promise<number> {
+    await this.initDB();
+    
+    return new Promise((resolve, reject) => {
+      if (!this.db) {
+        reject(new Error('IndexedDB가 초기화되지 않았습니다'));
+        return;
+      }
+
+      const transaction = this.db.transaction([this.storeName], 'readwrite');
+      const store = transaction.objectStore(this.storeName);
+      
+      // 해당 날짜의 데이터만 조회
+      const index = store.index('dayKeyLocal');
+      const range = IDBKeyRange.only(targetDate);
+      const request = index.getAll(range);
+
+      request.onsuccess = () => {
+        const dataToDelete = request.result;
+        console.log(`🗑️ ${targetDate} 날짜 데이터 삭제 대상: ${dataToDelete.length}개`);
+        
+        if (dataToDelete.length === 0) {
+          console.log(`📭 ${targetDate} 날짜에 삭제할 데이터가 없습니다`);
+          resolve(0);
+          return;
+        }
+
+        // 각 데이터 삭제
+        let deletedCount = 0;
+        let errorCount = 0;
+        
+        dataToDelete.forEach((item, index) => {
+          const deleteRequest = store.delete(item.id);
+          
+          deleteRequest.onsuccess = () => {
+            deletedCount++;
+            if (deletedCount + errorCount === dataToDelete.length) {
+              console.log(`✅ ${targetDate} 날짜 데이터 삭제 완료: ${deletedCount}개`);
+              resolve(deletedCount);
+            }
+          };
+          
+          deleteRequest.onerror = () => {
+            errorCount++;
+            console.error(`❌ 데이터 삭제 실패 (ID: ${item.id}):`, deleteRequest.error);
+            if (deletedCount + errorCount === dataToDelete.length) {
+              console.log(`⚠️ ${targetDate} 날짜 데이터 삭제 완료: ${deletedCount}개 성공, ${errorCount}개 실패`);
+              resolve(deletedCount);
+            }
+          };
+        });
+      };
+
+      request.onerror = () => {
+        console.error('❌ 날짜별 데이터 조회 실패:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 날짜별 데이터 교체 (삭제 + 저장)
+   */
+  async replaceDataByDate(targetDate: string, newData: any[]): Promise<number> {
+    console.log(`🔄 ${targetDate} 날짜 데이터 교체 시작: ${newData.length}개`);
+    
+    // 1. 해당 날짜 데이터 삭제
+    const deletedCount = await this.clearDataByDate(targetDate);
+    console.log(`🗑️ ${targetDate} 날짜 기존 데이터 삭제: ${deletedCount}개`);
+    
+    // 2. 새 데이터 저장
+    if (newData.length > 0) {
+      await this.saveDataInBatches(newData, 500);
+      console.log(`💾 ${targetDate} 날짜 새 데이터 저장: ${newData.length}개`);
+    }
+    
+    return newData.length;
+  }
+
+  /**
    * 데이터베이스 연결 상태 확인
    */
   isConnected(): boolean {
