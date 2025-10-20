@@ -219,6 +219,7 @@ const DataClassification = () => {
     if (dataLoaded) return; // 이미 로드된 경우 중복 실행 방지
     
     const loadData = async () => {
+      console.log('🔄 데이터 분류 관리 페이지 - 데이터 로드 시작');
       try {
         setIsLoading(true);
         console.log('🔄 하이브리드 데이터 로드 시작...');

@@ -78,12 +78,17 @@ const System = () => {
     const savedCustomApiUrl = localStorage.getItem('customApiUrl') || (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
+    const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
     
     // 기본값: 커스텀 API 비활성화 (Railway 서버 문제로 인해)
     const defaultCustomApiEnabled = savedCustomApiEnabled !== null ? savedCustomApiEnabled : false;
     
+    // YouTube API 키가 있으면 자동으로 활성화
+    const youtubeApiEnabled = savedApiKey ? true : savedYoutubeApiEnabled;
+    
     console.log('🔧 설정 로드:', {
       youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
+      youtubeApiEnabled: youtubeApiEnabled,
       customApiUrl: savedCustomApiUrl,
       customApiEnabled: defaultCustomApiEnabled,
       customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
@@ -92,13 +97,15 @@ const System = () => {
     // 디버깅: localStorage 값 직접 확인
     console.log('🔍 localStorage 직접 확인:', {
       youtubeApiKey: localStorage.getItem('youtubeApiKey'),
+      youtubeApiEnabled: localStorage.getItem('youtubeApiEnabled'),
       customApiKey: localStorage.getItem('customApiKey'),
-      customApiUrl: localStorage.getItem('customApiUrl')
+      customApiUrl: localStorage.getItem('customApiUrl'),
+      customApiEnabled: localStorage.getItem('customApiEnabled')
     });
     
     return {
       youtubeApiKey: savedApiKey,
-      youtubeApiEnabled: !!savedApiKey,
+      youtubeApiEnabled: youtubeApiEnabled,
       customApiUrl: savedCustomApiUrl,
       customApiEnabled: defaultCustomApiEnabled,
       customApiKey: savedCustomApiKey
@@ -244,9 +251,12 @@ const System = () => {
       const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
       const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
       
+      // YouTube API 키가 있으면 자동으로 활성화
+      const youtubeApiEnabled = savedApiKey ? true : savedYoutubeApiEnabled;
+      
       setApiConfig({
         youtubeApiKey: savedApiKey,
-        youtubeApiEnabled: savedYoutubeApiEnabled,
+        youtubeApiEnabled: youtubeApiEnabled,
         customApiUrl: savedCustomApiUrl,
         customApiEnabled: savedCustomApiEnabled,
         customApiKey: savedCustomApiKey
@@ -254,7 +264,9 @@ const System = () => {
       
       console.log('🔄 API 설정 수동 불러오기 완료:', {
         youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
-        customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
+        youtubeApiEnabled: youtubeApiEnabled,
+        customApiKey: savedCustomApiKey ? '설정됨' : '미설정',
+        customApiUrl: savedCustomApiUrl
       });
       
       alert('API 설정을 불러왔습니다!');
