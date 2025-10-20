@@ -1049,7 +1049,7 @@ const DataClassification = () => {
   };
 
   // 7일 이후 데이터 자동 정리
-  const handleAutoCleanup = async () => {
+  const handleCleanup7Days = async () => {
     try {
       setIsLoading(true);
       console.log('🧹 7일 이후 데이터 자동 정리 시작...');
@@ -2768,7 +2768,7 @@ const DataClassification = () => {
               <Button 
                 variant="outline" 
                 className="bg-orange-600 hover:bg-orange-700 text-white"
-                onClick={handleAutoCleanup}
+                onClick={handleCleanup7Days}
                 disabled={isLoading}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
