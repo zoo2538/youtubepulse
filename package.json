@@ -14,7 +14,7 @@
     "dev": "vite",
     "build": "vite build && node scripts/copy-server.js",
     "build:dev": "vite build --mode development && node scripts/copy-server.js",
-    "start": "node dist/server/index.js",
+    "start": "node start-server.js",
     "start:railway": "node start-server.js",
     "lint": "eslint .",
     "preview": "vite preview",
