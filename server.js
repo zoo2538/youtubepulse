@@ -3097,7 +3097,7 @@ async function autoCleanupOldData() {
   }
   
   try {
-    const retentionDays = 14;
+    const retentionDays = 7;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
     const cutoffDateString = cutoffDate.toISOString().split('T')[0];
@@ -3163,13 +3163,13 @@ setInterval(() => {
   
   // 자정(00:00~00:05)에 실행
   if (kstHour === 0 && kstMinute < 5) {
-    console.log('🕛 KST 자정 감지 - 14일 데이터 자동 정리 실행');
+    console.log('🕛 KST 자정 감지 - 7일 데이터 자동 정리 실행');
     autoCleanupOldData();
   }
 }, 5 * 60 * 1000); // 5분마다 체크
 
 // 서버 시작 시 1회 실행
-console.log('🧹 서버 시작 시 14일 데이터 정리 1회 실행...');
+console.log('🧹 서버 시작 시 7일 데이터 정리 1회 실행...');
 autoCleanupOldData();
 
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)

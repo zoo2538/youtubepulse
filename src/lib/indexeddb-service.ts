@@ -1224,8 +1224,8 @@ class IndexedDBService {
     });
   }
 
-  // 14일 데이터 정리
-  async cleanupOldData(retentionDays: number = 14): Promise<number> {
+  // 7일 데이터 정리
+  async cleanupOldData(retentionDays: number = 7): Promise<number> {
     if (!this.db) await this.init();
     
     const cutoffDate = new Date();

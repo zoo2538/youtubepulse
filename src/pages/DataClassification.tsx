@@ -254,7 +254,7 @@ const DataClassification = () => {
         if (!savedData || savedData.length === 0) {
           console.log('📭 IndexedDB 비어있음 - 서버에서 초기 데이터 다운로드');
           
-          const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
+          const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=14');
           if (serverResponse.ok) {
             const serverResult = await serverResponse.json();
             if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
@@ -276,7 +276,7 @@ const DataClassification = () => {
           setTimeout(async () => {
             try {
               const syncStartTime = Date.now();
-              const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
+              const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=14');
               
               if (serverResponse.ok) {
                 const serverResult = await serverResponse.json();
@@ -1048,6 +1048,28 @@ const DataClassification = () => {
     }
   };
 
+  // 7일 이후 데이터 자동 정리
+  const handleAutoCleanup = async () => {
+    try {
+      setIsLoading(true);
+      console.log('🧹 7일 이후 데이터 자동 정리 시작...');
+      
+      const deletedCount = await indexedDBService.cleanupOldData(7);
+      
+      console.log(`✅ 데이터 정리 완료: ${deletedCount}개 삭제`);
+      alert(`🧹 데이터 정리 완료!\n\n삭제된 데이터: ${deletedCount}개\n7일 이후 데이터가 정리되었습니다.`);
+      
+      // 데이터 새로고침
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('❌ 데이터 정리 실패:', error);
+      alert('❌ 데이터 정리 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 자동수집 시작
   const handleAutoCollection = async () => {
     try {
@@ -1734,7 +1756,7 @@ const DataClassification = () => {
         })(),
         
         // 일별 데이터 (하이브리드 구조, 중복 제거 적용)
-        dailyData: availableDates.slice(0, 7).map(date => {
+        dailyData: availableDates.slice(0, 14).map(date => {
           const dateData = unclassifiedData.filter(item => {
             const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
             return itemDate === date;
@@ -2495,7 +2517,7 @@ const DataClassification = () => {
   const handleExportByDates = async () => {
     try {
       // 데이터가 있는 날짜들만 필터링
-      const datesWithData = availableDates.slice(0, 7).filter(date => {
+      const datesWithData = availableDates.slice(0, 14).filter(date => {
         const dateData = unclassifiedData.filter(item => {
           const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
           return itemDate === date;
@@ -2660,11 +2682,11 @@ const DataClassification = () => {
     }
   };
 
-  // 선택된 날짜 기준 14일 데이터 필터링
+  // 선택된 날짜 기준 7일 데이터 필터링
   const getDateRange = (startDate: string) => {
     const dates = [];
     const start = new Date(startDate);
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 7; i++) {
       const date = new Date(start);
       date.setDate(start.getDate() - i);
       dates.push(date.toISOString().split('T')[0]);
@@ -2679,12 +2701,12 @@ const DataClassification = () => {
   });
 
   // 통계 계산 (일별 분류 진행률 섹션의 데이터만 합쳐서 계산 - 최근 7일)
-  const totalVideos = availableDates.slice(0, 7).reduce((sum, date) => {
+  const totalVideos = availableDates.slice(0, 14).reduce((sum, date) => {
     const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
     return sum + stats.total;
   }, 0);
   
-  const classifiedVideos = availableDates.slice(0, 7).reduce((sum, date) => {
+  const classifiedVideos = availableDates.slice(0, 14).reduce((sum, date) => {
     const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
     return sum + stats.classified;
   }, 0);
@@ -2743,6 +2765,15 @@ const DataClassification = () => {
                   <Settings className="w-4 h-4 mr-2" />
                   시스템
                 </Button>
+              <Button 
+                variant="outline" 
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                onClick={handleAutoCleanup}
+                disabled={isLoading}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {isLoading ? '정리 중...' : '7일 데이터 정리'}
+              </Button>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 로그아웃
@@ -2928,7 +2959,7 @@ const DataClassification = () => {
             <div>
               <h3 className="text-sm font-medium text-white mb-2">수동수집</h3>
               <div className="grid grid-cols-7 gap-3">
-            {availableDates.slice(0, 7).map(date => {
+            {availableDates.slice(0, 14).map(date => {
                   // 수동수집 데이터 (실제 데이터 기반)
               const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
               const total = stats.total;
@@ -2996,7 +3027,7 @@ const DataClassification = () => {
             <div>
               <h3 className="text-sm font-medium text-white mb-2">자동수집</h3>
               <div className="grid grid-cols-7 gap-3">
-                {availableDates.slice(0, 7).map(date => {
+                {availableDates.slice(0, 14).map(date => {
                   // 자동수집 데이터 (실제 자동수집된 데이터)
                   const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
                   const total = autoStats.total; // 실제 자동수집 데이터
@@ -3064,7 +3095,7 @@ const DataClassification = () => {
             <div>
               <h3 className="text-sm font-medium text-white mb-2">합계</h3>
               <div className="grid grid-cols-7 gap-3">
-                {availableDates.slice(0, 7).map(date => {
+                {availableDates.slice(0, 14).map(date => {
                   // 합계 데이터 (수동수집 + 자동수집)
                   const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
                   const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
