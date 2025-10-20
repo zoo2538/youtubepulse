@@ -1950,8 +1950,24 @@ async function autoCollectData() {
     
     console.log(`✅ 키워드: ${keywordVideos.length}개 수집`);
 
-    // 3단계: 합치기 및 중복 제거
-    const allVideos = [...trendingVideos, ...keywordVideos];
+    // 3단계: 키워드별 중복 제거 후 전체 중복 제거
+    console.log('🔄 키워드별 중복 제거 시작...');
+    const keywordVideoMap = new Map();
+    
+    // 키워드별로 중복 제거
+    keywordVideos.forEach(video => {
+      const videoId = video.id;
+      const existing = keywordVideoMap.get(videoId);
+      if (!existing || parseInt(video.statistics?.viewCount || '0') > parseInt(existing.statistics?.viewCount || '0')) {
+        keywordVideoMap.set(videoId, video);
+      }
+    });
+    
+    const keywordUniqueVideos = Array.from(keywordVideoMap.values());
+    console.log(`✅ 키워드별 중복 제거: ${keywordVideos.length}개 → ${keywordUniqueVideos.length}개`);
+    
+    // 전체 중복 제거
+    const allVideos = [...trendingVideos, ...keywordUniqueVideos];
     const videoMap = new Map();
     
     allVideos.forEach(video => {
