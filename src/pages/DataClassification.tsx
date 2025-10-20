@@ -933,7 +933,7 @@ const DataClassification = () => {
     alert(`✅ ${dataManagementConfig.retentionDays}일 이전 데이터가 정리되었습니다.`);
   };
 
-  const handleAutoCleanup = async () => {
+  const handleAutoCleanupOld = async () => {
     if (!dataManagementConfig.autoCleanup) return;
     
     await handleCleanupOldData();
@@ -3240,7 +3240,7 @@ const DataClassification = () => {
                  </Button>
                  <Button 
                    variant="secondary" 
-                   onClick={handleAutoCleanup}
+                   onClick={handleAutoCleanupOld}
                    className="w-full"
                    disabled={!dataManagementConfig.autoCleanup}
                  >
