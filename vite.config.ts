@@ -35,7 +35,6 @@ export default defineConfig({
           'ui': ['lucide-react'],
           'utils': ['@/lib/utils', '@/lib/date-rollover-service'],
           'services': ['@/lib/hybrid-service', '@/lib/indexeddb-service', '@/lib/api-service'],
-          'auto-classification': ['@/lib/auto-classification-service'],
           'scheduler': ['@/lib/auto-collection-scheduler', '@/lib/server-authoritative-service']
         },
       },
