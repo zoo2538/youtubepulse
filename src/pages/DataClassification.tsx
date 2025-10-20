@@ -288,7 +288,11 @@ const DataClassification = () => {
                   if (serverDataLength > localDataLength) {
                     console.log(`📥 자동 동기화: 서버 ${serverDataLength}개 > 로컬 ${localDataLength}개`);
                     
-                    // IndexedDB 업데이트 (최대값 보존 upsert)
+                    // 기존 데이터 삭제 후 새 데이터 저장
+                    console.log('🗑️ 자동 동기화: 기존 IndexedDB 데이터 삭제 중...');
+                    await hybridDBService.clearData();
+                    
+                    // IndexedDB 업데이트 (삭제 후 저장)
                     await hybridDBService.saveDataInBatches(serverResult.data, 500);
                     console.log(`✅ 자동 동기화 완료: ${serverDataLength}개 (${Date.now() - syncStartTime}ms)`);
                     
