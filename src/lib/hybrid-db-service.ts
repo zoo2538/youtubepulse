@@ -26,7 +26,8 @@ export class HybridDBService {
     console.log('🔄 IndexedDB 초기화 시작...');
     
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.dbName, 1);
+      // 기존 데이터베이스 버전 확인 후 적절한 버전으로 열기
+      const request = indexedDB.open(this.dbName);
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
