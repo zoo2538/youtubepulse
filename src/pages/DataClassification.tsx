@@ -261,7 +261,7 @@ const DataClassification = () => {
               console.log(`📥 서버에서 최근 7일 데이터 ${serverResult.data.length}개 다운로드`);
               
               // IndexedDB에만 저장 (서버에 재업로드하지 않음)
-              await indexedDBService.saveUnclassifiedData(serverResult.data);
+              await hybridDBService.saveDataInBatches(serverResult.data, 500);
               console.log(`💾 IndexedDB에 ${serverResult.data.length}개 데이터 저장 완료`);
               
               // 다시 로드
@@ -289,7 +289,7 @@ const DataClassification = () => {
                     console.log(`📥 자동 동기화: 서버 ${serverDataLength}개 > 로컬 ${localDataLength}개`);
                     
                     // IndexedDB 업데이트 (최대값 보존 upsert)
-                    await indexedDBService.saveUnclassifiedData(serverResult.data);
+                    await hybridDBService.saveDataInBatches(serverResult.data, 500);
                     console.log(`✅ 자동 동기화 완료: ${serverDataLength}개 (${Date.now() - syncStartTime}ms)`);
                     
                     // UI 업데이트를 위한 이벤트 발생
@@ -1161,7 +1161,7 @@ const DataClassification = () => {
         // 하이브리드 저장 (IndexedDB + 서버 모두 전체 데이터 저장)
         try {
           // 1. IndexedDB에는 전체 데이터 저장
-          await indexedDBService.saveUnclassifiedData(mergedData);
+          await hybridDBService.saveDataInBatches(mergedData, 500);
           console.log('✅ IndexedDB: 전체 데이터 저장 완료 (로컬 캐시)');
           
           // 2. 서버에도 전체 데이터 저장 (7일간 모든 데이터 - DELETE + INSERT 방식)

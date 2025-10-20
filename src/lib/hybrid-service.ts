@@ -228,14 +228,14 @@ class HybridService {
       }
 
       // 로컬에도 저장 (백업용)
-      await indexedDBService.saveChannels(channels);
+      await hybridDBService.saveDataInBatches(Object.values(channels), 500);
       console.log('✅ 로컬 IndexedDB에 채널 데이터 저장 완료');
     } catch (error) {
       console.error('❌ 채널 데이터 저장 실패:', error);
       
       // API 실패시 로컬만 사용
       if (this.config.fallbackToLocal) {
-        await indexedDBService.saveChannels(channels);
+        await hybridDBService.saveDataInBatches(Object.values(channels), 500);
         console.log('⚠️ 로컬 IndexedDB에만 저장됨');
       } else {
         throw error;
