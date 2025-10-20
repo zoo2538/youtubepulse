@@ -39,8 +39,8 @@ const dump = Object.keys(process.env).filter(k =>
 );
 console.log('ENV_DB_KEYS', dump, 'LEN', v.length);
 if (!v.trim()) { 
-  console.error('FATAL: DATABASE_URL empty or whitespace'); 
-  process.exit(1); 
+  console.warn('⚠️ DATABASE_URL empty or whitespace - 서버는 데이터베이스 없이 실행됩니다'); 
+  // process.exit(1); // 데이터베이스 없이도 서버 실행 허용
 }
 try { 
   const u = new URL(v.trim()); 
