@@ -58,6 +58,7 @@ import { startDataCollection } from "@/lib/youtube-api-service";
 import { compressByDate, type CompressionResult } from "@/lib/local-compression";
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridDBService } from "@/lib/hybrid-db-service";
 import { apiService } from "@/lib/api-service";
 import { fetchAndHydrate } from "@/lib/fetch-and-hydrate";
 import { showToast } from "@/lib/toast-util";
@@ -926,7 +927,7 @@ const DataClassification = () => {
   // 부트스트랩 동기화 핸들러 (사용 안 함 - 삭제됨)
   // const handleBootstrapSync = async () => { ... };
 
-  // 서버 데이터 다운로드 핸들러 (서버 → IndexedDB 단방향)
+  // 서버 데이터 다운로드 핸들러 (개선된 안전한 배치 저장)
   const handleHybridSync = async () => {
     try {
       console.log('📥 서버 데이터 다운로드 시작...');
@@ -934,68 +935,80 @@ const DataClassification = () => {
       
       // 1. 서버에서 전체 데이터 다운로드
       console.log('📥 서버에서 최신 데이터 다운로드 중...');
-      const syncResult = await hybridSyncService.performFullSync();
-      console.log('✅ 다운로드 결과:', syncResult);
+      const response = await fetch('https://api.youthbepulse.com/api/unclassified');
       
-      // 2. 데이터 새로고침
-      const loadData = async () => {
-        try {
-          const savedData = await hybridService.loadUnclassifiedData();
-          if (savedData && savedData.length > 0) {
-            // utils 함수들은 이미 정적 import됨
-            const today = getKoreanDateString();
-            
-            const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
-              const baseItem = it.category === '해외채널'
-                ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
-                : it;
-              
-              return {
-                ...baseItem,
-                collectionDate: baseItem.collectionDate || baseItem.uploadDate || today,
-                dayKeyLocal: baseItem.dayKeyLocal || baseItem.collectionDate || baseItem.uploadDate
-              };
-            });
-            
-            // 중복 제거
-            const dedupedData = dedupeByVideoDay(sanitized as VideoItem[]);
-            setUnclassifiedData(dedupedData as UnclassifiedData[]);
-            
-            // 날짜별 통계 업데이트 (수동수집만)
-            const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
-            dedupedData.forEach((item: UnclassifiedData) => {
-              const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-              const collectionType = item.collectionType || 'manual';
-              if (collectionType !== 'manual') return;
-              
-              if (date) {
-                if (!newDateStats[date]) {
-                  newDateStats[date] = { total: 0, classified: 0, progress: 0 };
-                }
-                newDateStats[date].total++;
-                if (item.status === 'classified') {
-                  newDateStats[date].classified++;
-                }
-              }
-            });
-            
-            Object.keys(newDateStats).forEach(date => {
-              const stats = newDateStats[date];
-              stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
-            });
-            
-            setDateStats(newDateStats);
-            console.log('📊 서버 다운로드 후 dateStats 재계산 (수동수집만):', newDateStats);
+      if (!response.ok) {
+        throw new Error(`서버 응답 실패: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      if (!result.success || !result.data) {
+        throw new Error('서버에서 데이터를 가져올 수 없습니다');
+      }
+      
+      const serverData = result.data;
+      console.log(`📥 서버에서 전체 데이터 다운로드: ${serverData.length}개 레코드`);
+      
+      // 2. 기존 IndexedDB 데이터 삭제
+      console.log('🗑️ 기존 IndexedDB 데이터 삭제 중...');
+      await hybridDBService.clearData();
+      
+      // 3. 서버 데이터를 안전한 배치 저장
+      console.log('💾 서버 데이터를 IndexedDB에 배치 저장 중...');
+      await hybridDBService.saveDataInBatches(serverData, 500);
+      
+      // 4. 저장된 데이터 로드 및 UI 업데이트
+      console.log('📊 저장된 데이터 로드 중...');
+      const savedData = await hybridDBService.loadAllData();
+      
+      if (savedData && savedData.length > 0) {
+        // 데이터 정규화
+        const today = getKoreanDateString();
+        const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
+          const baseItem = it.category === '해외채널'
+            ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
+            : it;
+          
+          return {
+            ...baseItem,
+            collectionDate: baseItem.collectionDate || baseItem.uploadDate || today,
+            dayKeyLocal: baseItem.dayKeyLocal || baseItem.collectionDate || baseItem.uploadDate
+          };
+        });
+        
+        // 중복 제거
+        const dedupedData = dedupeByVideoDay(sanitized as VideoItem[]);
+        setUnclassifiedData(dedupedData as UnclassifiedData[]);
+        
+        // 날짜별 통계 업데이트 (수동수집만)
+        const newDateStats: { [date: string]: { total: number; classified: number; progress: number } } = {};
+        dedupedData.forEach((item: UnclassifiedData) => {
+          const date = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+          const collectionType = item.collectionType || 'manual';
+          if (collectionType !== 'manual') return;
+          
+          if (date) {
+            if (!newDateStats[date]) {
+              newDateStats[date] = { total: 0, classified: 0, progress: 0 };
+            }
+            newDateStats[date].total++;
+            if (item.status === 'classified') {
+              newDateStats[date].classified++;
+            }
           }
-        } catch (error) {
-          console.error('❌ 데이터 새로고침 실패:', error);
-        }
-      };
+        });
+        
+        Object.keys(newDateStats).forEach(date => {
+          const stats = newDateStats[date];
+          stats.progress = stats.total > 0 ? Math.round((stats.classified / stats.total) * 100) : 0;
+        });
+        
+        setDateStats(newDateStats);
+        console.log('📊 서버 다운로드 후 dateStats 재계산 (수동수집만):', newDateStats);
+      }
       
-      await loadData();
-      
-      // 3. 결과 표시
-      alert(`📥 서버 데이터 다운로드 완료!\n\n다운로드: ${syncResult.downloaded}개\n로컬 IndexedDB가 서버 데이터로 업데이트되었습니다.`);
+      // 5. 결과 표시
+      alert(`📥 서버 데이터 다운로드 완료!\n\n다운로드: ${serverData.length}개\n로컬 IndexedDB가 서버 데이터로 업데이트되었습니다.`);
       
     } catch (error) {
       console.error('❌ 서버 다운로드 실패:', error);
