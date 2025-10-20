@@ -94,12 +94,12 @@ interface UnclassifiedData {
 interface DailyProgressData {
   date: string; // YYYY-MM-DD
   autoCollected: number; // 자동수집 총 개수
-  autoClassified: number; // 자동수집 중 분류된 개수
+  autoClassified: number; // 자동수집 중 기존 분류 적용된 개수
   manualCollected: number; // 수동수집 총 개수
   manualClassified: number; // 수동수집 중 분류된 개수
   totalCollected: number; // 전체 수집 개수
   totalClassified: number; // 전체 분류된 개수
-  autoProgress: number; // 자동수집 분류율 (%)
+  autoProgress: number; // 자동수집 기존 분류 적용율 (%)
   manualProgress: number; // 수동수집 분류율 (%)
   totalProgress: number; // 전체 분류율 (%)
 }
@@ -3067,7 +3067,7 @@ const DataClassification = () => {
                   // 자동수집 데이터 (실제 자동수집된 데이터)
                   const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
                   const total = autoStats.total; // 실제 자동수집 데이터
-                  const classified = autoStats.classified; // 실제 자동수집 분류 데이터
+                  const classified = autoStats.classified; // 실제 자동수집 기존 분류 적용 데이터
                   const progress = autoStats.progress; // 실제 자동수집 진행률
                   const hasData = total > 0;
                   

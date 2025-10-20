@@ -752,7 +752,7 @@ const System = () => {
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
       console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
-      console.log(`🤖 자동 분류 시스템 활성화: 키워드 기반 자동 분류 적용`);
+      console.log(`📊 기존 분류 시스템: 14일간 분류 이력 기반 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       // utils 함수들은 이미 정적 import됨
@@ -777,8 +777,7 @@ const System = () => {
       });
       console.log(`📊 기존 영상 날짜 매핑: ${existingVideoDateMap.size}개 영상의 최초 수집일 확인`);
       
-      // 자동 분류 서비스는 이미 정적 import됨
-      // 동적 import 실패 시 IndexedDB-only 플로우로 fallback
+      // 기존 분류 시스템만 사용 (AI 자동분류 제거됨)
       
       const newData = uniqueVideos.map((video: any, index: number) => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
@@ -796,7 +795,7 @@ const System = () => {
           sourceType = 'keyword';
         }
         
-        // 14일 데이터 기반 분류만 사용 (키워드 자동 분류 제거)
+        // 기존 분류 시스템만 사용
         // - 14일 데이터에 있으면: 그 분류 사용 (classified)
         // - 14일 데이터에 없으면: 수동 분류 대기 (unclassified)
         
@@ -820,7 +819,7 @@ const System = () => {
           source: sourceType, // 수집 소스 추가 (trending or keyword)
           subCategory: existingClassification?.subCategory || '', // 14일 데이터만 사용, 없으면 빈값
           status: existingClassification ? "classified" as const : "unclassified" as const, // 14일 데이터 없으면 무조건 unclassified
-          autoClassified: !!existingClassification // 14일 데이터로 자동 분류된 경우만 true
+          autoClassified: !!existingClassification // 기존 분류 데이터로 분류된 경우만 true
         };
       });
 
@@ -920,14 +919,12 @@ const System = () => {
       const newChannels = newData.filter(item => !classifiedChannelMap.has(item.channelId)).length;
       const autoClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
 
-      // 자동 분류 통계
-      const autoClassifiedByAI = newData.filter(item => item.autoClassified).length;
-      const manualClassified = newData.filter(item => classifiedChannelMap.has(item.channelId)).length;
-      const unclassified = newData.filter(item => !item.autoClassified && !classifiedChannelMap.has(item.channelId)).length;
+      // 분류 통계
+      const classifiedByHistory = newData.filter(item => item.autoClassified).length;
+      const unclassified = newData.filter(item => !item.autoClassified).length;
       
-      console.log(`🤖 자동 분류 결과:`);
-      console.log(`   - AI 자동 분류: ${autoClassifiedByAI}개`);
-      console.log(`   - 기존 분류 적용: ${manualClassified}개`);
+      console.log(`📊 분류 결과:`);
+      console.log(`   - 기존 분류 적용: ${classifiedByHistory}개`);
       console.log(`   - 미분류: ${unclassified}개`);
 
       // 혼합 수집 통계를 알림 메시지에 포함
@@ -946,14 +943,13 @@ const System = () => {
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🎬 총 채널: ${newData.length}개\n` +
             `🆕 새 채널: ${newChannels}개 (분류 필요)\n` +
-            `♻️ 기존 분류 적용: ${manualClassified}개\n` +
-            `🤖 AI 자동 분류: ${autoClassifiedByAI}개\n` +
+            `♻️ 기존 분류 적용: ${classifiedByHistory}개\n` +
             `❓ 미분류: ${unclassified}개\n` +
             `📊 평균 조회수: ${avgViews.toLocaleString()}회\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `🔧 API 요청: ${totalApiRequests}번\n` +
             `💰 할당량: 약 ${estimatedUnits} units\n\n` +
-            `자동 분류된 영상은 이미 분류 완료 상태입니다.\n` +
+            `기존 분류가 적용된 영상은 이미 분류 완료 상태입니다.\n` +
             `미분류 영상만 수동 분류하면 됩니다.`);
       
       // 수동 수집 완료 플래그 해제
@@ -1329,7 +1325,7 @@ const System = () => {
                         <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                           <h4 className="text-sm font-medium text-blue-900 mb-2">💡 핵심 기능</h4>
                           <p className="text-xs text-blue-700">
-                            • 자동 수집 시 키워드 기반 분류 적용<br/>
+                            • 기존 분류 이력 기반 분류 적용<br/>
                             • 14일간 분류 이력 우선 적용<br/>
                             • 하이브리드 저장 (IndexedDB + PostgreSQL)
                           </p>
