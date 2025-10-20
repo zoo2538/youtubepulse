@@ -219,7 +219,7 @@ const DataClassification = () => {
     if (dataLoaded) return; // 이미 로드된 경우 중복 실행 방지
     
     const loadData = async () => {
-      console.log('🔄 데이터 분류 관리 페이지 - 데이터 로드 시작');
+      console.log('🔄 7일 데이터 관리 페이지 - 데이터 로드 시작');
       try {
         setIsLoading(true);
         console.log('🔄 하이브리드 데이터 로드 시작...');
@@ -571,7 +571,7 @@ const DataClassification = () => {
       // 데이터 다시 로드 (일관된 소스 사용)
       const loadData = async () => {
         try {
-          console.log('🔄 데이터 분류 관리 페이지 - 데이터 새로고침 시작');
+          console.log('🔄 7일 데이터 관리 페이지 - 데이터 새로고침 시작');
           
           // 백업 복원 중이면 데이터 로드 차단 (데이터 손실 방지)
           if ((window as any).restoreLock || sessionStorage.getItem('restoreInProgress')) {
@@ -660,7 +660,7 @@ const DataClassification = () => {
             setUnclassifiedData([]);
           }
           
-          console.log('✅ 데이터 분류 관리 페이지 - 데이터 새로고침 완료');
+          console.log('✅ 7일 데이터 관리 페이지 - 데이터 새로고침 완료');
         } catch (error) {
           console.error('❌ 데이터 새로고침 실패:', error);
         }
@@ -948,32 +948,8 @@ const DataClassification = () => {
     setDataManagementConfig(prev => ({ ...prev, retentionDays: days }));
   };
 
-  const handleAutoCleanupToggle = () => {
-    setDataManagementConfig(prev => ({ ...prev, autoCleanup: !prev.autoCleanup }));
-  };
 
-  const handleCleanupOldData = async () => {
-          const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - dataManagementConfig.retentionDays);
-    const cutoffString = cutoffDate.toISOString().split('T')[0];
-    
-    const filteredData = unclassifiedData.filter(item => {
-      const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
-      return itemDate >= cutoffString;
-    });
-    
-    setUnclassifiedData(filteredData);
-    await hybridService.updateUnclassifiedData(filteredData);
-    
-    alert(`✅ ${dataManagementConfig.retentionDays}일 이전 데이터가 정리되었습니다.`);
-  };
 
-  const handleAutoCleanupOld = async () => {
-    if (!dataManagementConfig.autoCleanup) return;
-    
-    await handleCleanupOldData();
-    alert('✅ 자동 정리가 완료되었습니다.');
-  };
 
   // 부트스트랩 동기화 핸들러 (사용 안 함 - 삭제됨)
   // const handleBootstrapSync = async () => { ... };
@@ -1083,27 +1059,6 @@ const DataClassification = () => {
     }
   };
 
-  // 7일 이후 데이터 자동 정리
-  const handleCleanup7Days = async () => {
-    try {
-      setIsLoading(true);
-      console.log('🧹 7일 이후 데이터 자동 정리 시작...');
-      
-      const deletedCount = await indexedDBService.cleanupOldData(7);
-      
-      console.log(`✅ 데이터 정리 완료: ${deletedCount}개 삭제`);
-      alert(`🧹 데이터 정리 완료!\n\n삭제된 데이터: ${deletedCount}개\n7일 이후 데이터가 정리되었습니다.`);
-      
-      // 데이터 새로고침
-      window.location.reload();
-      
-    } catch (error) {
-      console.error('❌ 데이터 정리 실패:', error);
-      alert('❌ 데이터 정리 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // 자동수집 시작
   const handleAutoCollection = async () => {
@@ -2801,15 +2756,6 @@ const DataClassification = () => {
                   <Settings className="w-4 h-4 mr-2" />
                   시스템
                 </Button>
-              <Button 
-                variant="outline" 
-                className="bg-orange-600 hover:bg-orange-700 text-white"
-                onClick={handleCleanup7Days}
-                disabled={isLoading}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {isLoading ? '정리 중...' : '7일 데이터 정리'}
-              </Button>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 로그아웃
@@ -2823,8 +2769,8 @@ const DataClassification = () => {
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">데이터 분류 관리</h1>
-            <p className="text-muted-foreground mt-2">YouTube 영상 데이터를 카테고리별로 분류하고 관리합니다.</p>
+            <h1 className="text-3xl font-bold text-foreground">7일 데이터 관리</h1>
+            <p className="text-muted-foreground mt-2">7일간의 YouTube 영상 데이터를 카테고리별로 분류하고 관리합니다.</p>
             <p className="text-xs text-muted-foreground mt-1">
               💡 세부카테고리는 <code className="bg-muted px-1 rounded">src/lib/subcategories.ts</code> 파일에서 수정할 수 있습니다.
             </p>
@@ -3266,26 +3212,9 @@ const DataClassification = () => {
              <div className="space-y-4">
               <h3 className="font-medium text-foreground">데이터 관리 액션</h3>
                <div className="space-y-2">
-                 <Button 
-                   variant="outline" 
-                   onClick={handleCleanupOldData}
-                   className="w-full"
-                 >
-                   <Trash2 className="w-4 h-4 mr-2" />
-                   오래된 데이터 정리
-                 </Button>
-                 <Button 
-                   variant="secondary" 
-                   onClick={handleAutoCleanupOld}
-                   className="w-full"
-                   disabled={!dataManagementConfig.autoCleanup}
-                 >
-                   <RefreshCw className="w-4 h-4 mr-2" />
-                   자동 정리 실행
-                 </Button>
                  <div className="text-xs text-muted-foreground space-y-1">
-                   <p>{dataManagementConfig.autoCleanup && "• 자동 정리가 활성화되어 있습니다"}</p>
-                   <p>• {dataManagementConfig.retentionDays}일 이전 데이터는 자동으로 정리됩니다</p>
+                   <p>• 7일 데이터 보관 정책이 자동으로 적용됩니다</p>
+                   <p>• 서버와 클라이언트 모두 7일 이전 데이터는 자동 정리됩니다</p>
                  </div>
                </div>
               </div>
