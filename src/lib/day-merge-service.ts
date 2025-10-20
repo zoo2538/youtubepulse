@@ -222,7 +222,7 @@ export function convertToDayRows(
  * @param apiBase API 기본 URL
  * @returns 서버의 DayRow 배열
  */
-export async function fetchServerDays(apiBase: string = 'https://api.youthbepulse.com'): Promise<DayRow[]> {
+export async function fetchServerDays(apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'): Promise<DayRow[]> {
   try {
     const response = await fetch(`${apiBase}/api/unclassified`);
     if (!response.ok) {
@@ -264,7 +264,7 @@ export async function fetchLocalDays(): Promise<DayRow[]> {
  */
 export async function loadAndMergeDays(
   mode: MergeMode = 'overwrite',
-  apiBase: string = 'https://api.youthbepulse.com'
+  apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'
 ): Promise<MergeResult> {
   console.log('🔄 하이브리드 데이터 로드 시작...');
 

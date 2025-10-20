@@ -117,7 +117,7 @@ class AutoCollectionScheduler {
     
     try {
       // 서버 API 호출
-      const response = await fetch('https://api.youthbepulse.com/api/auto-collect', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}/api/auto-collect`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

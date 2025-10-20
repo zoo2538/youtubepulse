@@ -20,9 +20,16 @@ console.log('- DATABASE_URL:', process.env.DATABASE_URL ? '설정됨' : '미설�
 
 // 서버 시작
 try {
-  require('./dist/server/index-simple.js');
+  require('./simple-server.js');
   console.log('✅ 간단한 서버 시작 성공');
 } catch (error) {
-  console.error('❌ 서버 시작 실패:', error);
-  process.exit(1);
+  console.error('❌ 간단한 서버 시작 실패:', error);
+  // 폴백: 원본 서버 시도
+  try {
+    require('./dist/server/index.js');
+    console.log('✅ 원본 서버 시작 성공');
+  } catch (fallbackError) {
+    console.error('❌ 원본 서버도 실패:', fallbackError);
+    process.exit(1);
+  }
 }

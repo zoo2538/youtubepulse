@@ -59,6 +59,7 @@ import { compressByDate, type CompressionResult } from "@/lib/local-compression"
 import { hybridSyncService } from "@/lib/hybrid-sync-service";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridDBService } from "@/lib/hybrid-db-service";
+import { API_BASE_URL } from "@/lib/config";
 import { apiService } from "@/lib/api-service";
 import { fetchAndHydrate } from "@/lib/fetch-and-hydrate";
 import { showToast } from "@/lib/toast-util";
@@ -144,7 +145,7 @@ const DataClassification = () => {
       console.log('🤖 자동수집 데이터 로드 시작...');
       
       // API에서 자동수집 데이터 조회
-      const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+      const response = await fetch(`${API_BASE_URL}/api/auto-collected`);
       console.log('🤖 자동수집 API 응답 상태:', response.status, response.ok);
       
       if (response.ok) {
@@ -254,7 +255,7 @@ const DataClassification = () => {
         if (!savedData || savedData.length === 0) {
           console.log('📭 IndexedDB 비어있음 - 서버에서 초기 데이터 다운로드');
           
-          const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
+          const serverResponse = await fetch(`${API_BASE_URL}/api/unclassified?days=7`);
           if (serverResponse.ok) {
             const serverResult = await serverResponse.json();
             if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
@@ -276,7 +277,7 @@ const DataClassification = () => {
           setTimeout(async () => {
             try {
               const syncStartTime = Date.now();
-              const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
+              const serverResponse = await fetch(`${API_BASE_URL}/api/unclassified?days=7`);
               
               if (serverResponse.ok) {
                 const serverResult = await serverResponse.json();
@@ -984,7 +985,7 @@ const DataClassification = () => {
       
       // 1. 서버에서 전체 데이터 다운로드
       console.log('📥 서버에서 최신 데이터 다운로드 중...');
-      const response = await fetch('https://api.youthbepulse.com/api/unclassified');
+      const response = await fetch(`${API_BASE_URL}/api/unclassified`);
       
       if (!response.ok) {
         throw new Error(`서버 응답 실패: ${response.status}`);
@@ -1287,7 +1288,7 @@ const DataClassification = () => {
                 
                 console.log(`🔄 서버 ${date} 데이터 교체 중... (${dateData.length}개)`);
                 
-                const replaceResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
+                const replaceResponse = await fetch(`${API_BASE_URL}/api/replace-date-range`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -2014,7 +2015,7 @@ const DataClassification = () => {
       }
       
       // 전체 동기화 실행
-      const syncResult = await performFullSync('https://api.youthbepulse.com', 'overwrite');
+      const syncResult = await performFullSync(API_BASE_URL, 'overwrite');
       
       if (!syncResult.success) {
         throw new Error(syncResult.error || '동기화 실패');
@@ -2208,7 +2209,7 @@ const DataClassification = () => {
       // 서버(PostgreSQL) 중복 정리도 실행
       try {
         console.log('🔄 서버 중복 정리 시작...');
-        const serverResponse = await fetch('https://api.youthbepulse.com/api/cleanup-duplicates', {
+        const serverResponse = await fetch(`${API_BASE_URL}/api/cleanup-duplicates`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
         });
@@ -2250,7 +2251,7 @@ const DataClassification = () => {
       
       if (action === 'download') {
         // API에서 자동 수집 데이터 조회
-        const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+        const response = await fetch(`${API_BASE_URL}/api/auto-collected`);
         const result = await response.json();
         
         if (!result.success || !result.data || result.data.length === 0) {

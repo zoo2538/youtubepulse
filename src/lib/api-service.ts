@@ -1,5 +1,5 @@
 // API 서버와 통신하는 서비스
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
+import { API_BASE_URL } from './config';
 
 interface ApiResponse<T> {
   success: boolean;

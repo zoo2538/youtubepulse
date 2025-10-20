@@ -75,7 +75,7 @@ const System = () => {
   const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
     // localStorage에서 저장된 설정 불러오기
     const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
-    const savedCustomApiUrl = localStorage.getItem('customApiUrl') || 'https://api.youthbepulse.com';
+    const savedCustomApiUrl = localStorage.getItem('customApiUrl') || (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
     
@@ -179,7 +179,7 @@ const System = () => {
     // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
     if (localStorage.getItem('customApiEnabled') === null) {
       localStorage.setItem('customApiEnabled', 'false'); // Railway 서버 문제로 비활성화
-      localStorage.setItem('customApiUrl', 'https://api.youthbepulse.com');
+      localStorage.setItem('customApiUrl', (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com');
       console.log('🔧 커스텀 API 기본값 설정 완료 (Railway 서버 문제로 비활성화)');
     }
   }, []);
@@ -239,7 +239,7 @@ const System = () => {
   const handleReloadApiConfig = () => {
     try {
       const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
-      const savedCustomApiUrl = localStorage.getItem('customApiUrl') || 'https://api.youthbepulse.com';
+      const savedCustomApiUrl = localStorage.getItem('customApiUrl') || (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
       const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
       const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
       const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
@@ -671,7 +671,7 @@ const System = () => {
         fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
         const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
         
-        const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified');
+        const serverResponse = await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}/api/unclassified`);
         if (serverResponse.ok) {
           const serverResult = await serverResponse.json();
           if (serverResult.success && serverResult.data) {
@@ -1261,7 +1261,7 @@ const System = () => {
                               <div className="flex space-x-2">
                                 <Input
                                   id="custom-api-url"
-                                  placeholder="https://api.youthbepulse.com"
+                                  placeholder={(import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}
                                   value={apiConfig.customApiUrl}
                                   onChange={(e) => 
                                     setApiConfig(prev => ({ ...prev, customApiUrl: e.target.value }))

@@ -38,7 +38,7 @@ export interface SyncResult {
  * @param apiBase API 기본 URL
  * @returns 업로드 결과
  */
-export async function uploadLocalChanges(apiBase: string = 'https://api.youthbepulse.com'): Promise<{
+export async function uploadLocalChanges(apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'): Promise<{
   success: boolean;
   uploaded: number;
   error?: string;
@@ -122,7 +122,7 @@ export async function uploadLocalChanges(apiBase: string = 'https://api.youthbep
  * @returns 다운로드 결과
  */
 export async function downloadServerChanges(
-  apiBase: string = 'https://api.youthbepulse.com',
+  apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com',
   sinceRevision?: string
 ): Promise<{
   success: boolean;
@@ -176,7 +176,7 @@ export async function downloadServerChanges(
  * @returns 동기화 결과
  */
 export async function performFullSync(
-  apiBase: string = 'https://api.youthbepulse.com',
+  apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com',
   mode: 'overwrite' | 'union' = 'overwrite'
 ): Promise<SyncResult> {
   try {
@@ -297,7 +297,7 @@ export async function loadSyncStatus(): Promise<SyncStatus> {
  * @param apiBase API 기본 URL
  * @returns 동기화 필요 여부
  */
-export async function checkSyncNeeded(apiBase: string = 'https://api.youthbepulse.com'): Promise<{
+export async function checkSyncNeeded(apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'): Promise<{
   needed: boolean;
   reason: string;
   lastSync: number;

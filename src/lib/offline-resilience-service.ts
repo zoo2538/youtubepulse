@@ -64,7 +64,7 @@ class OfflineResilienceService {
 
   private checkConnection = async () => {
     try {
-      const response = await fetch('https://api.youthbepulse.com/health', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}/health`, {
         method: 'HEAD',
         cache: 'no-cache'
       });

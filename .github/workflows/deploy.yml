@@ -4,30 +4,38 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
-
+          node-version: '18'
+          cache: 'npm'
+          
       - name: Install dependencies
-        run: npm ci
-
-      - name: Build
+        run: npm ci --omit=dev
+        
+      - name: Build application
         run: npm run build
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy with Project Token
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        
+      - name: Deploy to Railway
+        uses: railwayapp/railway-action@v2
+        with:
+          service: backend
+          environment: production
+          railwayToken: ${{ secrets.RAILWAY_TOKEN }}
+          
+      - name: Health check
         run: |
-          echo "🚀 Railway 배포 시작..."
-          railway --version
-          railway up --service ${{ secrets.RAILWAY_SERVICE_ID }} --ci --detach
+          sleep 30
+          curl -f https://api.youthbepulse.com/api/health || exit 1

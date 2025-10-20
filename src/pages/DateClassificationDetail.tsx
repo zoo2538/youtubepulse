@@ -30,6 +30,7 @@ import {
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { hybridDBService } from "@/lib/hybrid-db-service";
+import { API_BASE_URL } from "@/lib/config";
 import { apiService } from "@/lib/api-service";
 import { dedupeByDate, dedupeByVideoDay, type VideoItem } from "@/lib/dedupe-utils";
 import { subCategories } from "@/lib/subcategories";
@@ -128,7 +129,7 @@ const DateClassificationDetail = () => {
           // 자동수집 데이터인 경우 별도 API 사용
           if (collectionType === 'auto') {
             console.log('📊 자동수집 데이터 - 전용 API 사용...');
-            const response = await fetch('https://api.youthbepulse.com/api/auto-collected');
+            const response = await fetch(`${API_BASE_URL}/api/auto-collected`);
             if (response.ok) {
               const serverData = await response.json();
               if (serverData.success && serverData.data && serverData.data.length > 0) {
@@ -145,7 +146,7 @@ const DateClassificationDetail = () => {
           } else if (collectionType === 'manual') {
             // 수동수집 데이터 - classified API 사용 (collection_type='manual' 필터링)
             console.log('📊 수동수집 데이터 - classified API 사용...');
-            const response = await fetch(`https://api.youthbepulse.com/api/classified?date=${selectedDate}`);
+            const response = await fetch(`${API_BASE_URL}/api/classified?date=${selectedDate}`);
             if (response.ok) {
               const serverData = await response.json();
               if (serverData.success && serverData.data && serverData.data.length > 0) {
@@ -157,7 +158,7 @@ const DateClassificationDetail = () => {
           } else if (collectionType === 'total') {
             // 전체 데이터 - unclassified_data 테이블에서 날짜별로 조회
             console.log('📊 전체 데이터 - unclassified_data 테이블 사용...');
-            const response = await fetch(`https://api.youthbepulse.com/api/unclassified-by-date?date=${selectedDate}`);
+            const response = await fetch(`${API_BASE_URL}/api/unclassified-by-date?date=${selectedDate}`);
             if (response.ok) {
               const serverData = await response.json();
               if (serverData.success && serverData.data && serverData.data.length > 0) {
@@ -464,7 +465,7 @@ const DateClassificationDetail = () => {
           
           // 먼저 해당 날짜 데이터 삭제
           console.log(`🗑️ ${selectedDate} 기존 데이터 삭제 중...`);
-          const deleteResponse = await fetch('https://api.youthbepulse.com/api/replace-date-range', {
+          const deleteResponse = await fetch(`${API_BASE_URL}/api/replace-date-range`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -867,7 +868,7 @@ const DateClassificationDetail = () => {
         
         // 서버 동기화 (API 서버가 연결된 경우)
         try {
-          const response = await fetch('https://api.youthbepulse.com/api/backup/import', {
+          const response = await fetch(`${API_BASE_URL}/api/backup/import`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

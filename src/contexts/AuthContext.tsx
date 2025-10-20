@@ -145,11 +145,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const syncResult = await postLoginSync({
                 api: {
                   get: async (url: string) => {
-                    const response = await fetch(`https://api.youthbepulse.com${url}`);
+                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`);
                     return response.json();
                   },
                   post: async (url: string, data: any) => {
-                    const response = await fetch(`https://api.youthbepulse.com${url}`, {
+                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(data)
@@ -216,11 +216,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const syncResult = await postLoginSync({
                 api: {
                   get: async (url: string) => {
-                    const response = await fetch(`https://api.youthbepulse.com${url}`);
+                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`);
                     return response.json();
                   },
                   post: async (url: string, data: any) => {
-                    const response = await fetch(`https://api.youthbepulse.com${url}`, {
+                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(data)
@@ -290,11 +290,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const syncResult = await postLoginSync({
               api: {
                 get: async (url: string) => {
-                  const response = await fetch(`https://api.youthbepulse.com${url}`);
+                  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`);
                   return response.json();
                 },
                 post: async (url: string, data: any) => {
-                  const response = await fetch(`https://api.youthbepulse.com${url}`, {
+                  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)

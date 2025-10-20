@@ -74,7 +74,7 @@ class DataMigrationService {
   // 서버로 데이터 동기화
   private async syncToServer(channels: any[], videos: any[], classificationData: any[]): Promise<void> {
     try {
-      const apiBaseUrl = process.env.VITE_APP_URL || 'https://api.youthbepulse.com';
+      const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
       
       // 채널 데이터 동기화
       if (channels.length > 0) {
@@ -178,7 +178,7 @@ class DataMigrationService {
     stats: any;
   }> {
     try {
-      const apiBaseUrl = process.env.VITE_APP_URL || 'https://api.youthbepulse.com';
+      const apiBaseUrl = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
       
       const [channelsResponse, videosResponse, statsResponse] = await Promise.all([
         fetch(`${apiBaseUrl}/api/data/channels`),
