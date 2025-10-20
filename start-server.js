@@ -18,18 +18,18 @@ console.log('- NODE_ENV:', process.env.NODE_ENV);
 console.log('- PORT:', process.env.PORT);
 console.log('- DATABASE_URL:', process.env.DATABASE_URL ? '설정됨' : '미설정');
 
-// 서버 시작
+// 서버 시작 - 전체 서버 우선 실행
 try {
-  require('./simple-server.js');
-  console.log('✅ 간단한 서버 시작 성공');
+  require('./dist/server/index.js');
+  console.log('✅ 전체 서버 시작 성공');
 } catch (error) {
-  console.error('❌ 간단한 서버 시작 실패:', error);
-  // 폴백: 원본 서버 시도
+  console.error('❌ 전체 서버 시작 실패:', error);
+  // 폴백: 간단한 서버 시도
   try {
-    require('./dist/server/index.js');
-    console.log('✅ 원본 서버 시작 성공');
+    require('./simple-server.js');
+    console.log('✅ 간단한 서버 시작 성공 (폴백)');
   } catch (fallbackError) {
-    console.error('❌ 원본 서버도 실패:', fallbackError);
+    console.error('❌ 간단한 서버도 실패:', fallbackError);
     process.exit(1);
   }
 }

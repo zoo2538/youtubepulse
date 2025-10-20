@@ -8,4 +8,4 @@ cmds = ["npm ci --omit=dev"]
 cmds = ["npm run build"]
 
 [phases.start]
-cmd = "node simple-server.js"
+cmd = "node start-server.js"
