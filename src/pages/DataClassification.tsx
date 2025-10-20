@@ -896,11 +896,41 @@ const DataClassification = () => {
         // 3. 자동수집 데이터 로드
         await loadAutoCollectedData();
         
+        // 4. 실제 데이터 로드
+        const savedData = await hybridService.loadUnclassifiedData();
+        if (savedData && savedData.length > 0) {
+          // 데이터 정규화
+          const today = getKoreanDateString();
+          const sanitized: UnclassifiedData[] = savedData.map((it: UnclassifiedData) => {
+            const baseItem = it.category === '해외채널'
+              ? { ...it, category: '', subCategory: '', status: 'unclassified' as const }
+              : it;
+            
+            return {
+              ...baseItem,
+              collectionDate: baseItem.collectionDate || baseItem.uploadDate || today,
+              dayKeyLocal: baseItem.dayKeyLocal || baseItem.collectionDate || baseItem.uploadDate
+            };
+          });
+          
+          // 중복 제거
+          const dedupedData = dedupeByVideoDay(sanitized as VideoItem[]);
+          setUnclassifiedData(dedupedData as UnclassifiedData[]);
+          console.log(`✅ 데이터 로드 완료: ${dedupedData.length}개`);
+        } else {
+          console.log('📭 로드된 데이터가 없습니다');
+          setUnclassifiedData([]);
+        }
+        
         setDataLoaded(true);
+        console.log('✅ setDataLoaded(true) 호출 완료');
       } catch (error) {
         console.error('데이터 로드 실패:', error);
+        setUnclassifiedData([]);
+        setDataLoaded(true); // 오류가 발생해도 로딩 상태는 해제
       } finally {
         setIsLoading(false);
+        console.log('✅ setIsLoading(false) 호출 완료');
       }
     };
     

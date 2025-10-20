@@ -949,22 +949,22 @@ app.post('/api/unclassified', async (req, res) => {
             updated_at = NOW()
           RETURNING (xmax = 0) AS inserted
         `, [
-          item.videoId, 
-          item.channelId, 
-          item.channelName, 
-          item.videoTitle,
-          item.videoDescription, 
-          item.viewCount || 0,
-          item.likeCount || 0,
-          item.commentCount || 0,
-          item.uploadDate, 
-          item.collectionDate,
-          item.thumbnailUrl, 
+          item.videoId || item.video_id, 
+          item.channelId || item.channel_id, 
+          item.channelName || item.channel_name, 
+          item.videoTitle || item.video_title,
+          item.videoDescription || item.video_description, 
+          item.viewCount || item.view_count || 0,
+          item.likeCount || item.like_count || 0,
+          item.commentCount || item.comment_count || 0,
+          item.uploadDate || item.upload_date, 
+          item.collectionDate || item.collection_date,
+          item.thumbnailUrl || item.thumbnail_url, 
           item.category || '', 
-          item.subCategory || '', 
+          item.subCategory || item.sub_category || '', 
           item.status || 'unclassified',
           dayKeyLocal,
-          item.collectionType || 'manual'
+          item.collectionType || item.collection_type || 'manual'
         ]);
           
           if (result.rows[0].inserted) {
