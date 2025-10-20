@@ -1950,41 +1950,71 @@ async function autoCollectData() {
     
     console.log(`✅ 키워드: ${keywordVideos.length}개 수집`);
 
-    // 3단계: 키워드별 중복 제거 후 전체 중복 제거
-    console.log('🔄 키워드별 중복 제거 시작...');
-    const keywordVideoMap = new Map();
+    // 3단계: 수동수집과 동일한 중복 제거 방식 적용
+    console.log('🔄 수동수집과 동일한 중복 제거 방식 적용...');
     
-    // 키워드별로 중복 제거
-    keywordVideos.forEach(video => {
-      const videoId = video.id;
-      const existing = keywordVideoMap.get(videoId);
-      if (!existing || parseInt(video.statistics?.viewCount || '0') > parseInt(existing.statistics?.viewCount || '0')) {
-        keywordVideoMap.set(videoId, video);
+    // 모든 영상을 수동수집과 동일한 형태로 변환
+    const allVideos = [...trendingVideos, ...keywordVideos];
+    const transformedVideos = allVideos.map(video => ({
+      videoId: video.id,
+      dayKeyLocal: today, // 당일 데이터로 설정
+      collectionDate: today,
+      uploadDate: video.snippet?.publishedAt ? video.snippet.publishedAt.split('T')[0] : today,
+      viewCount: parseInt(video.statistics?.viewCount || '0'),
+      likeCount: parseInt(video.statistics?.likeCount || '0'),
+      commentCount: parseInt(video.statistics?.commentCount || '0'),
+      videoTitle: video.snippet?.title || '',
+      videoDescription: video.snippet?.description || '',
+      channelId: video.snippet?.channelId || '',
+      channelName: video.snippet?.channelTitle || '',
+      thumbnailUrl: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.default?.url || '',
+      searchKeyword: video.searchKeyword || 'trending',
+      source: video.searchKeyword ? 'keyword' : 'trending',
+      // 원본 데이터도 보존
+      originalData: video
+    }));
+    
+    console.log(`📊 변환된 영상 데이터: ${transformedVideos.length}개`);
+    
+    // 수동수집과 동일한 dedupeByVideoDay 함수 사용
+    const dedupeByVideoDay = (videos) => {
+      const map = new Map();
+      let duplicatesFound = 0;
+      
+      for (const video of videos) {
+        const dayKey = video.dayKeyLocal || video.collectionDate || video.uploadDate;
+        if (!dayKey) continue;
+        
+        const key = `${video.videoId}|${dayKey}`;
+        const existing = map.get(key);
+        
+        if (!existing) {
+          map.set(key, video);
+        } else {
+          duplicatesFound++;
+          const currentViews = video.viewCount || 0;
+          const existingViews = existing.viewCount || 0;
+          
+          if (currentViews > existingViews) {
+            map.set(key, video);
+            console.log(`🔄 중복 교체: ${video.videoId} (조회수 ${existingViews} → ${currentViews})`);
+          }
+        }
       }
-    });
-    
-    const keywordUniqueVideos = Array.from(keywordVideoMap.values());
-    console.log(`✅ 키워드별 중복 제거: ${keywordVideos.length}개 → ${keywordUniqueVideos.length}개`);
-    
-    // 전체 중복 제거
-    const allVideos = [...trendingVideos, ...keywordUniqueVideos];
-    const videoMap = new Map();
-    
-    allVideos.forEach(video => {
-      const existing = videoMap.get(video.id);
-      if (!existing || parseInt(video.statistics?.viewCount || '0') > parseInt(existing.statistics?.viewCount || '0')) {
-        videoMap.set(video.id, video);
+      
+      if (duplicatesFound > 0) {
+        console.log(`📊 중복 제거 완료: ${duplicatesFound}개 중복 발견, ${map.size}개 유지`);
       }
-    });
+      
+      return Array.from(map.values());
+    };
     
-    let uniqueVideos = Array.from(videoMap.values());
-    uniqueVideos.sort((a, b) => parseInt(b.statistics?.viewCount || '0') - parseInt(a.statistics?.viewCount || '0'));
-    
-    console.log(`✅ 전체: ${allVideos.length}개 → 중복 제거: ${uniqueVideos.length}개`);
+    const uniqueVideos = dedupeByVideoDay(transformedVideos);
+    console.log(`✅ 수동수집과 동일한 중복 제거: ${transformedVideos.length}개 → ${uniqueVideos.length}개`);
 
     // 4단계: 채널 정보 수집
     console.log('📊 채널 정보 수집 중...');
-    const channelIds = [...new Set(uniqueVideos.map(v => v.snippet.channelId))];
+    const channelIds = [...new Set(uniqueVideos.map(v => v.channelId))];
     let allChannels = [];
     
     for (let i = 0; i < channelIds.length; i += 50) {
@@ -2044,34 +2074,31 @@ async function autoCollectData() {
     
     console.log(`📅 수집 날짜 설정: ${today} (당일 데이터로 저장)`);
     const newData = uniqueVideos.map((video, index) => {
-      const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
-      const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
-      
-      // 키워드 정보 찾기 (키워드 수집에서 온 영상인지 확인)
-      let sourceKeyword = 'trending';
-      const keywordVideo = keywordVideos.find(kv => kv.id === video.id);
-      if (keywordVideo && keywordVideo.searchKeyword) {
-        // 키워드 수집에서 온 영상인 경우, 저장된 키워드 사용
-        sourceKeyword = keywordVideo.searchKeyword;
-      }
+      const channel = allChannels.find(ch => ch.id === video.channelId);
+      const existingClassification = classifiedChannelMap.get(video.channelId);
       
       return {
         id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
-        channelId: video.snippet.channelId,
-        channelName: video.snippet.channelTitle,
+        channelId: video.channelId,
+        channelName: video.channelName,
         description: channel?.snippet?.description || "설명 없음",
-        videoId: video.id,
-        videoTitle: video.snippet.title,
-        videoDescription: video.snippet.description,
-        viewCount: parseInt(video.statistics?.viewCount || '0'),
-        uploadDate: video.snippet.publishedAt.split('T')[0],
-        collectionDate: today,
-        thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
+        videoId: video.videoId,
+        videoTitle: video.videoTitle,
+        videoDescription: video.videoDescription,
+        viewCount: video.viewCount,
+        likeCount: video.likeCount,
+        commentCount: video.commentCount,
+        publishedAt: video.originalData?.snippet?.publishedAt || '',
+        thumbnailUrl: video.thumbnailUrl,
+        duration: video.originalData?.contentDetails?.duration || '',
+        uploadDate: video.uploadDate,
+        collectionDate: video.collectionDate,
+        dayKeyLocal: video.dayKeyLocal,
         category: existingClassification?.category || "",
         subCategory: existingClassification?.subCategory || "",
         status: existingClassification ? "classified" : "unclassified",
-        keyword: sourceKeyword, // 키워드 정보 추가
-        source: keywordVideo ? 'keyword' : 'trending', // 수집 소스 정보 추가
+        keyword: video.searchKeyword, // 키워드 정보 추가
+        source: video.source, // 수집 소스 정보 추가
         collectionType: 'auto', // 자동 수집으로 명시
         collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
         collectionSource: 'auto_collect_api' // 수집 소스 기록

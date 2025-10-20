@@ -441,16 +441,25 @@ const DateClassificationDetail = () => {
       // 2-1. IndexedDB에는 날짜별 선택적 교체 저장 (로컬 캐시)
       console.log(`💾 IndexedDB 날짜별 선택적 교체 저장: ${selectedDate}`);
       
-      // 해당 날짜의 기존 데이터 삭제 후 새 데이터 저장
-      await hybridDBService.replaceDataByDate(selectedDate, unclassifiedData);
-      console.log(`✅ IndexedDB ${selectedDate} 날짜 데이터 교체 완료: ${unclassifiedData.length}개`);
+      // 해당 날짜의 데이터만 필터링 (전체 데이터가 아닌 해당 날짜만)
+      const dateSpecificData = unclassifiedData.filter(item => 
+        item.dayKeyLocal === selectedDate || 
+        item.collectionDate === selectedDate ||
+        item.uploadDate === selectedDate
+      );
+      
+      console.log(`📊 해당 날짜(${selectedDate}) 데이터 필터링: ${unclassifiedData.length}개 → ${dateSpecificData.length}개`);
+      
+      // 해당 날짜 데이터만 저장
+      await hybridDBService.replaceDataByDate(selectedDate, dateSpecificData);
+      console.log(`✅ IndexedDB ${selectedDate} 날짜 데이터 교체 완료: ${dateSpecificData.length}개`);
       
       // 2-2. 서버에는 현재 날짜 데이터를 교체 방식으로 전송 (DELETE + INSERT, 배치 처리)
       console.log(`💾 서버 저장 - 현재 날짜(${selectedDate}) 데이터 교체`);
-      if (unclassifiedData.length > 0) {
+      if (dateSpecificData.length > 0) {
         try {
           const BATCH_SIZE = 500;
-          const totalBatches = Math.ceil(unclassifiedData.length / BATCH_SIZE);
+          const totalBatches = Math.ceil(dateSpecificData.length / BATCH_SIZE);
           
           // 먼저 해당 날짜 데이터 삭제
           console.log(`🗑️ ${selectedDate} 기존 데이터 삭제 중...`);
