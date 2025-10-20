@@ -12,7 +12,8 @@ build
 .cache
 coverage
 .DS_Store
-scripts
+scripts/*
+!scripts/copy-server.js
 docs
 tests
 **/*.map
