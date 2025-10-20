@@ -15,6 +15,10 @@ coverage
 scripts
 docs
 tests
+**/*.map
+.next
+.vercel
+.turbo
 *.md
 *.txt
 electron

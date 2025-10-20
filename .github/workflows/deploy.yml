@@ -1,4 +1,4 @@
-name: Deploy to Railway
+name: Build (Railway deploy via GitHub-connected repo)
 
 on:
   push:
@@ -27,16 +27,8 @@ jobs:
         
       - name: Build application
         run: npm run build
-        
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli@latest
-        
-      - name: Deploy to Railway
-        run: railway up --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          
-      - name: Health check
-        run: |
-          sleep 30
-          curl -f https://api.youthbepulse.com/api/health || exit 1
+
+      # Deployment handled by Railway's GitHub-connected repository integration.
+      # Remove CLI upload to avoid intermittent 500s from backboard upload endpoint.
+      - name: Skip deploy (handled by Railway auto-deploy)
+        run: echo "Skipping CLI deploy. Railway will auto-deploy on push via connected repo."
