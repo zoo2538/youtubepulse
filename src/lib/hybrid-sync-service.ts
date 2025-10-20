@@ -4,6 +4,7 @@
  */
 
 import { indexedDBService } from './indexeddb-service';
+import { hybridDBService } from './hybrid-db-service';
 import { apiService } from './api-service';
 
 // API Base URL을 apiService에서 가져옴
@@ -222,7 +223,7 @@ class HybridSyncService {
 
         // 3. IndexedDB에 배치 저장 (기존 데이터 자동 덮어쓰기)
         console.log('💾 서버 데이터를 IndexedDB에 배치 저장 중...');
-        await indexedDBService.saveUnclassifiedData(normalizedData);
+        await hybridDBService.saveDataInBatches(normalizedData, 500);
         downloaded = normalizedData.length;
         
         console.log(`✅ 전체 동기화 완료: ${downloaded}개 새로 저장`);
