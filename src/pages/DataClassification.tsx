@@ -254,7 +254,7 @@ const DataClassification = () => {
         if (!savedData || savedData.length === 0) {
           console.log('📭 IndexedDB 비어있음 - 서버에서 초기 데이터 다운로드');
           
-          const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=14');
+          const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
           if (serverResponse.ok) {
             const serverResult = await serverResponse.json();
             if (serverResult.success && serverResult.data && serverResult.data.length > 0) {
@@ -276,7 +276,7 @@ const DataClassification = () => {
           setTimeout(async () => {
             try {
               const syncStartTime = Date.now();
-              const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=14');
+              const serverResponse = await fetch('https://api.youthbepulse.com/api/unclassified?days=7');
               
               if (serverResponse.ok) {
                 const serverResult = await serverResponse.json();
@@ -429,11 +429,14 @@ const DataClassification = () => {
         }
         
         setDataLoaded(true); // 데이터 로드 완료 표시
+        console.log('✅ loadData 함수 성공 완료');
       } catch (error) {
-        console.error('데이터 로드 실패:', error);
+        console.error('❌ 데이터 로드 실패:', error);
         setUnclassifiedData([]);
       } finally {
+        console.log('🔄 loadData 함수 완료 - isLoading을 false로 설정');
         setIsLoading(false);
+        console.log('✅ setIsLoading(false) 호출 완료');
       }
     };
 
@@ -2733,6 +2736,7 @@ const DataClassification = () => {
         <div className="text-center">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-primary" />
           <p className="text-muted-foreground">데이터를 로드하는 중...</p>
+          <p className="text-xs text-muted-foreground mt-2">로딩 상태: {isLoading ? 'true' : 'false'}</p>
         </div>
       </div>
     );
