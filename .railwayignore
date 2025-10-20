@@ -1,0 +1,26 @@
+# Railway 배포 시 제외할 파일들
+node_modules/
+.git/
+.gitignore
+README.md
+docs/
+scripts/
+src/
+*.md
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+logs/
+backups/
+release/
+electron/
+vite.config.ts
+tailwind.config.ts
+tsconfig.json
+tsconfig.app.json
+tsconfig.node.json
+eslint.config.js
+postcss.config.js
+components.json
