@@ -199,7 +199,7 @@ export class HybridDBService {
   async clearData(): Promise<void> {
     await this.initDB();
     
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       if (!this.db) {
         reject(new Error('IndexedDB가 초기화되지 않았습니다'));
         return;
@@ -210,18 +210,19 @@ export class HybridDBService {
         const store = transaction.objectStore(this.storeName);
         const request = store.clear();
 
-        request.onsuccess = async () => {
+        request.onsuccess = () => {
           console.log('🗑️ 기존 데이터 삭제 완료');
           
-          // 캐시 자동 삭제
-          try {
-            await this.clearAssociatedCache();
-            console.log('✅ 연관 캐시 삭제 완료');
-          } catch (cacheError) {
-            console.warn('⚠️ 캐시 삭제 실패 (데이터는 삭제됨):', cacheError);
-          }
-          
-          resolve();
+          // 캐시 자동 삭제 (비동기 처리)
+          this.clearAssociatedCache()
+            .then(() => {
+              console.log('✅ 연관 캐시 삭제 완료');
+              resolve();
+            })
+            .catch((cacheError) => {
+              console.warn('⚠️ 캐시 삭제 실패 (데이터는 삭제됨):', cacheError);
+              resolve(); // 데이터는 삭제되었으므로 성공으로 처리
+            });
         };
 
         request.onerror = () => {

@@ -1067,24 +1067,25 @@ class IndexedDBService {
 
   // 데이터베이스 삭제 (초기화) - 캐시도 함께 삭제
   async clearDatabase(): Promise<void> {
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       try {
         // 1. IndexedDB 삭제
         const request = indexedDB.deleteDatabase(this.dbName);
         
-        request.onsuccess = async () => {
+        request.onsuccess = () => {
           this.db = null;
           console.log('✅ IndexedDB 삭제 완료');
           
-          // 2. 캐시 자동 삭제
-          try {
-            await this.clearAssociatedCache();
-            console.log('✅ 연관 캐시 삭제 완료');
-          } catch (cacheError) {
-            console.warn('⚠️ 캐시 삭제 실패 (IndexedDB는 삭제됨):', cacheError);
-          }
-          
-          resolve();
+          // 2. 캐시 자동 삭제 (비동기 처리)
+          this.clearAssociatedCache()
+            .then(() => {
+              console.log('✅ 연관 캐시 삭제 완료');
+              resolve();
+            })
+            .catch((cacheError) => {
+              console.warn('⚠️ 캐시 삭제 실패 (IndexedDB는 삭제됨):', cacheError);
+              resolve(); // IndexedDB는 삭제되었으므로 성공으로 처리
+            });
         };
         
         request.onerror = () => reject(request.error);
