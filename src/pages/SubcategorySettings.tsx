@@ -1,30 +1,13 @@
-import React, { useState } from "react";
+import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Filter, RefreshCw } from "lucide-react";
 import { categories, subCategories } from "@/lib/subcategories";
-import { migrateKFoodToKoreanCooking } from "@/lib/kfood-migration";
 
 const SubcategorySettings = () => {
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
 
-  // K푸드 → 요리/한식 마이그레이션 핸들러
-  const handleKFoodMigration = async () => {
-    if (window.confirm('기존 데이터의 "K푸드" 세부카테고리를 "요리/한식"으로 변경하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
-      setIsLoading(true);
-      try {
-        await migrateKFoodToKoreanCooking();
-        alert('K푸드 → 요리/한식 마이그레이션이 완료되었습니다!');
-      } catch (error) {
-        console.error('K푸드 마이그레이션 오류:', error);
-        alert('K푸드 마이그레이션 중 오류가 발생했습니다.');
-      } finally {
-        setIsLoading(false);
-      }
-    }
-  };
 
   // 세부카테고리 강제 새로고침 핸들러
   const handleForceRefreshCategories = () => {
@@ -95,15 +78,6 @@ const SubcategorySettings = () => {
 
         {/* 관리 버튼들 */}
         <div className="flex flex-wrap gap-3 mb-6">
-          <Button 
-            variant="outline" 
-            className="bg-orange-600 hover:bg-orange-700 text-white"
-            onClick={handleKFoodMigration}
-            disabled={isLoading}
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            {isLoading ? '처리 중...' : 'K푸드 → 요리/한식'}
-          </Button>
           <Button 
             variant="outline" 
             className="bg-purple-600 hover:bg-purple-700 text-white"

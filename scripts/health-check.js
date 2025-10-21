@@ -100,7 +100,7 @@ async function checkAutoCollectionData() {
   
   try {
     const response = await fetch(`${API_BASE_URL}/api/auto-collected`, {
-      timeout: 15000
+      timeout: 5000
     });
     
     if (!response.ok) {
@@ -156,7 +156,7 @@ async function checkClassifiedData() {
   
   try {
     const response = await fetch(`${API_BASE_URL}/api/classified`, {
-      timeout: 15000
+      timeout: 5000
     });
     
     if (!response.ok) {
@@ -236,8 +236,8 @@ async function testAutoCollectionTrigger() {
       logInfo(`메시지: ${data.message}`);
       
       // 잠시 대기 후 결과 확인
-      logInfo('5초 후 자동수집 결과 확인 중...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      logInfo('2초 후 자동수집 결과 확인 중...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // 자동수집 데이터 다시 확인
       const checkResponse = await fetch(`${API_BASE_URL}/api/auto-collected`);
@@ -333,10 +333,16 @@ async function main() {
   // 2. 데이터베이스 헬스 체크
   report.checks.database = await checkHealthEndpoint();
   
-  // 3. 자동수집 데이터 확인
+  // 3. 자동수집 데이터 확인 (병렬 처리)
   if (report.checks.database) {
-    report.checks.autoCollection = await checkAutoCollectionData();
-    report.checks.classifiedData = await checkClassifiedData();
+    logInfo('병렬로 데이터 확인 중...');
+    const [autoCollectionResult, classifiedDataResult] = await Promise.all([
+      checkAutoCollectionData(),
+      checkClassifiedData()
+    ]);
+    
+    report.checks.autoCollection = autoCollectionResult;
+    report.checks.classifiedData = classifiedDataResult;
     
     // 4. 자동수집 트리거 테스트 (선택적)
     const shouldTestTrigger = process.argv.includes('--test-auto-collect');
