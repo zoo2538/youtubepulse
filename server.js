@@ -2566,6 +2566,14 @@ app.listen(PORT, '0.0.0.0', () => {
     scheduled: true
   });
   
+  // 크론잡 상태 확인
+  console.log('📅 크론잡 설정 완료:', {
+    schedule: '매일 09:00 KST',
+    timezone: 'Asia/Seoul',
+    scheduled: cronJob.running,
+    nextRun: cronJob.nextDate ? cronJob.nextDate().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '알 수 없음'
+  });
+  
   // 다음 실행 시간 계산 (KST 기준)
   const now = new Date();
   const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
