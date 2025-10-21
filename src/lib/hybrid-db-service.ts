@@ -116,38 +116,106 @@ export class HybridDBService {
   }
 
   /**
-   * 단일 배치 저장
+   * 단일 배치 저장 (중복 처리 개선)
    */
   private async saveBatch(batch: any[]): Promise<void> {
     if (!this.db) {
       throw new Error('IndexedDB가 초기화되지 않았습니다');
     }
 
+    // 배치 내 중복 제거
+    const uniqueBatch = new Map();
+    batch.forEach(item => {
+      const key = `${item.videoId}|${item.dayKeyLocal}`;
+      if (uniqueBatch.has(key)) {
+        // 기존 항목과 병합 (최대값 보존)
+        const existing = uniqueBatch.get(key);
+        uniqueBatch.set(key, {
+          ...existing,
+          ...item,
+          viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+          likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0)
+        });
+      } else {
+        uniqueBatch.set(key, item);
+      }
+    });
+
+    const deduplicatedBatch = Array.from(uniqueBatch.values());
+    console.log(`🔄 배치 내 중복 제거: ${batch.length}개 → ${deduplicatedBatch.length}개`);
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
 
       let completed = 0;
-      const total = batch.length;
+      const total = deduplicatedBatch.length;
 
       if (total === 0) {
         resolve();
         return;
       }
 
-      // 각 아이템을 저장
-      batch.forEach((item, index) => {
-        const putRequest = store.put(item);
+      // 각 아이템을 안전하게 저장 (중복 처리)
+      deduplicatedBatch.forEach((item, index) => {
+        // 기존 데이터 확인 후 처리
+        const existingRequest = store.index('videoDay').get([item.videoId, item.dayKeyLocal]);
         
-        putRequest.onsuccess = () => {
+        existingRequest.onsuccess = () => {
+          const existing = existingRequest.result;
+          
+          if (existing) {
+            // 기존 데이터가 있으면 업데이트 (최대값 보존)
+            const updatedItem = {
+              ...existing,
+              ...item,
+              viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
+              likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
+              // 수동 분류 우선
+              status: item.status === 'classified' ? 'classified' : existing.status,
+              category: item.category || existing.category,
+              subCategory: item.subCategory || existing.subCategory
+            };
+            
+            const updateRequest = store.put(updatedItem);
+            updateRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                resolve();
+              }
+            };
+            updateRequest.onerror = () => {
+              console.warn(`⚠️ 업데이트 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`);
+              completed++;
+              if (completed === total) {
+                resolve();
+              }
+            };
+          } else {
+            // 기존 데이터가 없으면 새로 추가
+            const addRequest = store.add(item);
+            addRequest.onsuccess = () => {
+              completed++;
+              if (completed === total) {
+                resolve();
+              }
+            };
+            addRequest.onerror = () => {
+              console.warn(`⚠️ 추가 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`);
+              completed++;
+              if (completed === total) {
+                resolve();
+              }
+            };
+          }
+        };
+        
+        existingRequest.onerror = () => {
+          console.warn(`⚠️ 기존 데이터 확인 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`);
           completed++;
           if (completed === total) {
             resolve();
           }
-        };
-        
-        putRequest.onerror = () => {
-          reject(putRequest.error);
         };
       });
 
