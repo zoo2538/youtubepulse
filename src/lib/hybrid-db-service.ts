@@ -194,31 +194,53 @@ export class HybridDBService {
   }
 
   /**
-   * 데이터 초기화 (기존 데이터 삭제)
+   * 데이터 초기화 (기존 데이터 삭제) - 캐시도 함께 삭제
    */
   async clearData(): Promise<void> {
     await this.initDB();
     
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       if (!this.db) {
         reject(new Error('IndexedDB가 초기화되지 않았습니다'));
         return;
       }
 
-      const transaction = this.db.transaction([this.storeName], 'readwrite');
-      const store = transaction.objectStore(this.storeName);
-      const request = store.clear();
+      try {
+        const transaction = this.db.transaction([this.storeName], 'readwrite');
+        const store = transaction.objectStore(this.storeName);
+        const request = store.clear();
 
-      request.onsuccess = () => {
-        console.log('🗑️ 기존 데이터 삭제 완료');
-        resolve();
-      };
+        request.onsuccess = async () => {
+          console.log('🗑️ 기존 데이터 삭제 완료');
+          
+          // 캐시 자동 삭제
+          try {
+            await this.clearAssociatedCache();
+            console.log('✅ 연관 캐시 삭제 완료');
+          } catch (cacheError) {
+            console.warn('⚠️ 캐시 삭제 실패 (데이터는 삭제됨):', cacheError);
+          }
+          
+          resolve();
+        };
 
-      request.onerror = () => {
-        console.error('❌ 데이터 삭제 실패:', request.error);
-        reject(request.error);
-      };
+        request.onerror = () => {
+          console.error('❌ 데이터 삭제 실패:', request.error);
+          reject(request.error);
+        };
+      } catch (error) {
+        reject(error);
+      }
     });
+  }
+
+  /**
+   * IndexedDB 삭제 시 연관 캐시 자동 삭제
+   */
+  private async clearAssociatedCache(): Promise<void> {
+    // CacheCleanup 유틸리티 사용
+    const { CacheCleanup } = await import('./cache-cleanup');
+    await CacheCleanup.clearAssociatedCache();
   }
 
   /**

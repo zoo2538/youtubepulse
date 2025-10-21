@@ -1065,17 +1065,40 @@ class IndexedDBService {
     });
   }
 
-  // 데이터베이스 삭제 (초기화)
+  // 데이터베이스 삭제 (초기화) - 캐시도 함께 삭제
   async clearDatabase(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.deleteDatabase(this.dbName);
-      
-      request.onsuccess = () => {
-        this.db = null;
-        resolve();
-      };
-      request.onerror = () => reject(request.error);
+    return new Promise(async (resolve, reject) => {
+      try {
+        // 1. IndexedDB 삭제
+        const request = indexedDB.deleteDatabase(this.dbName);
+        
+        request.onsuccess = async () => {
+          this.db = null;
+          console.log('✅ IndexedDB 삭제 완료');
+          
+          // 2. 캐시 자동 삭제
+          try {
+            await this.clearAssociatedCache();
+            console.log('✅ 연관 캐시 삭제 완료');
+          } catch (cacheError) {
+            console.warn('⚠️ 캐시 삭제 실패 (IndexedDB는 삭제됨):', cacheError);
+          }
+          
+          resolve();
+        };
+        
+        request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
+  }
+
+  // IndexedDB 삭제 시 연관 캐시 자동 삭제
+  private async clearAssociatedCache(): Promise<void> {
+    // CacheCleanup 유틸리티 사용
+    const { CacheCleanup } = await import('./cache-cleanup');
+    await CacheCleanup.clearAssociatedCache();
   }
 
   // dailySummary 저장/업데이트 (하루 치 전체 교체)

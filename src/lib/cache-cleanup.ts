@@ -78,11 +78,41 @@ export class CacheCleanup {
     const results = {
       serviceWorker: await this.unregisterServiceWorker(),
       cache: await this.clearBrowserCache(),
-      localStorage: this.clearLocalStorage(['userEmail', 'userRole']) // 인증 정보 보존
+      localStorage: this.clearLocalStorage(['userEmail', 'userRole', 'youtubeApiKey']) // 인증 정보 보존
     };
     
     console.log('✅ 전체 정리 완료:', results);
     return results;
+  }
+
+  // IndexedDB 삭제 시 연관 캐시 자동 삭제 (공통 함수)
+  static async clearAssociatedCache(): Promise<void> {
+    try {
+      console.log('🗑️ IndexedDB 연관 캐시 정리 시작...');
+      
+      // 1. 서비스 워커 캐시 삭제
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        for (const cacheName of cacheNames) {
+          await caches.delete(cacheName);
+          console.log(`🗑️ 캐시 삭제: ${cacheName}`);
+        }
+      }
+
+      // 2. 서비스 워커 등록 해제 (선택적)
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const registration of registrations) {
+          await registration.unregister();
+          console.log('🗑️ 서비스 워커 등록 해제:', registration.scope);
+        }
+      }
+
+      console.log('✅ 연관 캐시 정리 완료');
+    } catch (error) {
+      console.error('❌ 캐시 정리 실패:', error);
+      throw error;
+    }
   }
 
   // 강력한 새로고침 (캐시 무효화)
