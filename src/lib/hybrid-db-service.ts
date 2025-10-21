@@ -45,8 +45,19 @@ export class HybridDBService {
           store.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
           store.createIndex('status', 'status', { unique: false });
           store.createIndex('collectionDate', 'collectionDate', { unique: false });
+          // 복합 키 인덱스 추가: (videoId, dayKeyLocal)
+          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
           
           console.log(`✅ ${this.storeName} 스토어 생성 완료`);
+        } else {
+          // 기존 저장소에 새로운 인덱스 추가
+          const transaction = db.transaction([this.storeName], 'readwrite');
+          const store = transaction.objectStore(this.storeName);
+          
+          // 기존 인덱스 확인 및 추가
+          if (!store.indexNames.contains('videoDay')) {
+            store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          }
         }
       };
 
@@ -94,7 +105,7 @@ export class HybridDBService {
           console.log(`✅ 배치 ${batchNum} 저장 완료`);
         } catch (error: any) {
           attempts++;
-          console.warn(`⚠️ 배치 ${batchNum} 저장 실패 (시도 ${attempts}/${maxAttempts}):`, error.message);
+          console.warn(`⚠️ 배치 ${batchNum} 저장 실패 (시도 ${attempts}/${maxAttempts}):`, error?.message || error);
           
           if (error.name === 'InvalidStateError' || error.name === 'TransactionInactiveError') {
             console.warn('🔄 IndexedDB 연결 문제 발생, 재초기화 후 재시도 중...');
@@ -185,7 +196,7 @@ export class HybridDBService {
               }
             };
             updateRequest.onerror = () => {
-              console.warn(`⚠️ 업데이트 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`);
+              console.warn(`⚠️ 업데이트 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, updateRequest.error);
               completed++;
               if (completed === total) {
                 resolve();
@@ -201,7 +212,7 @@ export class HybridDBService {
               }
             };
             addRequest.onerror = () => {
-              console.warn(`⚠️ 추가 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`);
+              console.warn(`⚠️ 추가 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, addRequest.error);
               completed++;
               if (completed === total) {
                 resolve();
@@ -211,7 +222,7 @@ export class HybridDBService {
         };
         
         existingRequest.onerror = () => {
-          console.warn(`⚠️ 기존 데이터 확인 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`);
+          console.warn(`⚠️ 기존 데이터 확인 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, existingRequest.error);
           completed++;
           if (completed === total) {
             resolve();
