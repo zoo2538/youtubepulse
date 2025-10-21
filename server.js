@@ -2080,7 +2080,7 @@ async function autoCollectData() {
     // 6단계: 데이터 변환 및 저장
     // KST 기준으로 오늘 날짜 생성 (오전 9시 실행되므로 당일로 저장)
     const now = new Date();
-    const kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const today = kstNow.toISOString().split('T')[0];
     
     console.log(`📅 수집 날짜 설정: ${today} (당일 데이터로 저장)`);
