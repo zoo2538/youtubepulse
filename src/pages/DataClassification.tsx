@@ -3172,16 +3172,10 @@ const DataClassification = () => {
                     </SelectContent>
                   </Select>
               </div>
-                             <div className="flex items-center space-x-2">
-                 <input
-                   type="checkbox"
-                    id="autoCleanup"
-                   checked={dataManagementConfig.autoCleanup}
-                    onChange={handleAutoCleanupToggle}
-                   className="rounded"
-                 />
-                  <Label htmlFor="autoCleanup">자동 정리 활성화</Label>
-               </div>
+                             <div className="text-xs text-muted-foreground">
+                   <p>• 7일 데이터 보관 정책이 자동으로 적용됩니다</p>
+                   <p>• 서버와 클라이언트 모두 7일 이전 데이터는 자동 정리됩니다</p>
+                 </div>
                </div>
             </div>
 
