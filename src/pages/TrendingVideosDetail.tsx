@@ -112,8 +112,53 @@ const TrendingVideosDetail = () => {
     try {
       setLoading(true);
       
-      // 서버 우선 로드 (hybridService 사용)
-      const classifiedData = await hybridService.getClassifiedData();
+      // IndexedDB 우선 로드 (빠른 응답)
+      let classifiedData = await indexedDBService.loadClassifiedData();
+      console.log(`📊 조회수 급등 동영상 상세 - IndexedDB에서 로드: ${classifiedData.length}개`);
+      
+      // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음)
+      setTimeout(async () => {
+        try {
+          const serverData = await hybridService.getClassifiedData();
+          if (serverData.length > classifiedData.length) {
+            console.log(`🔄 백그라운드 동기화: 서버 데이터 ${serverData.length}개 > 로컬 ${classifiedData.length}개`);
+            // 서버에 더 많은 데이터가 있으면 업데이트
+            classifiedData = serverData;
+            // 비디오 데이터 재계산
+            if (classifiedData && classifiedData.length > 0) {
+              // 선택된 날짜 또는 오늘 날짜 기준으로 데이터 필터링
+              const targetDate = selectedDate || getKoreanDateString();
+              const filteredData = classifiedData
+                .filter((item: any) => {
+                  const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+                  const dateStr = itemDate ? itemDate.split('T')[0] : '';
+                  return dateStr === targetDate && 
+                         item.category && item.videoTitle;
+                })
+                .sort((a: any, b: any) => (b.viewCount || 0) - (a.viewCount || 0))
+                .slice(0, 100);
+              
+              const videos: VideoData[] = filteredData.map((item: any) => ({
+                id: item.videoId || item.id,
+                thumbnail: item.thumbnailUrl || `https://via.placeholder.com/320x180?text=${item.videoTitle?.substring(0, 2) || 'YT'}`,
+                title: item.videoTitle || '제목 없음',
+                channelName: item.channelName || '채널명 없음',
+                views: item.viewCount || 0,
+                timeAgo: formatTimeAgo(item.uploadDate || item.collectionDate),
+                category: item.category || '기타',
+                subCategory: item.subCategory || '미분류',
+                uploadDate: item.uploadDate || item.collectionDate,
+                description: item.videoDescription || item.description || ''
+              }));
+              
+              setVideoData(videos);
+              setFilteredVideoData(videos);
+            }
+          }
+        } catch (error) {
+          console.warn('⚠️ 백그라운드 동기화 실패 (무시):', error);
+        }
+      }, 1000); // 1초 후 백그라운드 동기화
       
       console.log(`📊 조회수 급등 동영상 상세 - 전체 분류된 데이터: ${classifiedData.length}개`);
       

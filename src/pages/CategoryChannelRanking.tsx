@@ -71,12 +71,34 @@ const CategoryChannelRanking = () => {
 
 // categoryColors는 subcategories.ts에서 import
 
-  // 분류된 데이터 로드 (최신 데이터 기준)
+  // 분류된 데이터 로드 (IndexedDB 우선 로딩)
   useEffect(() => {
     const loadClassifiedData = async () => {
       try {
-        // 서버 우선 로드 (hybridService 사용)
-        const data = await hybridService.getClassifiedData();
+        setIsLoading(true);
+        
+        // IndexedDB 우선 로드 (빠른 응답)
+        let data = await indexedDBService.loadClassifiedData();
+        console.log(`📊 카테고리 채널 순위 - IndexedDB에서 로드: ${data.length}개`);
+        
+        // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음)
+        setTimeout(async () => {
+          try {
+            const serverData = await hybridService.getClassifiedData();
+            if (serverData.length > data.length) {
+              console.log(`🔄 백그라운드 동기화: 서버 데이터 ${serverData.length}개 > 로컬 ${data.length}개`);
+              // 서버에 더 많은 데이터가 있으면 업데이트
+              setClassifiedData(serverData);
+              // 채널 데이터도 다시 계산
+              if (category) {
+                const filteredData = serverData.filter((item: any) => item.category === category);
+                // 채널 순위 재계산 로직...
+              }
+            }
+          } catch (error) {
+            console.warn('⚠️ 백그라운드 동기화 실패 (무시):', error);
+          }
+        }, 1000); // 1초 후 백그라운드 동기화
         
         console.log(`📊 카테고리 채널 순위 - 전체 분류된 데이터: ${data.length}개`);
         console.log(`📊 카테고리 채널 순위 - 데이터 날짜 분포:`, data.reduce((acc: any, item: any) => {

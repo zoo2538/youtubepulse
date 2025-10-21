@@ -65,13 +65,34 @@ const CategoryDailyDetail = () => {
     const loadClassifiedData = async () => {
       try {
         if (category) {
-          // 서버 우선 로드 (hybridService 사용)
-          const data = await hybridService.getClassifiedData();
+          setIsLoading(true);
+          
+          // IndexedDB 우선 로드 (빠른 응답)
+          let data = await indexedDBService.loadClassifiedData();
           setClassifiedData(data);
           
           // 해당 카테고리의 데이터만 필터링
-          const filteredData = data.filter((item: any) => item.category === category);
+          let filteredData = data.filter((item: any) => item.category === category);
           setCategoryData(filteredData);
+          
+          console.log(`📊 카테고리 일별 상세 - IndexedDB에서 로드: ${data.length}개, ${category} 카테고리 ${filteredData.length}개`);
+          
+          // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음)
+          setTimeout(async () => {
+            try {
+              const serverData = await hybridService.getClassifiedData();
+              if (serverData.length > data.length) {
+                console.log(`🔄 백그라운드 동기화: 서버 데이터 ${serverData.length}개 > 로컬 ${data.length}개`);
+                // 서버에 더 많은 데이터가 있으면 업데이트
+                data = serverData;
+                filteredData = data.filter((item: any) => item.category === category);
+                setClassifiedData(data);
+                setCategoryData(filteredData);
+              }
+            } catch (error) {
+              console.warn('⚠️ 백그라운드 동기화 실패 (무시):', error);
+            }
+          }, 1000); // 1초 후 백그라운드 동기화
         }
       } catch (error) {
         console.error('분류된 데이터 로드 실패:', error);
