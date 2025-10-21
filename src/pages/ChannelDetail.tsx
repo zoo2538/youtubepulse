@@ -162,7 +162,7 @@ const ChannelDetail = () => {
           const channelThumbnail = channelVideos.find((video: any) => 
             video.thumbnailUrl && !video.thumbnailUrl.includes('placeholder')
           )?.thumbnailUrl || 
-          `https://via.placeholder.com/64x64?text=${firstVideo.channelName?.substring(0, 2) || 'CH'}`;
+          `https://via.placeholder.com/128x128?text=${firstVideo.channelName?.substring(0, 2) || 'CH'}`;
 
           setChannelData({
             channelId: firstVideo.channelId,

@@ -174,7 +174,7 @@ export function TrendingVideosGrid() {
                             <img 
                               src={video.thumbnail}
                               alt={video.title}
-                              className="w-16 h-12 object-cover rounded"
+                              className="w-32 h-24 object-cover rounded"
                             />
                           </div>
                           
@@ -225,7 +225,7 @@ export function TrendingVideosGrid() {
                             <img 
                               src={video.thumbnail}
                               alt={video.title}
-                              className="w-16 h-12 object-cover rounded"
+                              className="w-32 h-24 object-cover rounded"
                             />
                           </div>
                           

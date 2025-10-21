@@ -301,7 +301,7 @@ export function PerformanceVideosList() {
                           <img 
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-16 h-12 object-cover rounded"
+                            className="w-32 h-24 object-cover rounded"
                           />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
                             {video.duration}
@@ -378,7 +378,7 @@ export function PerformanceVideosList() {
                           <img 
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-16 h-12 object-cover rounded"
+                            className="w-32 h-24 object-cover rounded"
                           />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
                             {video.duration}

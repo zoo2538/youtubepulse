@@ -179,7 +179,7 @@ const CategoryChannelRanking = () => {
 
               return {
                 rank: index + 1,
-                thumbnail: item.thumbnailUrl || `https://via.placeholder.com/64x64?text=${item.videoTitle?.substring(0, 2) || 'YT'}`,
+                thumbnail: item.thumbnailUrl || `https://via.placeholder.com/128x128?text=${item.videoTitle?.substring(0, 2) || 'YT'}`,
                 videoTitle: item.videoTitle || '제목 없음',
                 channelName: item.channelName || '채널명 없음',
                 todayViews: item.viewCount || 0,
@@ -437,7 +437,7 @@ const CategoryChannelRanking = () => {
                       <img 
                         src={video.thumbnail}
                         alt={video.videoTitle}
-                        className="w-16 h-12 object-cover rounded"
+                        className="w-32 h-24 object-cover rounded"
                       />
                     </TableCell>
                     

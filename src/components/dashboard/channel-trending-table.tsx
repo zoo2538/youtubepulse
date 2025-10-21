@@ -154,7 +154,7 @@ export function ChannelTrendingTable() {
               return {
                 id: channel.channelId,
                 thumbnail: thumbnailVideo?.thumbnailUrl || 
-                  `https://via.placeholder.com/48x48?text=${channel.channelName.charAt(0)}`,
+                  `https://via.placeholder.com/96x96?text=${channel.channelName.charAt(0)}`,
                 channelName: channel.channelName,
                 category: channel.category,
                 subCategory: channel.subCategory,
