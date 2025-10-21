@@ -1816,6 +1816,12 @@ async function autoCollectData() {
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   
+  // 디버깅: 환경 변수 확인
+  console.log('🔍 디버깅: 환경 변수 확인');
+  console.log('🔍 YOUTUBE_API_KEY 존재:', !!process.env.YOUTUBE_API_KEY);
+  console.log('🔍 VITE_YOUTUBE_API_KEY 존재:', !!process.env.VITE_YOUTUBE_API_KEY);
+  console.log('🔍 DATABASE_URL 존재:', !!process.env.DATABASE_URL);
+  
   let requestCount = 0; // API 요청 카운터 초기화
   let client; // PostgreSQL 클라이언트 변수 선언
   
@@ -1899,7 +1905,10 @@ async function autoCollectData() {
     for (const keyword of testKeywords) {
       console.log(`🔍 키워드 검색: "${keyword}"`);
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
+      console.log(`🔍 API URL: ${searchUrl.replace(apiKey, 'API_KEY_HIDDEN')}`);
+      
       const searchResponse = await fetch(searchUrl);
+      console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
       
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
@@ -1907,6 +1916,8 @@ async function autoCollectData() {
         
         if (searchData.error) {
           console.error(`❌ 키워드 검색 오류:`, searchData.error);
+          console.error(`❌ 오류 코드: ${searchData.error.code}`);
+          console.error(`❌ 오류 메시지: ${searchData.error.message}`);
           continue; // 다음 키워드로 계속
         }
         
