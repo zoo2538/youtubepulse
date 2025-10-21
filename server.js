@@ -2495,9 +2495,12 @@ function addCronHistory(status, message, error = null) {
 // 크론잡 실행 이력 조회 API
 app.get('/api/cron/history', (req, res) => {
   const now = new Date();
-  const nextRun = new Date(now);
+  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  // KST 기준으로 다음 9시 계산
+  const nextRun = new Date(kstNow);
   nextRun.setHours(9, 0, 0, 0);
-  if (nextRun <= now) {
+  if (nextRun <= kstNow) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
   
