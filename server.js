@@ -1860,7 +1860,7 @@ async function autoCollectData() {
     console.log('🔍 2단계: 키워드 영상 수집 중... (75개 키워드 × 50개)');
     let keywordVideos = [];
     
-    // 전체 키워드 사용
+    // 전체 키워드 사용 (75개)
     const testKeywords = [
       // 인기 콘텐츠 (4개)
       '브이로그', '리뷰', '언박싱', '튜토리얼',
