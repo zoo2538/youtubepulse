@@ -336,10 +336,16 @@ const DateClassificationDetail = () => {
       const channelItems = channelGroups[item.channelName] || [];
       matchesStatus = channelItems.length > 1 && (item.status === 'unclassified' || item.status === 'pending');
     } else if (filterStatus === 'unclassified') {
-      // 미분류 필터: unclassified, pending 상태, 그리고 기타(미분류) 서브카테고리도 표시
+      // 미분류 필터: 다양한 미분류 상태를 인식
       matchesStatus = item.status === 'unclassified' || 
                      item.status === 'pending' || 
-                     (item.category === '기타' && item.subCategory === '기타(미분류)');
+                     !item.category || 
+                     item.category === '' || 
+                     item.category === '기타' || 
+                     (item.category === '기타' && item.subCategory === '기타(미분류)') ||
+                     (item.category === '기타' && (!item.subCategory || item.subCategory === '')) ||
+                     (item.category === '기타(해외)' && (!item.subCategory || item.subCategory === '')) ||
+                     (item.category === '기타(국내)' && (!item.subCategory || item.subCategory === ''));
     } else {
       matchesStatus = item.status === filterStatus;
     }
