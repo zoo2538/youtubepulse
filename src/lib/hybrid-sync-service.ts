@@ -162,7 +162,7 @@ class HybridSyncService {
   private async downloadFromServer(fullSync: boolean = false): Promise<{ downloaded: number; conflicts: number }> {
     try {
       let downloaded = 0;
-      let conflicts = 0;
+      const conflicts = 0;
 
       // 전체 동기화인 경우 /api/unclassified에서 모든 데이터 가져오기
       if (fullSync) {

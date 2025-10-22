@@ -78,7 +78,7 @@ const CategoryChannelRanking = () => {
         setIsLoading(true);
         
         // IndexedDB 우선 로드 (빠른 응답)
-        let data = await indexedDBService.loadClassifiedData();
+        const data = await indexedDBService.loadClassifiedData();
         console.log(`📊 카테고리 채널 순위 - IndexedDB에서 로드: ${data.length}개`);
         
         // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음)
