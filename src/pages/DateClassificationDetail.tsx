@@ -345,7 +345,15 @@ const DateClassificationDetail = () => {
                      (item.category === '기타' && item.subCategory === '기타(미분류)') ||
                      (item.category === '기타' && (!item.subCategory || item.subCategory === '')) ||
                      (item.category === '기타(해외)' && (!item.subCategory || item.subCategory === '')) ||
-                     (item.category === '기타(국내)' && (!item.subCategory || item.subCategory === ''));
+                     (item.category === '기타(국내)' && (!item.subCategory || item.subCategory === '')) ||
+                     // 추가: 빈 서브카테고리도 미분류로 처리
+                     (!item.subCategory || item.subCategory === '') ||
+                     // 추가: '기타' 관련 카테고리들도 미분류로 처리
+                     item.category === '기타(해외)' ||
+                     item.category === '기타(국내)' ||
+                     // 추가: 분류되지 않은 상태들
+                     item.status === 'unclassified' ||
+                     item.status === 'pending';
     } else {
       matchesStatus = item.status === filterStatus;
     }
