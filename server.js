@@ -2045,11 +2045,11 @@ async function autoCollectData() {
     
     console.log(`✅ 채널: ${allChannels.length}개 수집`);
 
-    // 5단계: 14일 자동 분류 로직 조회 (실시간 최신 데이터)
+    // 5단계: 7일 자동 분류 로직 조회 (실시간 최신 데이터)
     console.log('🔄 자동 분류 참조 데이터 조회 중 (실시간)...');
-    const fourteenDaysAgo = new Date();
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
     
     const client = await pool.connect();
     
@@ -2065,7 +2065,7 @@ async function autoCollectData() {
         AND sub_category != ''
         AND day_key_local >= $1
       ORDER BY channel_id, day_key_local DESC
-    `, [fourteenDaysAgoString]);
+    `, [sevenDaysAgoString]);
     
     let classifiedChannelMap = new Map();
     classifiedResult.rows.forEach(row => {
@@ -2076,7 +2076,7 @@ async function autoCollectData() {
       });
     });
     
-    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 14일)`);
+    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 7일)`);
 
     // 6단계: 데이터 변환 및 저장
     // KST 기준으로 오늘 날짜 생성 (오전 9시 실행되므로 당일로 저장)
@@ -3124,7 +3124,7 @@ app.post('/api/reset-database', async (req, res) => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 14일 데이터 자동 정리 스케줄러
+// 7일 데이터 자동 정리 스케줄러
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function autoCleanupOldData() {
   if (!pool) {
@@ -3184,7 +3184,7 @@ async function autoCleanupOldData() {
   }
 }
 
-// 매일 자정(KST) 14일 데이터 정리 실행
+// 매일 자정(KST) 7일 데이터 정리 실행
 setInterval(() => {
   const now = new Date();
   const kstHour = parseInt(now.toLocaleString('en-US', { 
