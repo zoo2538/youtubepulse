@@ -1907,49 +1907,16 @@ async function autoCollectData() {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
       console.log(`🔍 API URL: ${searchUrl.replace(apiKey, 'API_KEY_HIDDEN')}`);
       
-      // 재시도 로직 (최대 3회)
-      let retryCount = 0;
-      const maxRetries = 3;
-      let searchResponse;
+      // 수동수집과 동일한 방식: 재시도 없이 한 번만 호출
+      const searchResponse = await fetch(searchUrl);
+      console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
       
-      while (retryCount < maxRetries) {
-        try {
-          searchResponse = await fetch(searchUrl);
-          console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
-          
-          if (searchResponse.ok) {
-            break; // 성공하면 루프 종료
-          } else if (searchResponse.status === 403) {
-            console.error(`❌ API 할당량 초과 (403): ${searchResponse.statusText}`);
-            console.error(`❌ 키워드 "${keyword}" 건너뜀 (할당량 초과)`);
-            break; // 할당량 초과는 재시도하지 않음
-          } else {
-            retryCount++;
-            if (retryCount < maxRetries) {
-              console.warn(`⚠️ API 호출 실패, ${retryCount}/${maxRetries} 재시도 중...`);
-              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 지수 백오프
-            } else {
-              console.error(`❌ 키워드 "${keyword}" 최대 재시도 횟수 초과`);
-            }
-          }
-        } catch (error) {
-          retryCount++;
-          if (retryCount < maxRetries) {
-            console.warn(`⚠️ API 호출 오류, ${retryCount}/${maxRetries} 재시도 중...`, error.message);
-            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-          } else {
-            console.error(`❌ 키워드 "${keyword}" 최대 재시도 횟수 초과:`, error.message);
-            break;
-          }
-        }
-      }
-      
-      if (searchResponse && searchResponse.ok) {
+      if (searchResponse.ok) {
         const searchData = await searchResponse.json();
         console.log(`🔍 키워드 "${keyword}" 검색 결과: ${searchData.items?.length || 0}개`);
         
         if (searchData.error) {
-          console.error(`❌ 키워드 검색 오류:`, searchData.error);
+          console.error(`❌ 키워드 "${keyword}" 검색 오류:`, searchData.error);
           console.error(`❌ 오류 코드: ${searchData.error.code}`);
           console.error(`❌ 오류 메시지: ${searchData.error.message}`);
           continue; // 다음 키워드로 계속
@@ -1986,8 +1953,8 @@ async function autoCollectData() {
           }
         }
       } else {
-        const errorText = await searchResponse.text();
-        console.error(`❌ 키워드 검색 요청 실패: ${searchResponse.status} - ${errorText}`);
+        console.error(`❌ 키워드 "${keyword}" 검색 실패: ${searchResponse.status} ${searchResponse.statusText}`);
+        // 수동수집과 동일: 실패 시 다음 키워드로 계속
       }
       
       await new Promise(resolve => setTimeout(resolve, 500));
