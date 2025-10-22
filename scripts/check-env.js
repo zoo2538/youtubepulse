@@ -6,7 +6,6 @@
 
 const requiredEnvVars = [
   'DATABASE_URL',
-  'VITE_YOUTUBE_API_KEY',
   'NODE_ENV'
 ];
 

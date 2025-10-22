@@ -1819,14 +1819,14 @@ async function autoCollectData() {
   // 디버깅: 환경 변수 확인
   console.log('🔍 디버깅: 환경 변수 확인');
   console.log('🔍 YOUTUBE_API_KEY 존재:', !!process.env.YOUTUBE_API_KEY);
-  console.log('🔍 VITE_YOUTUBE_API_KEY 존재:', !!process.env.VITE_YOUTUBE_API_KEY);
+  // VITE_YOUTUBE_API_KEY는 더 이상 사용되지 않음
   console.log('🔍 DATABASE_URL 존재:', !!process.env.DATABASE_URL);
   
   let requestCount = 0; // API 요청 카운터 초기화
   let client; // PostgreSQL 클라이언트 변수 선언
   
   try {
-    const apiKey = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_API_KEY;
+    const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) {
       console.error('❌ YouTube API Key가 설정되지 않았습니다.');
       return false;

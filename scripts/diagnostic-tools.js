@@ -351,7 +351,7 @@ function printRecoveryGuide() {
   
   log('5. 긴급 복구 절차', 'yellow');
   log('   → Railway 대시보드에서 서비스 재시작', 'blue');
-  log('   → 환경 변수 확인 (DATABASE_URL, VITE_YOUTUBE_API_KEY)', 'blue');
+  log('   → 환경 변수 확인 (DATABASE_URL, YOUTUBE_API_KEY)', 'blue');
   log('   → 로그 확인: railway logs --service youtubepulse-backend', 'blue');
 }
 

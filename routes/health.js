@@ -81,7 +81,6 @@ router.get('/db', async (req, res) => {
 router.get('/env', (req, res) => {
   const requiredEnvVars = [
     'DATABASE_URL',
-    'VITE_YOUTUBE_API_KEY',
     'NODE_ENV'
   ];
   
@@ -142,7 +141,7 @@ router.get('/full', async (req, res) => {
     const dbHealth = await checkPoolHealth(req.app.locals.pool);
     
     // 환경변수 상태 확인
-    const requiredEnvVars = ['DATABASE_URL', 'VITE_YOUTUBE_API_KEY', 'NODE_ENV'];
+    const requiredEnvVars = ['DATABASE_URL', 'NODE_ENV'];
     const envHealth = requiredEnvVars.every(varName => !!process.env[varName]);
     
     // 자동수집 상태 확인

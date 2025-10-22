@@ -2,8 +2,8 @@
 import { Channel, DailyStats, Video, TrendingData } from './database-schema';
 import { loadCollectionConfig } from './data-collection-config';
 
-// YouTube API 설정
-const YOUTUBE_API_KEY = import.meta.env.VITE_YOUTUBE_API_KEY || 'demo_key_for_development';
+// YouTube API 설정 (사용자 입력 키 사용)
+const YOUTUBE_API_KEY = 'demo_key_for_development'; // 실제로는 사용되지 않음
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
 // API 호출 함수

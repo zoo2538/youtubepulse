@@ -66,8 +66,8 @@ npm start
 `.env` 파일을 생성하고 다음 변수들을 설정하세요:
 
 ```env
-# YouTube API
-VITE_YOUTUBE_API_KEY=your_youtube_api_key
+# YouTube API (System 페이지에서 직접 입력)
+# VITE_YOUTUBE_API_KEY는 더 이상 사용되지 않음
 
 # 앱 설정
 VITE_APP_URL=http://localhost:8080

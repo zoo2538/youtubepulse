@@ -264,7 +264,6 @@ async function checkEnvironmentVariables() {
   
   const requiredEnvs = [
     'DATABASE_URL',
-    'VITE_YOUTUBE_API_KEY',
     'NODE_ENV',
     'PORT'
   ];

@@ -31,7 +31,7 @@ const pool = new Pool({
  * YouTube API 키 로드
  */
 function getYouTubeApiKey() {
-  const apiKey = process.env.VITE_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
+  const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) {
     throw new Error('YouTube API 키가 설정되지 않았습니다');
   }
