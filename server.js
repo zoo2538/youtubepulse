@@ -1907,10 +1907,44 @@ async function autoCollectData() {
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
       console.log(`🔍 API URL: ${searchUrl.replace(apiKey, 'API_KEY_HIDDEN')}`);
       
-      const searchResponse = await fetch(searchUrl);
-      console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
+      // 재시도 로직 (최대 3회)
+      let retryCount = 0;
+      const maxRetries = 3;
+      let searchResponse;
       
-      if (searchResponse.ok) {
+      while (retryCount < maxRetries) {
+        try {
+          searchResponse = await fetch(searchUrl);
+          console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
+          
+          if (searchResponse.ok) {
+            break; // 성공하면 루프 종료
+          } else if (searchResponse.status === 403) {
+            console.error(`❌ API 할당량 초과 (403): ${searchResponse.statusText}`);
+            console.error(`❌ 키워드 "${keyword}" 건너뜀 (할당량 초과)`);
+            break; // 할당량 초과는 재시도하지 않음
+          } else {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              console.warn(`⚠️ API 호출 실패, ${retryCount}/${maxRetries} 재시도 중...`);
+              await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // 지수 백오프
+            } else {
+              console.error(`❌ 키워드 "${keyword}" 최대 재시도 횟수 초과`);
+            }
+          }
+        } catch (error) {
+          retryCount++;
+          if (retryCount < maxRetries) {
+            console.warn(`⚠️ API 호출 오류, ${retryCount}/${maxRetries} 재시도 중...`, error.message);
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          } else {
+            console.error(`❌ 키워드 "${keyword}" 최대 재시도 횟수 초과:`, error.message);
+            break;
+          }
+        }
+      }
+      
+      if (searchResponse && searchResponse.ok) {
         const searchData = await searchResponse.json();
         console.log(`🔍 키워드 "${keyword}" 검색 결과: ${searchData.items?.length || 0}개`);
         
@@ -2544,6 +2578,16 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('📅 당일(오늘) 데이터로 저장됩니다');
     console.log('='.repeat(80) + '\n');
     
+    // 중복 실행 방지: 이미 실행 중이면 건너뛰기
+    if (global.autoCollectionInProgress) {
+      console.log('⚠️ [크론잡] 이미 자동 수집이 진행 중이므로 건너뜁니다.');
+      addCronHistory('skipped', '이미 자동 수집이 진행 중');
+      return;
+    }
+    
+    // 자동 수집 시작 플래그 설정
+    global.autoCollectionInProgress = true;
+    
     // 이력 기록: 시작
     addCronHistory('started', '자동 수집 시작');
     
@@ -2560,6 +2604,9 @@ app.listen(PORT, '0.0.0.0', () => {
       console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
       console.error('❌ [크론잡] 오류 스택:', error.stack);
       addCronHistory('failed', '자동 수집 중 오류 발생', error);
+    } finally {
+      // 자동 수집 완료 플래그 해제
+      global.autoCollectionInProgress = false;
     }
   }, {
     timezone: 'Asia/Seoul',
