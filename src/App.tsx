@@ -22,7 +22,6 @@ import DateClassificationDetail from "@/pages/DateClassificationDetail";
 import TrendingVideosDetail from "@/pages/TrendingVideosDetail";
 import SubcategorySettings from "@/pages/SubcategorySettings";
 import NotFound from "./pages/NotFound";
-import { AuthHealthCheck } from "@/components/AuthHealthCheck";
 
 const App = () => {
   // GitHub Pages 리다이렉트 플래그 초기화 및 아웃박스 초기화 (페이지 로드 후)
@@ -65,8 +64,6 @@ const App = () => {
           <Route path="/date-classification-detail" element={<DateClassificationDetail />} />
           <Route path="/trending-videos" element={<TrendingVideosDetail />} />
           <Route path="/subcategory-settings" element={<SubcategorySettings />} />
-          {/* 임시 스모크 테스트 라우트 - 테스트 후 제거 */}
-          <Route path="/health/auth" element={<AuthHealthCheck />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
