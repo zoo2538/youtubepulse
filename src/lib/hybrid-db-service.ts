@@ -32,8 +32,8 @@ export class HybridDBService {
         reject(new Error('IndexedDB 초기화 타임아웃'));
       }, 10000);
 
-      // 기존 데이터베이스 버전 확인 후 적절한 버전으로 열기
-      const request = indexedDB.open(this.dbName);
+      // 기존 데이터베이스 버전 확인 후 적절한 버전으로 열기 (unique 제거를 위해 버전 증가)
+      const request = indexedDB.open(this.dbName, 4);
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
@@ -51,8 +51,8 @@ export class HybridDBService {
           store.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
           store.createIndex('status', 'status', { unique: false });
           store.createIndex('collectionDate', 'collectionDate', { unique: false });
-          // 복합 키 인덱스 추가: (videoId, dayKeyLocal)
-          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          // 복합 키 인덱스 추가: (videoId, dayKeyLocal) - unique 제거
+          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: false });
           
           console.log(`✅ ${this.storeName} 스토어 생성 완료`);
         } else {
@@ -60,10 +60,19 @@ export class HybridDBService {
           const transaction = db.transaction([this.storeName], 'readwrite');
           const store = transaction.objectStore(this.storeName);
           
-          // 기존 인덱스 확인 및 추가
-          if (!store.indexNames.contains('videoDay')) {
-            store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          // 기존 unique 인덱스가 있다면 제거하고 새로 생성
+          if (store.indexNames.contains('videoDay')) {
+            try {
+              store.deleteIndex('videoDay');
+              console.log('🔄 기존 unique videoDay 인덱스 제거됨');
+            } catch (e) {
+              console.log('⚠️ 기존 videoDay 인덱스 제거 실패 (무시됨):', e);
+            }
           }
+          
+          // 새로운 non-unique 인덱스 생성
+          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: false });
+          console.log('✅ 새로운 non-unique videoDay 인덱스 생성됨');
         }
       };
 
