@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -140,7 +140,7 @@ const DataClassification = () => {
   }, []);
 
   // 자동수집 데이터 로드 함수
-  const loadAutoCollectedData = async () => {
+  const loadAutoCollectedData = useCallback(async () => {
     try {
       console.log('🤖 자동수집 데이터 로드 시작...');
       
@@ -209,7 +209,7 @@ const DataClassification = () => {
       console.error('🤖 자동수집 데이터 로드 실패:', error);
       setAutoCollectedStats({});
     }
-  };
+  }, []); // 의존성 배열: 외부 상태를 사용하지 않으므로 빈 배열
 
   // 데이터 로딩 상태 관리
   const [dataLoaded, setDataLoaded] = React.useState(false);

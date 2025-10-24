@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -209,7 +209,7 @@ const CategoryChannelRanking = () => {
   }, [category]);
 
   // 세부카테고리 필터링 함수
-  const applySubCategoryFilter = () => {
+  const applySubCategoryFilter = useCallback(() => {
     console.log(`🔍 세부카테고리 필터링 - 선택된 세부카테고리: "${selectedSubCategory}"`);
     console.log(`🔍 세부카테고리 필터링 - 전체 채널 데이터: ${channelData.length}개`);
     
@@ -221,7 +221,7 @@ const CategoryChannelRanking = () => {
       console.log(`🔍 세부카테고리 필터링 - "${selectedSubCategory}" 필터링 결과: ${filtered.length}개`);
       setFilteredChannelData(filtered);
     }
-  };
+  }, [selectedSubCategory, channelData]); // 의존성 배열: 사용하는 상태들
 
   // 세부카테고리 변경 시 필터 적용
   useEffect(() => {
