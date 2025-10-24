@@ -226,7 +226,7 @@ const CategoryChannelRanking = () => {
   // 세부카테고리 변경 시 필터 적용
   useEffect(() => {
     applySubCategoryFilter();
-  }, [selectedSubCategory, channelData]);
+  }, [selectedSubCategory, channelData, applySubCategoryFilter]);
 
 
   return (

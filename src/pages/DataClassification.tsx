@@ -443,7 +443,7 @@ const DataClassification = () => {
     };
 
     loadData();
-  }, []); // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
+  }, [dataLoaded, loadAutoCollectedData]); // 의존성 배열에 누락된 의존성 추가
 
   const [dataManagementConfig, setDataManagementConfig] = useState<DataManagementConfig>({
     retentionDays: 14,
