@@ -2638,7 +2638,7 @@ app.listen(PORT, '0.0.0.0', () => {
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
 // __dirname은 /app/dist/server이므로, 한 단계 위의 dist로 이동
-app.use(express.static(path.join(__dirname, '..')));
+// API 라우터가 먼저 처리되도록 express.static을 SPA 라우팅과 함께 마지막에 배치
 
 // 동기화 API 엔드포인트
 app.post('/api/sync/upload', async (req, res) => {
@@ -3238,10 +3238,14 @@ setInterval(() => {
 console.log('🧹 서버 시작 시 7일 데이터 정리 1회 실행...');
 autoCleanupOldData();
 
+// 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
+app.use(express.static(path.join(__dirname, '..')));
+
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
 app.use((req, res) => {
   // API 경로는 제외하고 SPA 라우팅 적용
   if (req.path.startsWith('/api/')) {
+    // API 라우트는 이미 위에서 처리되었으므로 여기서는 404
     return res.status(404).json({ error: 'API endpoint not found' });
   }
   // __dirname은 /app/dist/server이므로, 한 단계 위로 이동
