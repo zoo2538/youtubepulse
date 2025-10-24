@@ -18,7 +18,7 @@ import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { getKoreanDateString } from "@/lib/utils";
 import { subCategories } from "@/lib/subcategories";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface VideoData {
   id: string;

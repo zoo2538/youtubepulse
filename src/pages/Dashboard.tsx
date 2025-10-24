@@ -6,7 +6,7 @@ import { PerformanceVideosList } from "@/components/dashboard/performance-videos
 import { Button } from "@/components/ui/button";
 import { Settings, Users, LogOut } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/ui/logo";
 import { useEffect } from "react";
 

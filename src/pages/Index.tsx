@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Settings, Globe, Home, LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
   const { isLoggedIn } = useAuth();

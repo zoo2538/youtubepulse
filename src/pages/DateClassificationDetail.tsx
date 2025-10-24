@@ -35,7 +35,7 @@ import { apiService } from "@/lib/api-service";
 import { dedupeByDate, dedupeByVideoDay, type VideoItem } from "@/lib/dedupe-utils";
 import { subCategories } from "@/lib/subcategories";
 import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UnclassifiedData {
   id: number;

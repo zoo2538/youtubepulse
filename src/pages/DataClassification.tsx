@@ -46,7 +46,7 @@ import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { categories, subCategories } from "@/lib/subcategories";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { loadAndMergeDays, mergeByDay, type DayRow, type MergeResult } from "@/lib/day-merge-service";
 import { performFullSync, checkSyncNeeded, type SyncResult } from "@/lib/sync-service";
 import { dedupeComprehensive, dedupeByVideoDay, dedupeByDate, type VideoItem } from "@/lib/dedupe-utils";

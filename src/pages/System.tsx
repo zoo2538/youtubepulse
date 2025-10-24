@@ -41,7 +41,7 @@ import { dataMigrationService } from "@/lib/data-migration-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
 import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { CacheCleanup } from "@/lib/cache-cleanup";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import {
   Dialog,
