@@ -57,7 +57,8 @@ export class HybridDBService {
           console.log(`✅ ${this.storeName} 스토어 생성 완료`);
         } else {
           // 기존 저장소에 새로운 인덱스 추가
-          const store = db.objectStore(this.storeName);
+          const transaction = event.target.transaction;
+          const store = transaction.objectStore(this.storeName);
           
           // 기존 unique 인덱스가 있다면 제거하고 새로 생성
           if (store.indexNames.contains('videoDay')) {
