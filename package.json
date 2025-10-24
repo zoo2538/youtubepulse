@@ -18,6 +18,7 @@
     "start:railway": "node start-server.js",
     "lint": "eslint .",
     "preview": "vite preview",
+    "collect:dry": "node scripts/collect-dry-run.js",
     "collect:data": "node scripts/collect-data.js",
     "collect:today": "node scripts/collect-today.js",
     "sync:indexeddb": "node dist/server/tools/sync-indexeddb.js",
