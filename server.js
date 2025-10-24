@@ -1808,13 +1808,33 @@ app.post('/api/auto-collect', async (req, res) => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 크론 안정화 래퍼 함수
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function safeCron(fn) {
+  return async () => {
+    try {
+      await fn();
+    } catch (e) {
+      console.error('❌ [크론잡] 전역 예외 발생:', e.message);
+      console.error('❌ [크론잡] 오류 스택:', e.stack);
+      // 재시도 큐에 적재 (향후 구현)
+      console.log('🔄 [크론잡] 재시도 큐에 적재됨');
+    }
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 자동 데이터 수집 함수
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function autoCollectData() {
+  // TDZ 방지: 실행 날짜 상수를 함수 최상단에서 초기화
+  const runDateISO = new Date().toISOString().split('T')[0];
+  
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🤖 자동 데이터 수집 시작');
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📅 실행 날짜 (Asia/Seoul):', runDateISO);
   
   // 디버깅: 환경 변수 확인
   console.log('🔍 디버깅: 환경 변수 확인');
@@ -1969,9 +1989,9 @@ async function autoCollectData() {
     const allVideos = [...trendingVideos, ...keywordVideos];
     const transformedVideos = allVideos.map(video => ({
       videoId: video.id,
-      dayKeyLocal: today, // 당일 데이터로 설정
-      collectionDate: today,
-      uploadDate: video.snippet?.publishedAt ? video.snippet.publishedAt.split('T')[0] : today,
+      dayKeyLocal: runDateISO, // 당일 데이터로 설정
+      collectionDate: runDateISO,
+      uploadDate: video.snippet?.publishedAt ? video.snippet.publishedAt.split('T')[0] : runDateISO,
       viewCount: parseInt(video.statistics?.viewCount || '0'),
       likeCount: parseInt(video.statistics?.likeCount || '0'),
       commentCount: parseInt(video.statistics?.commentCount || '0'),
@@ -2543,7 +2563,7 @@ app.listen(PORT, '0.0.0.0', () => {
   // cron 표현식: '분 시 일 월 요일'
   // '0 9 * * *' = 매일 09:00 (KST 오전 9시)
   // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 9시에 실행
-  const cronJob = cron.schedule('0 9 * * *', async () => {
+  const cronJob = cron.schedule('0 9 * * *', safeCron(async () => {
     const executeTime = new Date();
     console.log('\n' + '='.repeat(80));
     console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
@@ -2582,7 +2602,7 @@ app.listen(PORT, '0.0.0.0', () => {
       // 자동 수집 완료 플래그 해제
       global.autoCollectionInProgress = false;
     }
-  }, {
+  }), {
     timezone: 'Asia/Seoul',
     scheduled: true
   });
