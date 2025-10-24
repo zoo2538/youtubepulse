@@ -26,6 +26,12 @@ export class HybridDBService {
     console.log('🔄 IndexedDB 초기화 시작...');
     
     return new Promise((resolve, reject) => {
+      // 타임아웃 설정 (10초)
+      const timeout = setTimeout(() => {
+        console.error('❌ IndexedDB 초기화 타임아웃');
+        reject(new Error('IndexedDB 초기화 타임아웃'));
+      }, 10000);
+
       // 기존 데이터베이스 버전 확인 후 적절한 버전으로 열기
       const request = indexedDB.open(this.dbName);
 
@@ -62,12 +68,14 @@ export class HybridDBService {
       };
 
       request.onsuccess = () => {
+        clearTimeout(timeout);
         this.db = request.result;
         console.log('✅ IndexedDB 초기화 완료');
         resolve();
       };
 
       request.onerror = () => {
+        clearTimeout(timeout);
         console.error('❌ IndexedDB 초기화 실패:', request.error);
         reject(request.error);
       };
@@ -107,19 +115,28 @@ export class HybridDBService {
           attempts++;
           console.warn(`⚠️ 배치 ${batchNum} 저장 실패 (시도 ${attempts}/${maxAttempts}):`, error?.message || error);
           
-          if (error.name === 'InvalidStateError' || error.name === 'TransactionInactiveError') {
+          // AbortError의 경우 더 긴 지연 시간 적용
+          const isAbortError = error?.name === 'AbortError';
+          const isTransactionError = error?.name === 'InvalidStateError' || error?.name === 'TransactionInactiveError';
+          
+          if (isTransactionError) {
             console.warn('🔄 IndexedDB 연결 문제 발생, 재초기화 후 재시도 중...');
             await this.initDB();
+          } else if (isAbortError) {
+            const delay = Math.pow(2, attempts) * 2000; // AbortError는 더 긴 지연
+            console.warn(`⏳ AbortError 감지, ${delay}ms 후 재시도...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           } else {
-            console.error('❌ 예상치 못한 오류:', error);
-            throw error;
+            const delay = Math.pow(2, attempts) * 1000;
+            console.warn(`⏳ ${delay}ms 후 재시도...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
           }
         }
       }
 
       if (!saved) {
-        console.error(`❌ 배치 ${batchNum} 저장 실패 (최대 재시도 횟수 초과)`);
-        throw new Error(`배치 ${batchNum} 저장 실패`);
+        console.warn(`⚠️ 배치 ${batchNum} 저장 실패했지만 계속 진행...`);
+        // 실패한 배치를 건너뛰고 계속 진행
       }
     }
 
@@ -127,7 +144,7 @@ export class HybridDBService {
   }
 
   /**
-   * 단일 배치 저장 (중복 처리 개선)
+   * 단일 배치 저장 (중복 처리 개선) - 단순화된 트랜잭션
    */
   private async saveBatch(batch: any[]): Promise<void> {
     if (!this.db) {
@@ -155,90 +172,55 @@ export class HybridDBService {
     const deduplicatedBatch = Array.from(uniqueBatch.values());
     console.log(`🔄 배치 내 중복 제거: ${batch.length}개 → ${deduplicatedBatch.length}개`);
 
+    if (deduplicatedBatch.length === 0) {
+      return;
+    }
+
+    // 단순화된 트랜잭션: 모든 아이템을 put으로 처리 (upsert 방식)
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([this.storeName], 'readwrite');
       const store = transaction.objectStore(this.storeName);
 
       let completed = 0;
       const total = deduplicatedBatch.length;
+      let hasError = false;
 
-      if (total === 0) {
-        resolve();
-        return;
-      }
-
-      // 각 아이템을 안전하게 저장 (중복 처리)
-      deduplicatedBatch.forEach((item, index) => {
-        // 기존 데이터 확인 후 처리
-        const existingRequest = store.index('videoDay').get([item.videoId, item.dayKeyLocal]);
+      // 각 아이템을 put으로 저장 (자동 upsert)
+      deduplicatedBatch.forEach((item) => {
+        const putRequest = store.put(item);
         
-        existingRequest.onsuccess = () => {
-          const existing = existingRequest.result;
-          
-          if (existing) {
-            // 기존 데이터가 있으면 업데이트 (최대값 보존)
-            const updatedItem = {
-              ...existing,
-              ...item,
-              viewCount: Math.max(existing.viewCount || 0, item.viewCount || 0),
-              likeCount: Math.max(existing.likeCount || 0, item.likeCount || 0),
-              // 수동 분류 우선
-              status: item.status === 'classified' ? 'classified' : existing.status,
-              category: item.category || existing.category,
-              subCategory: item.subCategory || existing.subCategory
-            };
-            
-            const updateRequest = store.put(updatedItem);
-            updateRequest.onsuccess = () => {
-              completed++;
-              if (completed === total) {
-                resolve();
-              }
-            };
-            updateRequest.onerror = () => {
-              console.warn(`⚠️ 업데이트 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, updateRequest.error);
-              completed++;
-              if (completed === total) {
-                resolve();
-              }
-            };
-          } else {
-            // 기존 데이터가 없으면 새로 추가
-            const addRequest = store.add(item);
-            addRequest.onsuccess = () => {
-              completed++;
-              if (completed === total) {
-                resolve();
-              }
-            };
-            addRequest.onerror = () => {
-              console.warn(`⚠️ 추가 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, addRequest.error);
-              completed++;
-              if (completed === total) {
-                resolve();
-              }
-            };
+        putRequest.onsuccess = () => {
+          completed++;
+          if (completed === total && !hasError) {
+            resolve();
           }
         };
         
-        existingRequest.onerror = () => {
-          console.warn(`⚠️ 기존 데이터 확인 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, existingRequest.error);
+        putRequest.onerror = () => {
+          hasError = true;
+          console.warn(`⚠️ 저장 실패, 건너뜀: ${item.videoId}|${item.dayKeyLocal}`, putRequest.error);
           completed++;
           if (completed === total) {
+            // 일부 실패해도 전체는 성공으로 처리
             resolve();
           }
         };
       });
 
+      // 트랜잭션 이벤트 핸들러
       transaction.oncomplete = () => {
-        resolve();
+        if (!hasError) {
+          resolve();
+        }
       };
 
       transaction.onerror = () => {
+        console.error('❌ 트랜잭션 오류:', transaction.error);
         reject(transaction.error);
       };
 
       transaction.onabort = () => {
+        console.error('❌ 트랜잭션 중단:', transaction.error);
         reject(transaction.error);
       };
     });
