@@ -314,7 +314,7 @@ const DateClassificationDetail = () => {
     };
 
     loadData();
-  }, [selectedDate]);
+  }, [selectedDate, collectionType]);
 
   // 필터링된 데이터 계산
   let filteredData = unclassifiedData.filter(item => {

@@ -209,7 +209,7 @@ const DataClassification = () => {
       console.error('🤖 자동수집 데이터 로드 실패:', error);
       setAutoCollectedStats({});
     }
-  }, []); // 의존성 배열: 외부 상태를 사용하지 않으므로 빈 배열
+  }, [autoCollectedStats]); // 의존성 배열: autoCollectedStats 참조
 
   // 데이터 로딩 상태 관리
   const [dataLoaded, setDataLoaded] = React.useState(false);
@@ -690,7 +690,7 @@ const DataClassification = () => {
       window.removeEventListener('dataUpdated', handleDataUpdate as EventListener);
       window.removeEventListener('focus', handlePageFocus);
     };
-  }, []);
+  }, [loadAutoCollectedData, unclassifiedData.length]);
 
   // 사용 가능한 날짜 목록 생성 (IndexedDB에서 직접 조회)
   React.useEffect(() => {

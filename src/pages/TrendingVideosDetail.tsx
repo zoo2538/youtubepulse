@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -108,7 +108,7 @@ const TrendingVideosDetail = () => {
   }, []);
 
   // 데이터 로드
-  const loadTrendingVideosData = async () => {
+  const loadTrendingVideosData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -208,7 +208,7 @@ const TrendingVideosDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDate]); // 의존성 배열: selectedDate만 사용
 
   // 데이터 로드 및 업데이트 이벤트 리스너
   useEffect(() => {
@@ -226,10 +226,10 @@ const TrendingVideosDetail = () => {
     return () => {
       window.removeEventListener('dataUpdated', handleDataUpdate as EventListener);
     };
-  }, [selectedDate]);
+  }, [selectedDate, loadTrendingVideosData]);
 
   // 필터링 함수
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...videoData];
 
     // 카테고리 필터링
@@ -243,12 +243,12 @@ const TrendingVideosDetail = () => {
     }
 
     setFilteredVideoData(filtered);
-  };
+  }, [selectedCategory, selectedSubCategory, videoData]); // 의존성 배열: 사용하는 상태들
 
   // 필터 변경 시 적용
   useEffect(() => {
     applyFilters();
-  }, [selectedCategory, selectedSubCategory, videoData]);
+  }, [applyFilters]);
 
   // 카테고리 변경 시 세부카테고리 초기화
   const handleCategoryChange = (category: string) => {
