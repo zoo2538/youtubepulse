@@ -2,7 +2,7 @@
 
 class DataExportImport {
   private dbName = 'YouTubePulseDB';
-  private version = 2;
+  private version = 4;
 
   // 데이터 내보내기 (개발서버에서 실행)
   async exportData(): Promise<any> {

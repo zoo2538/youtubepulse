@@ -3,7 +3,7 @@ import { getKoreanDateString } from './utils';
 
 class IndexedDBService {
   private dbName = 'YouTubePulseDB';
-  private version = 2;
+  private version = 4;
   private db: IDBDatabase | null = null;
 
   // 연결 재시작
