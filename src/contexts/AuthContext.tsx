@@ -1,19 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { useState, useEffect, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { EMAILJS_CONFIG } from '@/config/emailjs';
 import { postLoginSync } from '@/lib/post-login-sync';
 import { indexedDBService } from '@/lib/indexeddb-service';
-
-interface AuthContextType {
-  isLoggedIn: boolean;
-  userEmail: string | null;
-  userRole: 'admin' | 'user' | null;
-  login: (email: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  isLoading: boolean;
-}
-
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import { AuthContext, AuthContextType } from './auth-context';
 
 // useAuth 훅은 별도 파일로 분리됨 (src/hooks/useAuth.ts)
 
