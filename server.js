@@ -2513,6 +2513,56 @@ function addCronHistory(status, message, error = null) {
   }
 }
 
+// 데이터베이스 스키마 수정 API (keyword 컬럼 추가)
+app.post('/api/database/fix-schema', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  try {
+    console.log('🔧 데이터베이스 스키마 수정 시작...');
+    
+    // 1. keyword 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS keyword VARCHAR(255)
+    `);
+    console.log('✅ keyword 컬럼 추가 완료');
+
+    // 2. keyword 컬럼 인덱스 추가
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_unclassified_data_keyword 
+      ON unclassified_data(keyword)
+    `);
+    console.log('✅ keyword 컬럼 인덱스 추가 완료');
+
+    // 3. 기존 데이터의 keyword 컬럼 초기화
+    await pool.query(`
+      UPDATE unclassified_data 
+      SET keyword = '' 
+      WHERE keyword IS NULL
+    `);
+    console.log('✅ 기존 데이터 keyword 컬럼 초기화 완료');
+
+    res.json({
+      success: true,
+      message: 'Database schema fixed successfully',
+      changes: [
+        'Added keyword column to unclassified_data table',
+        'Added index on keyword column',
+        'Initialized existing data keyword field'
+      ]
+    });
+
+  } catch (error) {
+    console.error('❌ 스키마 수정 오류:', error);
+    res.status(500).json({
+      error: 'Schema fix failed',
+      details: error.message
+    });
+  }
+});
+
 // 크론잡 실행 이력 조회 API
 app.get('/api/cron/history', (req, res) => {
   const now = new Date();
