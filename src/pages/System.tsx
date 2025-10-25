@@ -230,9 +230,9 @@ const System = () => {
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
 
   const handleCleanupOldData = async () => {
-    if (window.confirm('14일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+    if (window.confirm('7일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
       try {
-        const deletedCount = await indexedDBService.cleanupOldData(14);
+        const deletedCount = await indexedDBService.cleanupOldData(7);
         alert(`데이터 정리가 완료되었습니다!\n\n삭제된 데이터: ${deletedCount}개`);
       } catch (error) {
         console.error('데이터 정리 오류:', error);
@@ -674,7 +674,7 @@ const System = () => {
         }
       }
 
-      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 14일간, 서버 우선)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 7일간, 서버 우선)
       let existingClassifiedData: any[] = [];
       try {
         // 서버에서 최신 분류 데이터 조회 (실시간 최신 데이터)
@@ -751,8 +751,8 @@ const System = () => {
       });
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
-      console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
-      console.log(`📊 기존 분류 시스템: 14일간 분류 이력 기반 분류 적용`);
+      console.log(`📊 분류 참조 기간: 최근 7일간의 최신 분류 정보만 사용`);
+      console.log(`📊 기존 분류 시스템: 7일간 분류 이력 기반 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       // utils 함수들은 이미 정적 import됨
@@ -1326,7 +1326,7 @@ const System = () => {
                           <h4 className="text-sm font-medium text-blue-900 mb-2">💡 핵심 기능</h4>
                           <p className="text-xs text-blue-700">
                             • 기존 분류 이력 기반 분류 적용<br/>
-                            • 14일간 분류 이력 우선 적용<br/>
+                            • 7일간 분류 이력 우선 적용<br/>
                             • 하이브리드 저장 (IndexedDB + PostgreSQL)
                           </p>
                           </div>
