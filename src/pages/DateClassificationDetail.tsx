@@ -337,12 +337,10 @@ const DateClassificationDetail = () => {
       matchesStatus = channelItems.length > 1 && (item.status === 'unclassified' || item.status === 'pending');
     } else if (filterStatus === 'unclassified') {
       // 미분류 필터: 진짜 미분류 상태만 인식
-      matchesStatus = item.status === 'unclassified' || 
+                     matchesStatus = item.status === 'unclassified' || 
                      item.status === 'pending' || 
                      !item.category || 
                      item.category === '' || 
-                     (item.category === '기타' && item.subCategory === '기타(미분류)') ||
-                     (item.category === '기타' && (!item.subCategory || item.subCategory === '')) ||
                      // 추가: 빈 서브카테고리도 미분류로 처리
                      (!item.subCategory || item.subCategory === '');
     } else {
@@ -422,17 +420,12 @@ const DateClassificationDetail = () => {
       console.log('💾 데이터 저장 시작 - 동적 세부카테고리 사용:', dynamicSubCategories);
       
       // 하이브리드 저장 (IndexedDB + 서버)
-      // 기타(미분류)는 분류 완료가 아니므로 pending 상태도 제외
+      // 기타 카테고리는 정상적으로 분류된 것으로 처리
       const classifiedData = unclassifiedData.filter(item => 
-        item.status === 'classified' && 
-        !(item.category === '기타' && item.subCategory === '기타(미분류)')
+        item.status === 'classified'
       );
       
       // 디버깅용 로그
-      const etcUnclassifiedCount = unclassifiedData.filter(item => 
-        item.category === '기타' && item.subCategory === '기타(미분류)'
-      ).length;
-      console.log(`📊 기타(미분류) 영상 수: ${etcUnclassifiedCount}개 (분류 완료에서 제외됨)`);
       console.log(`📊 실제 분류 완료 영상 수: ${classifiedData.length}개`);
       
       // 1. IndexedDB 날짜별 업데이트 (다른 날짜 데이터 보존) ✅

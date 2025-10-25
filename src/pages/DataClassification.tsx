@@ -757,10 +757,9 @@ const DataClassification = () => {
     };
   }, []); // 의존성 배열을 빈 배열로 변경하여 한 번만 실행
 
-  // 분류된 데이터 추출 (기타(미분류)는 제외)
+  // 분류된 데이터 추출
   const classifiedData = unclassifiedData.filter(item => 
-    item.status === 'classified' && 
-    !(item.category === '기타' && item.subCategory === '기타(미분류)')
+    item.status === 'classified'
   );
 
   // 일별 분류 진행률 계산 함수
@@ -816,9 +815,8 @@ const DataClassification = () => {
       }
       
       const progress = progressMap.get(dayKey)!;
-      // 기타(미분류)는 분류 완료가 아님
-      const isClassified = item.status === 'classified' && 
-                          !(item.category === '기타' && item.subCategory === '기타(미분류)');
+      // 분류 완료 상태 확인
+      const isClassified = item.status === 'classified';
       const collectionType = item.collectionType || 'manual'; // 기본값은 manual (기존 데이터 호환)
       
       // 수집 타입별 카운트
