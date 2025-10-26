@@ -176,11 +176,14 @@ export function TrendingVideosGrid() {
                             rel="noopener noreferrer"
                             className="relative hover:opacity-80 transition-opacity"
                           >
-                            <img 
-                              src={video.thumbnail}
-                              alt={video.title}
-                              className="w-32 h-24 object-cover rounded"
-                            />
+                            <div className="relative overflow-hidden rounded">
+                              <img 
+                                src={video.thumbnail}
+                                alt={video.title}
+                                className="w-64 h-48 object-cover object-center"
+                                style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                              />
+                            </div>
                           </a>
                           
                           <div className="flex-1 min-w-0 space-y-2">
@@ -232,11 +235,14 @@ export function TrendingVideosGrid() {
                             rel="noopener noreferrer"
                             className="relative hover:opacity-80 transition-opacity"
                           >
-                            <img 
-                              src={video.thumbnail}
-                              alt={video.title}
-                              className="w-32 h-24 object-cover rounded"
-                            />
+                            <div className="relative overflow-hidden rounded">
+                              <img 
+                                src={video.thumbnail}
+                                alt={video.title}
+                                className="w-64 h-48 object-cover object-center"
+                                style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                              />
+                            </div>
                           </a>
                           
                           <div className="flex-1 min-w-0 space-y-2">
