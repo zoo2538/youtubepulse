@@ -287,9 +287,6 @@ export function PerformanceVideosList() {
                 <TableRow>
                   <TableHead className="w-16 text-center">순위</TableHead>
                   <TableHead>동영상 정보</TableHead>
-                  <TableHead className="text-right">현재 조회수</TableHead>
-                  <TableHead className="text-right">평균 조회수</TableHead>
-                  <TableHead className="text-right">평균 대비</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -299,7 +296,7 @@ export function PerformanceVideosList() {
                       {index + 1}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-4 p-2">
+                      <div className="flex items-start space-x-4">
                         <div className="relative overflow-hidden rounded">
                           <img 
                             src={video.thumbnail}
@@ -311,8 +308,7 @@ export function PerformanceVideosList() {
                             {video.duration}
                           </div>
                         </div>
-                        
-                        <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex-1 space-y-2">
                           <div className="flex items-center space-x-2 text-xs">
                             <span className="text-muted-foreground">{video.channelName}</span>
                             <Badge 
@@ -334,25 +330,21 @@ export function PerformanceVideosList() {
                           >
                             {video.title}
                           </a>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">
+                              현재: {formatViews(video.views)}회
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              평균: {formatViews(video.averageViews)}회
+                            </p>
+                            <div className="flex items-center space-x-1 text-success">
+                              <TrendingUp className="w-4 h-4" />
+                              <span className="text-sm font-medium">
+                                {video.performanceRatio.toFixed(1)}x
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm font-medium text-foreground">
-                        {formatViews(video.views)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {formatViews(video.averageViews)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <div className="flex items-center justify-end space-x-1 text-success">
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {video.performanceRatio.toFixed(1)}x
-                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -363,7 +355,7 @@ export function PerformanceVideosList() {
                       {index + 11}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center space-x-4 p-2">
+                      <div className="flex items-start space-x-4">
                         <div className="relative overflow-hidden rounded">
                           <img 
                             src={video.thumbnail}
@@ -375,8 +367,7 @@ export function PerformanceVideosList() {
                             {video.duration}
                           </div>
                         </div>
-                        
-                        <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex-1 space-y-2">
                           <div className="flex items-center space-x-2 text-xs">
                             <span className="text-muted-foreground">{video.channelName}</span>
                             <Badge 
@@ -398,25 +389,21 @@ export function PerformanceVideosList() {
                           >
                             {video.title}
                           </a>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-foreground">
+                              현재: {formatViews(video.views)}회
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              평균: {formatViews(video.averageViews)}회
+                            </p>
+                            <div className="flex items-center space-x-1 text-success">
+                              <TrendingUp className="w-4 h-4" />
+                              <span className="text-sm font-medium">
+                                {video.performanceRatio.toFixed(1)}x
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm font-medium text-foreground">
-                        {formatViews(video.views)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {formatViews(video.averageViews)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <div className="flex items-center justify-end space-x-1 text-success">
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {video.performanceRatio.toFixed(1)}x
-                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
