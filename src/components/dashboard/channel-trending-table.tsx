@@ -151,10 +151,13 @@ export function ChannelTrendingTable() {
                 video.thumbnailUrl && !video.thumbnailUrl.includes('placeholder')
               );
               
+              // 채널 프로필 이미지 또는 동영상 썸네일 사용
+              const channelThumbnail = channel.thumbnail || thumbnailVideo?.thumbnailUrl || 
+                `https://via.placeholder.com/96x96?text=${channel.channelName.charAt(0)}`;
+              
               return {
                 id: channel.channelId,
-                thumbnail: thumbnailVideo?.thumbnailUrl || 
-                  `https://via.placeholder.com/96x96?text=${channel.channelName.charAt(0)}`,
+                thumbnail: channelThumbnail,
                 channelName: channel.channelName,
                 category: channel.category,
                 subCategory: channel.subCategory,

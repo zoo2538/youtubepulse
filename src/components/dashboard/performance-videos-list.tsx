@@ -296,7 +296,7 @@ export function PerformanceVideosList() {
                       {index + 1}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-start space-x-4">
+                      <div className="flex items-center space-x-4">
                         <a 
                           href={`https://www.youtube.com/watch?v=${video.id}`}
                           target="_blank"
@@ -310,9 +310,6 @@ export function PerformanceVideosList() {
                               className="w-64 h-64 object-cover object-center"
                               style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                             />
-                            <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                              {video.duration}
-                            </div>
                           </div>
                         </a>
                         <div className="flex-1 space-y-2">
@@ -362,7 +359,7 @@ export function PerformanceVideosList() {
                       {index + 11}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-start space-x-4">
+                      <div className="flex items-center space-x-4">
                         <a 
                           href={`https://www.youtube.com/watch?v=${video.id}`}
                           target="_blank"
@@ -376,9 +373,6 @@ export function PerformanceVideosList() {
                               className="w-64 h-64 object-cover object-center"
                               style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                             />
-                            <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                              {video.duration}
-                            </div>
                           </div>
                         </a>
                         <div className="flex-1 space-y-2">
