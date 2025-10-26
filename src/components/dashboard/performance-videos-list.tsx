@@ -297,11 +297,12 @@ export function PerformanceVideosList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-4 p-2">
-                        <div className="relative">
+                        <div className="relative overflow-hidden rounded">
                           <img 
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-64 h-48 object-cover rounded"
+                            className="w-64 h-48 object-cover object-center"
+                            style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                           />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
                             {video.duration}
@@ -374,11 +375,12 @@ export function PerformanceVideosList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-4 p-2">
-                        <div className="relative">
+                        <div className="relative overflow-hidden rounded">
                           <img 
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-64 h-48 object-cover rounded"
+                            className="w-64 h-48 object-cover object-center"
+                            style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                           />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
                             {video.duration}
