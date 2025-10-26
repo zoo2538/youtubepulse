@@ -189,6 +189,12 @@ class AutoCollectionScheduler {
 
   // 재시도 큐 처리
   async processRetryQueue(): Promise<void> {
+    // ⚠️ 클라이언트 자동수집 비활성화로 재시도도 비활성화
+    console.log('⏭️ 클라이언트 재시도 큐 처리 비활성화 (서버 전용)');
+    return;
+    
+    // 아래 코드는 비활성화됨
+    /*
     try {
       const retryQueue = JSON.parse(localStorage.getItem('auto_collection_retry_queue') || '[]');
       
@@ -243,12 +249,20 @@ class AutoCollectionScheduler {
     } catch (error) {
       console.error('❌ 재시도 큐 처리 실패:', error);
     }
+    */
   }
 
   // 수동 트리거
   async triggerManualCollection(): Promise<void> {
+    // ⚠️ 클라이언트 자동수집 비활성화로 수동 트리거도 비활성화
+    console.log('⏭️ 클라이언트 수동 트리거 비활성화 (서버 전용)');
+    return;
+    
+    // 아래 코드는 비활성화됨
+    /*
     const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
     await this.runCollection(today);
+    */
   }
 
   // 메타데이터 조회
