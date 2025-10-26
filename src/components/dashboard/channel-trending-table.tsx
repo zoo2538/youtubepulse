@@ -220,15 +220,16 @@ export function ChannelTrendingTable() {
                   <TableCell className="text-center font-medium">
                     {index + 1}
                   </TableCell>
-                                                       <TableCell>
-                    <div className="relative overflow-hidden rounded w-20 h-20">
-                      <img 
-                        src={channel.thumbnail}
-                        alt={channel.channelName}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  </TableCell>
+                                                                          <TableCell>
+                     <div className="relative overflow-hidden rounded w-64 h-64">
+                       <img 
+                         src={channel.thumbnail}
+                         alt={channel.channelName}
+                         className="w-64 h-64 object-cover object-center"
+                         style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                       />
+                     </div>
+                   </TableCell>
                   <TableCell className="py-4">
                     <div className="space-y-2">
                       <Link 
