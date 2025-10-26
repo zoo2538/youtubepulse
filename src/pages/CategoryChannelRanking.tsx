@@ -438,7 +438,7 @@ const CategoryChannelRanking = () => {
                         <img 
                           src={video.thumbnail}
                           alt={video.videoTitle}
-                          className="w-64 h-48 object-cover object-center"
+                          className="w-64 h-64 object-cover object-center"
                           style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                         />
                       </div>

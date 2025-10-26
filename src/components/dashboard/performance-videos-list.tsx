@@ -301,7 +301,7 @@ export function PerformanceVideosList() {
                           <img 
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-64 h-48 object-cover object-center"
+                            className="w-64 h-64 object-cover object-center"
                             style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                           />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
@@ -379,7 +379,7 @@ export function PerformanceVideosList() {
                           <img 
                             src={video.thumbnail}
                             alt={video.title}
-                            className="w-64 h-48 object-cover object-center"
+                            className="w-64 h-64 object-cover object-center"
                             style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                           />
                           <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
