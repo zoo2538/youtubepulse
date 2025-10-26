@@ -297,17 +297,24 @@ export function PerformanceVideosList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-start space-x-4">
-                        <div className="relative overflow-hidden rounded">
-                          <img 
-                            src={video.thumbnail}
-                            alt={video.title}
-                            className="w-64 h-64 object-cover object-center"
-                            style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
-                          />
-                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                            {video.duration}
+                        <a 
+                          href={`https://www.youtube.com/watch?v=${video.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="relative hover:opacity-80 transition-opacity"
+                        >
+                          <div className="relative overflow-hidden rounded">
+                            <img 
+                              src={video.thumbnail}
+                              alt={video.title}
+                              className="w-64 h-64 object-cover object-center"
+                              style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                            />
+                            <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
+                              {video.duration}
+                            </div>
                           </div>
-                        </div>
+                        </a>
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center space-x-2 text-xs">
                             <span className="text-muted-foreground">{video.channelName}</span>
@@ -356,17 +363,24 @@ export function PerformanceVideosList() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-start space-x-4">
-                        <div className="relative overflow-hidden rounded">
-                          <img 
-                            src={video.thumbnail}
-                            alt={video.title}
-                            className="w-64 h-64 object-cover object-center"
-                            style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
-                          />
-                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                            {video.duration}
+                        <a 
+                          href={`https://www.youtube.com/watch?v=${video.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="relative hover:opacity-80 transition-opacity"
+                        >
+                          <div className="relative overflow-hidden rounded">
+                            <img 
+                              src={video.thumbnail}
+                              alt={video.title}
+                              className="w-64 h-64 object-cover object-center"
+                              style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                            />
+                            <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
+                              {video.duration}
+                            </div>
                           </div>
-                        </div>
+                        </a>
                         <div className="flex-1 space-y-2">
                           <div className="flex items-center space-x-2 text-xs">
                             <span className="text-muted-foreground">{video.channelName}</span>
