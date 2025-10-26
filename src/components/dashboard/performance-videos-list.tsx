@@ -287,6 +287,9 @@ export function PerformanceVideosList() {
                 <TableRow>
                   <TableHead className="w-16 text-center">순위</TableHead>
                   <TableHead>동영상 정보</TableHead>
+                  <TableHead className="text-right">현재 조회수</TableHead>
+                  <TableHead className="text-right">평균 조회수</TableHead>
+                  <TableHead className="text-right">평균 대비</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -334,36 +337,24 @@ export function PerformanceVideosList() {
                             </Badge>
                           </div>
                         </div>
-                        
-                        <div className="text-right space-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            {formatViews(video.views)}회
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            현재 조회수
-                          </p>
-                        </div>
-                        
-                        <div className="text-right space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            {formatViews(video.averageViews)}회
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            평균 조회수
-                          </p>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="flex items-center space-x-1 text-success">
-                            <TrendingUp className="w-4 h-4" />
-                            <span className="text-sm font-medium">
-                              {video.performanceRatio.toFixed(1)}x
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            평균 대비
-                          </p>
-                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <p className="text-sm font-medium text-foreground">
+                        {formatViews(video.views)}회
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <p className="text-sm text-muted-foreground">
+                        {formatViews(video.averageViews)}회
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <div className="flex items-center justify-end space-x-1 text-success">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          {video.performanceRatio.toFixed(1)}x
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -412,36 +403,24 @@ export function PerformanceVideosList() {
                             </Badge>
                           </div>
                         </div>
-                        
-                        <div className="text-right space-y-1">
-                          <p className="text-sm font-medium text-foreground">
-                            {formatViews(video.views)}회
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            현재 조회수
-                          </p>
-                        </div>
-                        
-                        <div className="text-right space-y-1">
-                          <p className="text-sm text-muted-foreground">
-                            {formatViews(video.averageViews)}회
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            평균 조회수
-                          </p>
-                        </div>
-                        
-                        <div className="text-right">
-                          <div className="flex items-center space-x-1 text-success">
-                            <TrendingUp className="w-4 h-4" />
-                            <span className="text-sm font-medium">
-                              {video.performanceRatio.toFixed(1)}x
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            평균 대비
-                          </p>
-                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <p className="text-sm font-medium text-foreground">
+                        {formatViews(video.views)}회
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <p className="text-sm text-muted-foreground">
+                        {formatViews(video.averageViews)}회
+                      </p>
+                    </TableCell>
+                    <TableCell className="py-4 text-right">
+                      <div className="flex items-center justify-end space-x-1 text-success">
+                        <TrendingUp className="w-4 h-4" />
+                        <span className="text-sm font-medium">
+                          {video.performanceRatio.toFixed(1)}x
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
