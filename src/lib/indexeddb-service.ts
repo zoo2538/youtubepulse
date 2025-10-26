@@ -20,6 +20,12 @@ class IndexedDBService {
 
   // 데이터베이스 초기화
   async init(): Promise<void> {
+    // 이미 열려있으면 재초기화하지 않음
+    if (this.db && this.db.readyState === 'open') {
+      console.log('✅ IndexedDBService 이미 초기화됨');
+      return;
+    }
+    
     // 기존 연결이 있으면 닫기
     if (this.db) {
       this.db.close();

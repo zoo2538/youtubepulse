@@ -16,6 +16,10 @@ export class HybridDBService {
 
   /**
    * IndexedDB 초기화 (연결 상태 확인 포함)
+   * 
+   * NOTE: indexedDBService와 동일한 DB를 공유하므로, 여기서는 DB 초기화를 하지 않고
+   * indexedDBService가 이미 초기화했는지 확인만 한다.
+   * 실제 초기화는 indexedDBService의 init()에서만 수행한다.
    */
   async initDB(): Promise<void> {
     // 이미 연결되어 있고 열려있으면 재초기화하지 않음
@@ -24,69 +28,37 @@ export class HybridDBService {
       return;
     }
 
-    console.log('🔄 IndexedDB 초기화 시작...');
+    // indexedDBService가 이미 초기화했다면 그 DB 인스턴스를 재사용
+    // 단, indexedDBService의 db는 private이므로 직접 접근할 수 없다.
+    // 따라서 여기서는 새로운 요청으로 DB를 여는데, 이는 indexedDBService와 동일한 버전으로 열린다.
+    
+    console.log('🔄 HybridDBService IndexedDB 연결 확인...');
     
     return new Promise((resolve, reject) => {
       // 타임아웃 설정 (10초)
       const timeout = setTimeout(() => {
-        console.error('❌ IndexedDB 초기화 타임아웃');
-        reject(new Error('IndexedDB 초기화 타임아웃'));
+        console.error('❌ IndexedDB 연결 타임아웃');
+        reject(new Error('IndexedDB 연결 타임아웃'));
       }, 10000);
 
-      // 기존 데이터베이스 버전 확인 후 적절한 버전으로 열기 (unique 제거를 위해 버전 증가)
+      // indexedDBService와 동일한 버전으로 열기 (스키마 변경 없음)
       const request = indexedDB.open(this.dbName, this.version);
 
+      // onupgradeneeded는 버전이 변경될 때만 호출되므로, 여기서는 호출되지 않는다
       request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        console.log('🔄 IndexedDB 스키마 업그레이드 중...');
-        
-        // unclassifiedData 스토어 생성
-        if (!db.objectStoreNames.contains(this.storeName)) {
-          const store = db.createObjectStore(this.storeName, { 
-            keyPath: 'id', 
-            autoIncrement: true 
-          });
-          
-          // 인덱스 생성
-          store.createIndex('videoId', 'videoId', { unique: false });
-          store.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
-          store.createIndex('status', 'status', { unique: false });
-          store.createIndex('collectionDate', 'collectionDate', { unique: false });
-          // 복합 키 인덱스 추가: (videoId, dayKeyLocal) - unique 제거
-          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: false });
-          
-          console.log(`✅ ${this.storeName} 스토어 생성 완료`);
-        } else {
-          // 기존 저장소에 새로운 인덱스 추가
-          const transaction = event.target.transaction;
-          const store = transaction.objectStore(this.storeName);
-          
-          // 기존 unique 인덱스가 있다면 제거하고 새로 생성
-          if (store.indexNames.contains('videoDay')) {
-            try {
-              store.deleteIndex('videoDay');
-              console.log('🔄 기존 unique videoDay 인덱스 제거됨');
-            } catch (e) {
-              console.log('⚠️ 기존 videoDay 인덱스 제거 실패 (무시됨):', e);
-            }
-          }
-          
-          // 새로운 non-unique 인덱스 생성
-          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: false });
-          console.log('✅ 새로운 non-unique videoDay 인덱스 생성됨');
-        }
+        console.log('🔄 HybridDBService: unexpected onupgradeneeded (version mismatch)');
       };
 
       request.onsuccess = () => {
         clearTimeout(timeout);
         this.db = request.result;
-        console.log('✅ IndexedDB 초기화 완료');
+        console.log('✅ HybridDBService IndexedDB 연결 완료');
         resolve();
       };
 
       request.onerror = () => {
         clearTimeout(timeout);
-        console.error('❌ IndexedDB 초기화 실패:', request.error);
+        console.error('❌ HybridDBService IndexedDB 연결 실패:', request.error);
         reject(request.error);
       };
     });
