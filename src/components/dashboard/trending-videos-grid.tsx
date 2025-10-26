@@ -170,13 +170,18 @@ export function TrendingVideosGrid() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-4 p-2">
-                          <div className="relative">
+                          <a 
+                            href={`https://www.youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative hover:opacity-80 transition-opacity"
+                          >
                             <img 
                               src={video.thumbnail}
                               alt={video.title}
                               className="w-32 h-24 object-cover rounded"
                             />
-                          </div>
+                          </a>
                           
                           <div className="flex-1 min-w-0 space-y-2">
                             <a 
@@ -221,13 +226,18 @@ export function TrendingVideosGrid() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-4 p-2">
-                          <div className="relative">
+                          <a 
+                            href={`https://www.youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="relative hover:opacity-80 transition-opacity"
+                          >
                             <img 
                               src={video.thumbnail}
                               alt={video.title}
                               className="w-32 h-24 object-cover rounded"
                             />
-                          </div>
+                          </a>
                           
                           <div className="flex-1 min-w-0 space-y-2">
                             <a 
