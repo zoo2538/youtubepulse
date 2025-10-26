@@ -1,5 +1,5 @@
 // 오프라인/하이브리드 복원력 서비스
-import { autoCollectionScheduler } from './auto-collection-scheduler';
+// import { autoCollectionScheduler } from './auto-collection-scheduler'; // 사용하지 않음 (서버 전용)
 import { serverAuthoritativeService } from './server-authoritative-service';
 
 interface OfflineState {
@@ -52,8 +52,8 @@ class OfflineResilienceService {
     // 서버 권위 서비스 재시도
     serverAuthoritativeService.retryLocalQueue();
     
-    // 자동 수집 스케줄러 재시도
-    autoCollectionScheduler.processRetryQueue();
+    // ⚠️ 자동 수집 스케줄러 재시도 비활성화 (서버에서만 수집)
+    // autoCollectionScheduler.processRetryQueue();  // 클라이언트는 호출하지 않음
   };
 
   private handleOffline = () => {
@@ -178,7 +178,9 @@ class OfflineResilienceService {
   private async retryOperation(item: any): Promise<void> {
     switch (item.operation) {
       case 'auto-collection':
-        await autoCollectionScheduler.triggerManualCollection();
+        // ⚠️ 자동 수집 비활성화 (서버에서만 수집)
+        // await autoCollectionScheduler.triggerManualCollection();  // 클라이언트는 호출하지 않음
+        console.log('⏭️ 자동 수집 재시도 비활성화 (서버 전용)');
         break;
         
       case 'server-sync':
