@@ -312,20 +312,9 @@ export function PerformanceVideosList() {
                           </div>
                         </div>
                         
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <a 
-                            href={`https://www.youtube.com/watch?v=${video.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
-                            title={`${video.title} - 새 탭에서 열기`}
-                          >
-                            {video.title}
-                          </a>
-                          <p className="text-xs text-muted-foreground">
-                            {video.channelName}
-                          </p>
-                          <div className="flex items-center space-x-2">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center space-x-2 text-xs">
+                            <span className="text-muted-foreground">{video.channelName}</span>
                             <Badge 
                               variant="secondary"
                               className="text-xs bg-secondary text-secondary-foreground"
@@ -336,6 +325,15 @@ export function PerformanceVideosList() {
                               {getPerformanceBadge(video.performanceRatio).label}
                             </Badge>
                           </div>
+                          <a 
+                            href={`https://www.youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer block"
+                            title={`${video.title} - 새 탭에서 열기`}
+                          >
+                            {video.title}
+                          </a>
                         </div>
                       </div>
                     </TableCell>
@@ -378,20 +376,9 @@ export function PerformanceVideosList() {
                           </div>
                         </div>
                         
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <a 
-                            href={`https://www.youtube.com/watch?v=${video.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
-                            title={`${video.title} - 새 탭에서 열기`}
-                          >
-                            {video.title}
-                          </a>
-                          <p className="text-xs text-muted-foreground">
-                            {video.channelName}
-                          </p>
-                          <div className="flex items-center space-x-2">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center space-x-2 text-xs">
+                            <span className="text-muted-foreground">{video.channelName}</span>
                             <Badge 
                               variant="secondary"
                               className="text-xs bg-secondary text-secondary-foreground"
@@ -402,6 +389,15 @@ export function PerformanceVideosList() {
                               {getPerformanceBadge(video.performanceRatio).label}
                             </Badge>
                           </div>
+                          <a 
+                            href={`https://www.youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer block"
+                            title={`${video.title} - 새 탭에서 열기`}
+                          >
+                            {video.title}
+                          </a>
                         </div>
                       </div>
                     </TableCell>
