@@ -208,13 +208,10 @@ export function ChannelTrendingTable() {
               <TableRow>
                 <TableHead className="w-16 text-center">순위</TableHead>
                 <TableHead className="w-16">썸네일</TableHead>
-                <TableHead>채널명</TableHead>
-                <TableHead>카테고리</TableHead>
-                <TableHead>세부카테고리</TableHead>
-                <TableHead className="text-right">당일</TableHead>
-                <TableHead className="text-right">전일</TableHead>
-                <TableHead className="text-right">증감</TableHead>
-                <TableHead className="text-right">증감률(%)</TableHead>
+                <TableHead>채널 정보</TableHead>
+                <TableHead className="text-right">당일 조회수</TableHead>
+                <TableHead className="text-right">전일 조회수</TableHead>
+                <TableHead className="text-right">증감률</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -223,50 +220,51 @@ export function ChannelTrendingTable() {
                   <TableCell className="text-center font-medium">
                     {index + 1}
                   </TableCell>
-                  <TableCell>
-                    <div className="relative overflow-hidden rounded">
-                                             <img 
+                                     <TableCell>
+                     <div className="relative overflow-hidden rounded">
+                       <img 
                          src={channel.thumbnail}
                          alt={channel.channelName}
                          className="w-64 h-64 object-cover object-center"
                          style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                        />
+                     </div>
+                   </TableCell>
+                  <TableCell className="py-4">
+                    <div className="space-y-2">
+                      <Link 
+                        to={`/channel/${channel.id}`}
+                        className="font-medium text-blue-500 hover:text-blue-700 hover:underline cursor-pointer block"
+                      >
+                        {channel.channelName}
+                      </Link>
+                      <div className="flex items-center space-x-2">
+                        <Badge 
+                          variant="secondary" 
+                          className="text-xs bg-secondary text-secondary-foreground"
+                        >
+                          {channel.category}
+                        </Badge>
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs border-muted-foreground text-muted-foreground"
+                        >
+                          {channel.subCategory}
+                        </Badge>
+                      </div>
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium">
-                    <Link 
-                      to={`/channel/${channel.id}`}
-                      className="text-blue-500 hover:text-blue-700 hover:underline cursor-pointer"
-                    >
-                      {channel.channelName}
-                    </Link>
+                  <TableCell className="py-4 text-right">
+                    <p className="text-sm font-medium text-foreground">
+                      {formatNumber(channel.todayViews)}
+                    </p>
                   </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="secondary" 
-                      className="text-xs bg-secondary text-secondary-foreground"
-                    >
-                      {channel.category}
-                    </Badge>
+                  <TableCell className="py-4 text-right">
+                    <p className="text-sm text-muted-foreground">
+                      {formatNumber(channel.yesterdayViews)}
+                    </p>
                   </TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className="text-xs border-muted-foreground text-muted-foreground"
-                    >
-                      {channel.subCategory}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium">
-                    {formatNumber(channel.todayViews)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {formatNumber(channel.yesterdayViews)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {channel.changeAmount > 0 ? '+' : ''}{formatNumber(channel.changeAmount)}
-                  </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="py-4 text-right">
                     <div className={cn(
                       "flex items-center justify-end space-x-1",
                       channel.changePercent > 0 ? "text-success" : "text-danger"
@@ -276,7 +274,7 @@ export function ChannelTrendingTable() {
                       ) : (
                         <TrendingDown className="w-4 h-4" />
                       )}
-                      <span className="font-medium">
+                      <span className="text-sm font-medium">
                         {channel.changePercent > 0 ? '+' : ''}{Math.floor(channel.changePercent)}%
                       </span>
                     </div>
