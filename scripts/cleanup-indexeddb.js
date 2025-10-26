@@ -13,7 +13,7 @@ const browserCompressScript = `
     
     // IndexedDB 열기
     const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('YouTubePulseDB', 1);
+      const request = indexedDB.open('YouTubePulseDB', 10);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });

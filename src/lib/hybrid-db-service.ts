@@ -6,6 +6,7 @@
 export class HybridDBService {
   private dbName: string;
   private storeName: string;
+  private version: number = 10; // indexeddb-service와 동일하게 맞춤
   private db: IDBDatabase | null = null;
 
   constructor(dbName: string = 'YouTubePulseDB', storeName: string = 'unclassifiedData') {
@@ -33,7 +34,7 @@ export class HybridDBService {
       }, 10000);
 
       // 기존 데이터베이스 버전 확인 후 적절한 버전으로 열기 (unique 제거를 위해 버전 증가)
-      const request = indexedDB.open(this.dbName, 4);
+      const request = indexedDB.open(this.dbName, this.version);
 
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;

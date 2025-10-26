@@ -10,7 +10,7 @@ async function removeDuplicatesForOct4() {
   try {
     // IndexedDB 열기
     const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('YouTubePulseDB', 3);
+      const request = indexedDB.open('YouTubePulseDB', 10);
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });

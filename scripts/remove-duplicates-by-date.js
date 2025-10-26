@@ -12,7 +12,7 @@ const browserRemoveDuplicatesScript = `
     
     // IndexedDB 열기 (버전 2 사용)
     const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('YouTubePulseDB', 2);
+      const request = indexedDB.open('YouTubePulseDB', 10);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);
     });

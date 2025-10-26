@@ -40,18 +40,25 @@ class AutoCollectionScheduler {
   }
 
   private initialize() {
-    // ✅ 클라이언트 자동 수집 비활성화 (서버에서만 실행)
-    // 서버가 매일 00:10 KST에 자동 수집을 실행하므로
+    // ✅ 클라이언트 자동 수집 완전 비활성화 (서버에서만 실행)
+    // 서버의 cron job(매일 09:00 KST)이 자동 수집을 처리하므로
     // 클라이언트는 서버에서 수집한 데이터를 다운로드만 함
     
-    console.log('ℹ️ 클라이언트 자동 수집 비활성화 (서버 전용)');
+    console.log('ℹ️ 클라이언트 자동 수집 완전 비활성화 (서버 전용)');
+    console.log('ℹ️ 클라이언트는 서버 데이터만 다운로드');
     
+    // 모든 자동 실행 비활성화
+    return;
+    
+    // 아래 코드는 모두 비활성화됨
+    /*
     // 가시성 변경 감지 제거 (불필요)
-    // document.addEventListener('visibilitychange', () => {
-    //   if (!document.hidden) {
-    //     this.checkAndRun();
-    //   }
-    // });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        this.checkAndRun();
+      }
+    });
+    */
   }
 
   private async checkAndRun() {
@@ -113,6 +120,13 @@ class AutoCollectionScheduler {
   }
 
   private async executeServerCollection(dateKey: string): Promise<void> {
+    // ⚠️ 클라이언트에서 서버 자동수집 API 호출 비활성화
+    // 서버의 cron job이 자동 수집을 처리하므로 클라이언트는 호출하지 않음
+    console.log('⏭️ 클라이언트 자동수집 호출 비활성화 (서버 전용)');
+    return;
+    
+    // 아래 코드는 비활성화됨
+    /*
     console.log('🔄 서버 자동 수집 실행:', dateKey);
     
     try {
@@ -136,6 +150,7 @@ class AutoCollectionScheduler {
       console.error('❌ 서버 자동 수집 실패:', error);
       throw error;
     }
+    */
   }
 
   private async saveToIndexedDB(dateKey: string): Promise<void> {

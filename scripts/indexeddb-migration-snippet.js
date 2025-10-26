@@ -4,7 +4,7 @@
  */
 
 // 1. IndexedDB 스키마 업그레이드
-const dbReq = indexedDB.open('YouTubePulseDB', 3); // 버전 증가
+const dbReq = indexedDB.open('YouTubePulseDB', 10); // 버전 증가
 dbReq.onupgradeneeded = (event) => {
   const db = event.target.result;
   
@@ -36,7 +36,7 @@ dbReq.onupgradeneeded = (event) => {
 // 2. 멱등 복원용 업서트 함수
 async function upsertLocal(item) {
   const db = await new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB', 3);
+    const request = indexedDB.open('YouTubePulseDB', 10);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -129,7 +129,7 @@ async function batchIdempotentRestore(data) {
 // 4. 중복 검사 함수
 async function checkDuplicates() {
   const db = await new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB', 3);
+    const request = indexedDB.open('YouTubePulseDB', 10);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });

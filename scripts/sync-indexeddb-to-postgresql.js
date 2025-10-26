@@ -6,7 +6,7 @@
   
   try {
     // 1. IndexedDB 연결
-    const request = indexedDB.open('YouTubePulseDB');
+    const request = indexedDB.open('YouTubePulseDB', 10);
     
     const db = await new Promise((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);

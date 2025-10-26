@@ -12,7 +12,7 @@ async function cleanupIndexedDB() {
   console.log('🧹 IndexedDB 중복 정리 시작...');
   
   const db = await new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB', 1);
+    const request = indexedDB.open('YouTubePulseDB', 10);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });

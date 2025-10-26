@@ -1764,6 +1764,14 @@ app.post('/api/test-postgresql', async (req, res) => {
 // 자동수집 API 엔드포인트 (GitHub Actions에서 호출)
 app.post('/api/auto-collect', async (req, res) => {
   try {
+    // 호출 추적 로그 추가
+    console.log('🕵️ 자동수집 API 호출 추적:');
+    console.log('   - IP:', req.ip);
+    console.log('   - User-Agent:', req.get('user-agent'));
+    console.log('   - Referer:', req.get('referer'));
+    console.log('   - Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('   - Body:', req.body);
+    
     // 수동 수집 중인지 확인
     if (global.manualCollectionInProgress) {
       console.log('⚠️ 수동 수집이 진행 중이므로 자동 수집을 건너뜁니다.');
@@ -1774,7 +1782,6 @@ app.post('/api/auto-collect', async (req, res) => {
     global.autoCollectionInProgress = true;
     
     console.log('🤖 자동수집 API 호출됨');
-    console.log('🤖 요청 본문:', req.body);
     
     // 자동수집 함수 실행 및 결과 확인
     const result = await autoCollectData();
@@ -1922,6 +1929,10 @@ async function autoCollectData() {
       '모음', '명장면', '베스트', '짜집기'
     ]; // 총 75개
     
+    // 403 에러 연속 발생 시 조기 중단 카운터
+    let consecutive403Errors = 0;
+    const MAX_CONSECUTIVE_403 = 3; // 3번 연속 실패 시 중단
+    
     for (const keyword of testKeywords) {
       console.log(`🔍 키워드 검색: "${keyword}"`);
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
@@ -1930,6 +1941,25 @@ async function autoCollectData() {
       // 수동수집과 동일한 방식: 재시도 없이 한 번만 호출
       const searchResponse = await fetch(searchUrl);
       console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
+      
+      // 403 에러가 연속으로 발생하면 중단
+      if (searchResponse.status === 403) {
+        consecutive403Errors++;
+        console.error(`❌ 403 Forbidden (${consecutive403Errors}/${MAX_CONSECUTIVE_403})`);
+        
+        if (consecutive403Errors >= MAX_CONSECUTIVE_403) {
+          console.error('❌ 연속된 403 에러로 인해 데이터 수집 중단');
+          console.error('❌ API 키가 제한되어 있거나 잘못되었습니다.');
+          console.error('❌ Railway Variables에서 YOUTUBE_API_KEY를 확인하세요.');
+          break; // for 루프 중단
+        }
+        
+        // 403 에러가 발생했지만 아직 중단하지 않음
+        continue; // 다음 키워드로 넘어가기
+      }
+      
+      // 403이 아닌 경우 카운터 리셋
+      consecutive403Errors = 0;
       
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
@@ -1945,7 +1975,9 @@ async function autoCollectData() {
         requestCount++;
         
         if (searchData.items && searchData.items.length > 0) {
-          const videoIds = searchData.items.map(item => item.id.videoId).join(',');
+          // 할당량 절약: 상위 10개만 videos.list로 상세 정보 조회
+          const topVideos = searchData.items.slice(0, 10);
+          const videoIds = topVideos.map(item => item.id.videoId).join(',');
           const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`;
           const videosResponse = await fetch(videosUrl);
           

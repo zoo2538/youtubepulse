@@ -3,7 +3,7 @@ import { getKoreanDateString } from './utils';
 
 class IndexedDBService {
   private dbName = 'YouTubePulseDB';
-  private version = 4;
+  private version = 10; // 스키마 재생성을 위한 대폭 증가
   private db: IDBDatabase | null = null;
 
   // 연결 재시작
@@ -52,18 +52,28 @@ class IndexedDBService {
           unclassifiedStore.createIndex('channelName', 'channelName', { unique: false });
           unclassifiedStore.createIndex('status', 'status', { unique: false });
           unclassifiedStore.createIndex('category', 'category', { unique: false });
-          // 복합 키 인덱스 추가: (videoId, dayKeyLocal)
-          unclassifiedStore.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          // 복합 키 인덱스 추가: (videoId, dayKeyLocal) - non-unique로 변경
+          unclassifiedStore.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: false });
           unclassifiedStore.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
         } else {
           // 기존 저장소에 새로운 인덱스 추가
           const transaction = db.transaction(['unclassifiedData'], 'readwrite');
           const store = transaction.objectStore('unclassifiedData');
           
-          // 기존 인덱스 확인 및 추가
-          if (!store.indexNames.contains('videoDay')) {
-            store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: true });
+          // 기존 unique videoDay 인덱스가 있다면 제거하고 non-unique로 재생성
+          if (store.indexNames.contains('videoDay')) {
+            try {
+              store.deleteIndex('videoDay');
+              console.log('🔄 기존 unique videoDay 인덱스 제거됨');
+            } catch (e) {
+              console.log('⚠️ 기존 videoDay 인덱스 제거 실패 (무시됨):', e);
+            }
           }
+          
+          // 새로운 non-unique 인덱스 생성
+          store.createIndex('videoDay', ['videoId', 'dayKeyLocal'], { unique: false });
+          console.log('✅ 새로운 non-unique videoDay 인덱스 생성됨');
+          
           if (!store.indexNames.contains('dayKeyLocal')) {
             store.createIndex('dayKeyLocal', 'dayKeyLocal', { unique: false });
           }
@@ -252,21 +262,21 @@ class IndexedDBService {
           const putRequest = store.put(item);
           
           putRequest.onsuccess = () => {
-              completed++;
+            completed++;
             if (completed + errors === total) {
               console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-                resolve();
-              }
-            };
+              resolve();
+            }
+          };
           
           putRequest.onerror = () => {
             console.warn(`항목 ${index} 저장 실패:`, putRequest.error);
             errors++;
             if (completed + errors === total) {
               console.log(`✅ 백업 복원 완료: ${completed}개 성공, ${errors}개 실패`);
-                  resolve();
-                }
-              };
+              resolve();
+            }
+          };
         });
       };
       

@@ -160,7 +160,7 @@ async function restoreToIndexedDB(backupData) {
 // IndexedDB에 데이터 저장하는 함수
 async function saveToIndexedDB(storeName, data) {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB');
+    const request = indexedDB.open('YouTubePulseDB', 10);
     
     request.onsuccess = function(event) {
       const db = event.target.result;

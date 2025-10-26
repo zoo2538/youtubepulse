@@ -11,7 +11,7 @@ async function testIndexedDBIdempotency() {
   
   // IndexedDB 열기
   const db = await new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB', 3);
+    const request = indexedDB.open('YouTubePulseDB', 10);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -76,7 +76,7 @@ async function testIndexedDBIdempotency() {
 // 2. 배치 멱등 복원 함수
 async function batchIdempotentRestore(data) {
   const db = await new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB', 3);
+    const request = indexedDB.open('YouTubePulseDB', 10);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
@@ -152,7 +152,7 @@ async function batchIdempotentRestore(data) {
 // 3. 중복 검사 함수
 async function checkDuplicates() {
   const db = await new Promise((resolve, reject) => {
-    const request = indexedDB.open('YouTubePulseDB', 3);
+    const request = indexedDB.open('YouTubePulseDB', 10);
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
