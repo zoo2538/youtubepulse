@@ -286,11 +286,7 @@ export function PerformanceVideosList() {
               <TableHeader className="sticky top-0 bg-background z-10">
                 <TableRow>
                   <TableHead className="w-16 text-center">순위</TableHead>
-                  <TableHead className="w-64">썸네일</TableHead>
-                  <TableHead>제목</TableHead>
-                  <TableHead className="text-right">현재 조회수</TableHead>
-                  <TableHead className="text-right">평균 조회수</TableHead>
-                  <TableHead className="text-right">평균 대비</TableHead>
+                  <TableHead>동영상 정보</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -300,61 +296,74 @@ export function PerformanceVideosList() {
                       {index + 1}
                     </TableCell>
                     <TableCell>
-                      <div className="relative overflow-hidden rounded">
-                        <img 
-                          src={video.thumbnail}
-                          alt={video.title}
-                          className="w-64 h-64 object-cover object-center"
-                          style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
-                        />
-                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                          {video.duration}
+                      <div className="flex items-center space-x-4 p-2">
+                        <div className="relative overflow-hidden rounded">
+                          <img 
+                            src={video.thumbnail}
+                            alt={video.title}
+                            className="w-64 h-64 object-cover object-center"
+                            style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                          />
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
+                            {video.duration}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <div className="space-y-2">
-                        <a 
-                          href={`https://www.youtube.com/watch?v=${video.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer block"
-                          title={`${video.title} - 새 탭에서 열기`}
-                        >
-                          {video.title}
-                        </a>
-                        <p className="text-xs text-muted-foreground">
-                          {video.channelName}
-                        </p>
-                        <div className="flex items-center space-x-2">
-                          <Badge 
-                            variant="secondary"
-                            className="text-xs bg-secondary text-secondary-foreground"
+                        
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <a 
+                            href={`https://www.youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
+                            title={`${video.title} - 새 탭에서 열기`}
                           >
-                            {video.category}
-                          </Badge>
-                          <Badge className={getPerformanceBadge(video.performanceRatio).color}>
-                            {getPerformanceBadge(video.performanceRatio).label}
-                          </Badge>
+                            {video.title}
+                          </a>
+                          <p className="text-xs text-muted-foreground">
+                            {video.channelName}
+                          </p>
+                          <div className="flex items-center space-x-2">
+                            <Badge 
+                              variant="secondary"
+                              className="text-xs bg-secondary text-secondary-foreground"
+                            >
+                              {video.category}
+                            </Badge>
+                            <Badge className={getPerformanceBadge(video.performanceRatio).color}>
+                              {getPerformanceBadge(video.performanceRatio).label}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm font-medium text-foreground">
-                        {formatViews(video.views)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {formatViews(video.averageViews)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <div className="flex items-center justify-end space-x-1 text-success">
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {video.performanceRatio.toFixed(1)}x
-                        </span>
+                        
+                        <div className="text-right space-y-1">
+                          <p className="text-sm font-medium text-foreground">
+                            {formatViews(video.views)}회
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            현재 조회수
+                          </p>
+                        </div>
+                        
+                        <div className="text-right space-y-1">
+                          <p className="text-sm text-muted-foreground">
+                            {formatViews(video.averageViews)}회
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            평균 조회수
+                          </p>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="flex items-center space-x-1 text-success">
+                            <TrendingUp className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              {video.performanceRatio.toFixed(1)}x
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            평균 대비
+                          </p>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -365,61 +374,74 @@ export function PerformanceVideosList() {
                       {index + 11}
                     </TableCell>
                     <TableCell>
-                      <div className="relative overflow-hidden rounded">
-                        <img 
-                          src={video.thumbnail}
-                          alt={video.title}
-                          className="w-64 h-64 object-cover object-center"
-                          style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
-                        />
-                        <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
-                          {video.duration}
+                      <div className="flex items-center space-x-4 p-2">
+                        <div className="relative overflow-hidden rounded">
+                          <img 
+                            src={video.thumbnail}
+                            alt={video.title}
+                            className="w-64 h-64 object-cover object-center"
+                            style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
+                          />
+                          <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 rounded">
+                            {video.duration}
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4">
-                      <div className="space-y-2">
-                        <a 
-                          href={`https://www.youtube.com/watch?v=${video.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer block"
-                          title={`${video.title} - 새 탭에서 열기`}
-                        >
-                          {video.title}
-                        </a>
-                        <p className="text-xs text-muted-foreground">
-                          {video.channelName}
-                        </p>
-                        <div className="flex items-center space-x-2">
-                          <Badge 
-                            variant="secondary"
-                            className="text-xs bg-secondary text-secondary-foreground"
+                        
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <a 
+                            href={`https://www.youtube.com/watch?v=${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer"
+                            title={`${video.title} - 새 탭에서 열기`}
                           >
-                            {video.category}
-                          </Badge>
-                          <Badge className={getPerformanceBadge(video.performanceRatio).color}>
-                            {getPerformanceBadge(video.performanceRatio).label}
-                          </Badge>
+                            {video.title}
+                          </a>
+                          <p className="text-xs text-muted-foreground">
+                            {video.channelName}
+                          </p>
+                          <div className="flex items-center space-x-2">
+                            <Badge 
+                              variant="secondary"
+                              className="text-xs bg-secondary text-secondary-foreground"
+                            >
+                              {video.category}
+                            </Badge>
+                            <Badge className={getPerformanceBadge(video.performanceRatio).color}>
+                              {getPerformanceBadge(video.performanceRatio).label}
+                            </Badge>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm font-medium text-foreground">
-                        {formatViews(video.views)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <p className="text-sm text-muted-foreground">
-                        {formatViews(video.averageViews)}회
-                      </p>
-                    </TableCell>
-                    <TableCell className="py-4 text-right">
-                      <div className="flex items-center justify-end space-x-1 text-success">
-                        <TrendingUp className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          {video.performanceRatio.toFixed(1)}x
-                        </span>
+                        
+                        <div className="text-right space-y-1">
+                          <p className="text-sm font-medium text-foreground">
+                            {formatViews(video.views)}회
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            현재 조회수
+                          </p>
+                        </div>
+                        
+                        <div className="text-right space-y-1">
+                          <p className="text-sm text-muted-foreground">
+                            {formatViews(video.averageViews)}회
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            평균 조회수
+                          </p>
+                        </div>
+                        
+                        <div className="text-right">
+                          <div className="flex items-center space-x-1 text-success">
+                            <TrendingUp className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                              {video.performanceRatio.toFixed(1)}x
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            평균 대비
+                          </p>
+                        </div>
                       </div>
                     </TableCell>
                   </TableRow>
