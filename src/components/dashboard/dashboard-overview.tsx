@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import { useEffect, useState } from "react";
+import { getKoreanDateString } from "@/lib/utils";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { categoryColors, subCategories } from "@/lib/subcategories";
@@ -190,7 +191,7 @@ export function DashboardOverview() {
   const [categoryStats, setCategoryStats] = useState<any>({});
   const [previousDayStats, setPreviousDayStats] = useState<any>({});
   const [viewsData, setViewsData] = useState<any[]>([]);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString());
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
 
@@ -227,9 +228,40 @@ export function DashboardOverview() {
   // 분류된 데이터 로드
   useEffect(() => {
     const loadClassifiedData = async () => {
+      // 강제 타임아웃: 15초 후 무조건 로딩 완료
+      const forceTimeout = setTimeout(() => {
+        console.warn('⏰ 대시보드 데이터 로드 강제 타임아웃 (15초)');
+      }, 15000);
+      
       try {
-        // 1) 서버 우선 로드 (hybridService 사용)
-        let data = await hybridService.getClassifiedData();
+        // 1) 서버 우선 로드 (hybridService 사용) - 타임아웃 적용
+        let data: any[] = [];
+        try {
+          // 타임아웃 보호: Promise.race로 타임아웃 적용
+          const timeoutPromise = new Promise<any[]>((_, reject) => {
+            setTimeout(() => {
+              console.warn('⏱️ 대시보드 데이터 로드 타임아웃 (10초) - IndexedDB 폴백');
+              reject(new Error('데이터 로드 타임아웃'));
+            }, 10000);
+          });
+          
+          data = await Promise.race([
+            hybridService.getClassifiedData(),
+            timeoutPromise
+          ]) as any[];
+        } catch (timeoutError) {
+          console.warn('⚠️ 서버 데이터 로드 타임아웃 또는 실패 - IndexedDB 폴백');
+          // IndexedDB 직접 로드
+          try {
+            const localData = await indexedDBService.loadClassifiedData();
+            data = localData || [];
+            console.log(`✅ IndexedDB에서 데이터 로드: ${data.length}개`);
+          } catch (dbError) {
+            console.error('❌ IndexedDB 로드 실패:', dbError);
+            data = [];
+          }
+        }
+        
         // localStorage 폴백 제거: hybridService 사용 (서버 → IndexedDB 폴백)
         if (!Array.isArray(data)) data = [];
 
@@ -243,7 +275,7 @@ export function DashboardOverview() {
         setClassifiedData(data);
 
         // 선택된 날짜 또는 오늘 데이터 통계 계산 (dailySummary 우선, 폴백은 기존 계산)
-        const targetDate = selectedDate || new Date().toISOString().split('T')[0];
+        const targetDate = selectedDate || getKoreanDateString();
         let stats: any = {};
         try {
           const summary = await indexedDBService.loadDailySummary(targetDate);
@@ -429,6 +461,8 @@ export function DashboardOverview() {
         }
       } catch (error) {
         console.error('분류된 데이터 로드 실패:', error);
+      } finally {
+        clearTimeout(forceTimeout);
       }
     };
 

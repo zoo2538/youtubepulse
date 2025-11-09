@@ -37,7 +37,7 @@ function formatNumber(num: number): string {
 export function ChannelTrendingTable() {
   const [channelData, setChannelData] = useState<ChannelData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString());
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
 
@@ -87,7 +87,7 @@ export function ChannelTrendingTable() {
         
         if (classifiedData && classifiedData.length > 0) {
           // 선택된 날짜의 수집일 기준 데이터 필터링 (한국 시간 기준)
-          const targetDate = selectedDate || getKoreanDateString();
+      const targetDate = selectedDate || getKoreanDateString();
           const filteredData = classifiedData.filter((item: any) => {
             const itemDate = item.collectionDate || item.uploadDate;
             return itemDate && itemDate.split('T')[0] === targetDate;

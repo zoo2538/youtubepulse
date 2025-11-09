@@ -144,7 +144,7 @@ function getPerformanceBadge(ratio: number) {
 export function PerformanceVideosList() {
   const [performanceData, setPerformanceData] = useState<PerformanceVideoData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString());
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
   const navigate = useNavigate();

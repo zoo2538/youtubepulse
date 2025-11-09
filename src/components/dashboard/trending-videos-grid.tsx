@@ -143,12 +143,12 @@ export function TrendingVideosGrid() {
     <Card className="p-6">
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <h3 className="text-lg font-semibold text-foreground">조회수 급등 동영상</h3>
-            <Badge className="bg-youtube text-white">
-              <TrendingUp className="w-3 h-3 mr-1" />
-              급상승
-            </Badge>
+        <div className="flex items-center space-x-2">
+          <h3 className="text-lg font-semibold text-foreground">조회수 급등 동영상</h3>
+          <Badge className="bg-youtube text-white">
+            <TrendingUp className="w-3 h-3 mr-1" />
+            급상승
+          </Badge>
           </div>
           <Button
             variant="outline"
