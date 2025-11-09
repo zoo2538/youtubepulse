@@ -1,13 +1,14 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Star, TrendingUp } from "lucide-react";
+import { Star, TrendingUp, ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { getKoreanDateString } from "@/lib/utils";
 import { subCategories, categoryColors } from "@/lib/subcategories";
+import { Button } from "@/components/ui/button";
 
 interface PerformanceVideoData {
   id: string;
@@ -146,6 +147,7 @@ export function PerformanceVideosList() {
   const [selectedDate, setSelectedDate] = useState<string>('');
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
+  const navigate = useNavigate();
 
   // 날짜 변경 이벤트 리스너
   useEffect(() => {
@@ -272,12 +274,23 @@ export function PerformanceVideosList() {
   return (
     <Card className="p-6">
       <div className="space-y-4">
-        <div className="flex items-center space-x-2">
-          <h3 className="text-lg font-semibold text-foreground">평균 대비 우수 성과 동영상</h3>
-          <Badge className="bg-success text-white">
-            <Star className="w-3 h-3 mr-1" />
-            고성과
-          </Badge>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <h3 className="text-lg font-semibold text-foreground">평균 대비 우수 성과 동영상</h3>
+            <Badge className="bg-success text-white">
+              <Star className="w-3 h-3 mr-1" />
+              고성과
+            </Badge>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center space-x-1"
+            onClick={() => navigate("/performance-videos")}
+          >
+            <span>상세 페이지 이동</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </Button>
         </div>
         
         <div>
