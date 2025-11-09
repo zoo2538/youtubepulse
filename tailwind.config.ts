@@ -14,7 +14,7 @@ export default {
 			center: true,
 			padding: '2rem',
 			screens: {
-				'2xl': '1600px'
+				'2xl': '1400px'
 			}
 		},
 		extend: {
@@ -88,22 +88,18 @@ export default {
 			keyframes: {
 				'accordion-down': {
 					from: {
-						transform: 'scaleY(0)',
-						opacity: '0'
+						height: '0'
 					},
 					to: {
-						transform: 'scaleY(1)',
-						opacity: '1'
+						height: 'var(--radix-accordion-content-height)'
 					}
 				},
 				'accordion-up': {
 					from: {
-						transform: 'scaleY(1)',
-						opacity: '1'
+						height: 'var(--radix-accordion-content-height)'
 					},
 					to: {
-						transform: 'scaleY(0)',
-						opacity: '0'
+						height: '0'
 					}
 				}
 			},
