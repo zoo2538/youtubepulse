@@ -184,6 +184,32 @@ app.use(cors({
 // OPTIONS 요청에 대한 명시적 처리 (모든 경로) - Express 5 호환
 app.options('/*splat', cors());
 
+// Security headers
+app.disable('x-powered-by'); // X-Powered-By 헤더 제거
+app.use((req, res, next) => {
+  // X-Content-Type-Options 헤더 추가 (MIME 타입 스니핑 방지)
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // API 응답에 Content-Type charset=utf-8 설정
+  const originalJson = res.json;
+  res.json = function(data) {
+    if (!res.getHeader('Content-Type')) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+    // API 응답은 짧은 캐시 (180초)
+    if (!res.getHeader('Cache-Control')) {
+      res.setHeader('Cache-Control', 'public, max-age=180');
+    }
+    return originalJson.call(this, data);
+  };
+  
+  // Expires, Pragma 헤더 제거 (Cache-Control 사용)
+  res.removeHeader('Expires');
+  res.removeHeader('Pragma');
+  
+  next();
+});
+
 // JSON 파싱 (크기 제한 증가: 100MB)
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
@@ -1778,8 +1804,9 @@ app.post('/api/auto-collect', async (req, res) => {
       return res.json({ success: false, message: '수동 수집이 진행 중입니다.' });
     }
 
-    // 자동 수집 시작 플래그 설정
+    // 자동 수집 시작 플래그 설정 (타임스탬프 포함)
     global.autoCollectionInProgress = true;
+    global.autoCollectionLastRunTime = Date.now();
     
     console.log('🤖 자동수집 API 호출됨');
     
@@ -1788,6 +1815,7 @@ app.post('/api/auto-collect', async (req, res) => {
     
     // 자동 수집 완료 플래그 해제
     global.autoCollectionInProgress = false;
+    global.autoCollectionLastRunTime = null;
     
     if (result === false) {
       console.error('❌ 자동수집 함수에서 실패 반환');
@@ -1805,6 +1833,7 @@ app.post('/api/auto-collect', async (req, res) => {
     
     // 오류 발생 시에도 플래그 해제
     global.autoCollectionInProgress = false;
+    global.autoCollectionLastRunTime = null;
     
     res.status(500).json({ 
       error: 'Auto collection failed', 
@@ -2163,7 +2192,7 @@ async function autoCollectData() {
         status: existingClassification ? "classified" : "unclassified",
         keyword: video.searchKeyword, // 키워드 정보 추가
         source: video.source, // 수집 소스 정보 추가
-        collectionType: 'auto', // 자동 수집으로 명시
+        collectionType: 'manual', // UI 호환성을 위해 기본값 유지
         collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
         collectionSource: 'auto_collect_api' // 수집 소스 기록
       };
@@ -2654,15 +2683,34 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log('📅 당일(오늘) 데이터로 저장됩니다');
     console.log('='.repeat(80) + '\n');
     
-    // 중복 실행 방지: 이미 실행 중이면 건너뛰기
+    // 중복 실행 방지: 이미 실행 중이면 건너뛰기 (타임아웃 체크 포함)
     if (global.autoCollectionInProgress) {
-      console.log('⚠️ [크론잡] 이미 자동 수집이 진행 중이므로 건너뜁니다.');
-      addCronHistory('skipped', '이미 자동 수집이 진행 중');
-      return;
+      // 타임아웃 체크: 마지막 실행 시간이 2시간 이상 지났으면 강제 해제
+      const lastRunTime = global.autoCollectionLastRunTime || 0;
+      const now = Date.now();
+      const timeoutMs = 2 * 60 * 60 * 1000; // 2시간
+      
+      if (lastRunTime > 0 && (now - lastRunTime) > timeoutMs) {
+        console.log('⚠️ [크론잡] 자동 수집 플래그가 타임아웃되었습니다. 강제 해제하고 재실행합니다.');
+        console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+        console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
+        global.autoCollectionInProgress = false;
+        global.autoCollectionLastRunTime = null;
+        addCronHistory('timeout-reset', '자동 수집 플래그 타임아웃으로 강제 해제');
+      } else {
+        console.log('⚠️ [크론잡] 이미 자동 수집이 진행 중이므로 건너뜁니다.');
+        if (lastRunTime > 0) {
+          console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+          console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
+        }
+        addCronHistory('skipped', '이미 자동 수집이 진행 중');
+        return;
+      }
     }
     
-    // 자동 수집 시작 플래그 설정
+    // 자동 수집 시작 플래그 설정 (타임스탬프 포함)
     global.autoCollectionInProgress = true;
+    global.autoCollectionLastRunTime = Date.now();
     
     // 이력 기록: 시작
     addCronHistory('started', '자동 수집 시작');
@@ -2683,6 +2731,7 @@ app.listen(PORT, '0.0.0.0', () => {
     } finally {
       // 자동 수집 완료 플래그 해제
       global.autoCollectionInProgress = false;
+      global.autoCollectionLastRunTime = null;
     }
   }), {
     timezone: 'Asia/Seoul',
@@ -3321,7 +3370,43 @@ console.log('🧹 서버 시작 시 7일 데이터 정리 1회 실행...');
 autoCleanupOldData();
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
-app.use(express.static(path.join(__dirname, '..')));
+// 캐시 설정: 정적 리소스는 1년 캐시, immutable 사용
+app.use(express.static(path.join(__dirname, '..'), {
+  maxAge: 31536000000, // 1년 (밀리초)
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // 정적 리소스 캐싱 설정
+    if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', getContentType(path) + '; charset=utf-8');
+    } else if (path.match(/\.(html)$/)) {
+      // HTML 파일은 짧은 캐시 (180초)
+      res.setHeader('Cache-Control', 'public, max-age=180');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+  }
+}));
+
+// Content-Type 헬퍼 함수
+function getContentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentTypes = {
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.ico': 'image/x-icon',
+    '.svg': 'image/svg+xml',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.eot': 'application/vnd.ms-fontobject'
+  };
+  return contentTypes[ext] || 'application/octet-stream';
+}
 
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
 app.use((req, res) => {
