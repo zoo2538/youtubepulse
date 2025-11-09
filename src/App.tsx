@@ -21,6 +21,7 @@ import DataClassification from "@/pages/DataClassification";
 import DateClassificationDetail from "@/pages/DateClassificationDetail";
 import TrendingVideosDetail from "@/pages/TrendingVideosDetail";
 import SubcategorySettings from "@/pages/SubcategorySettings";
+import TrendingChannelsDetail from "@/pages/TrendingChannelsDetail";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
@@ -64,6 +65,7 @@ const App = () => {
           <Route path="/date-classification-detail" element={<DateClassificationDetail />} />
           <Route path="/trending-videos" element={<TrendingVideosDetail />} />
           <Route path="/subcategory-settings" element={<SubcategorySettings />} />
+          <Route path="/trending-channels" element={<TrendingChannelsDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

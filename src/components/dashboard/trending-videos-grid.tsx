@@ -1,12 +1,14 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, ArrowUpRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { getKoreanDateString } from "@/lib/utils";
 import { subCategories, categoryColors } from "@/lib/subcategories";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
 
 interface VideoData {
   id: string;
@@ -35,6 +37,7 @@ export function TrendingVideosGrid() {
   const [loading, setLoading] = useState(true);
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
+  const navigate = useNavigate();
 
   // 분류된 데이터에서 트렌딩 비디오 데이터 생성
   const loadTrendingVideosData = async () => {
@@ -139,12 +142,23 @@ export function TrendingVideosGrid() {
   return (
     <Card className="p-6">
       <div className="space-y-4">
-        <div className="flex items-center space-x-2">
-          <h3 className="text-lg font-semibold text-foreground">조회수 급등 동영상</h3>
-          <Badge className="bg-youtube text-white">
-            <TrendingUp className="w-3 h-3 mr-1" />
-            급상승
-          </Badge>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <h3 className="text-lg font-semibold text-foreground">조회수 급등 동영상</h3>
+            <Badge className="bg-youtube text-white">
+              <TrendingUp className="w-3 h-3 mr-1" />
+              급상승
+            </Badge>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center space-x-1"
+            onClick={() => navigate("/trending-channels")}
+          >
+            <span>조회수 급등 채널 보기</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </Button>
         </div>
         
         <div>
