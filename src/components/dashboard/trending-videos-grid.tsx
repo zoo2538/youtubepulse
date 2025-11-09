@@ -190,11 +190,11 @@ export function TrendingVideosGrid() {
                             rel="noopener noreferrer"
                             className="relative hover:opacity-80 transition-opacity"
                           >
-                            <div className="relative overflow-hidden rounded">
+                            <div className="relative overflow-hidden rounded w-64 h-64 bg-muted">
                               <img 
                                 src={video.thumbnail}
                                 alt={video.title}
-                                className="w-64 h-64 object-cover object-center"
+                                className="w-full h-full object-cover object-center"
                                 style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                               />
                             </div>
@@ -249,11 +249,11 @@ export function TrendingVideosGrid() {
                             rel="noopener noreferrer"
                             className="relative hover:opacity-80 transition-opacity"
                           >
-                            <div className="relative overflow-hidden rounded">
+                            <div className="relative overflow-hidden rounded w-64 h-64 bg-muted">
                               <img 
                                 src={video.thumbnail}
                                 alt={video.title}
-                                className="w-64 h-64 object-cover object-center"
+                                className="w-full h-full object-cover object-center"
                                 style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
                               />
                             </div>

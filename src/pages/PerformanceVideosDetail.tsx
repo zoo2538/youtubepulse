@@ -430,11 +430,11 @@ const PerformanceVideosDetail: React.FC = () => {
                             rel="noopener noreferrer"
                             className="relative hover:opacity-80 transition-opacity"
                           >
-                            <div className="relative overflow-hidden rounded w-40 h-24 bg-muted">
+                            <div className="relative overflow-hidden rounded w-64 h-64 bg-muted">
                               <img
                                 src={video.thumbnail}
                                 alt={video.title}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover object-center"
                               />
                             </div>
                           </a>

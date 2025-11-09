@@ -468,7 +468,7 @@ const TrendingChannelsDetail: React.FC = () => {
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
                   <TableRow>
                     <TableHead className="w-16 text-center">순위</TableHead>
-                    <TableHead className="w-20">썸네일</TableHead>
+                    <TableHead className="w-64 text-center">썸네일</TableHead>
                     <TableHead>채널 정보</TableHead>
                     <TableHead className="text-right">당일 조회수</TableHead>
                     <TableHead className="text-right">전일 조회수</TableHead>
@@ -484,11 +484,11 @@ const TrendingChannelsDetail: React.FC = () => {
                         {index + 1}
                       </TableCell>
                       <TableCell>
-                        <div className="w-16 h-16 rounded overflow-hidden bg-muted">
+                        <div className="w-64 h-64 rounded overflow-hidden bg-muted mx-auto">
                           <img
                             src={channel.thumbnail}
                             alt={channel.channelName}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover object-center"
                           />
                         </div>
                       </TableCell>
