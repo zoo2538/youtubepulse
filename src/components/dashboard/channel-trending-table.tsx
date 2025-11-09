@@ -210,7 +210,7 @@ export function ChannelTrendingTable() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-16 text-center">순위</TableHead>
-                <TableHead className="w-16">썸네일</TableHead>
+                <TableHead className="w-32 text-center">썸네일</TableHead>
                 <TableHead>채널 정보</TableHead>
                 <TableHead className="text-right">당일 조회수</TableHead>
                 <TableHead className="text-right">전일 조회수</TableHead>
@@ -223,16 +223,15 @@ export function ChannelTrendingTable() {
                   <TableCell className="text-center font-medium">
                     {index + 1}
                   </TableCell>
-                                                                          <TableCell>
-                     <div className="relative overflow-hidden rounded w-64 h-64">
-                       <img 
-                         src={channel.thumbnail}
-                         alt={channel.channelName}
-                         className="w-64 h-64 object-cover object-center"
-                         style={{ objectPosition: '50% 50%', clipPath: 'inset(0 10% 0 10%)' }}
-                       />
-                     </div>
-                   </TableCell>
+                  <TableCell>
+                    <div className="relative overflow-hidden rounded w-32 h-32 bg-muted mx-auto">
+                      <img
+                        src={channel.thumbnail}
+                        alt={channel.channelName}
+                        className="w-full h-full object-cover object-center"
+                      />
+                    </div>
+                  </TableCell>
                   <TableCell className="py-4">
                     <div className="space-y-2">
                       <Link 
