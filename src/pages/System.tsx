@@ -39,6 +39,7 @@ import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { dataMigrationService } from "@/lib/data-migration-service";
 import { loadCollectionConfig, EXPANDED_KEYWORDS } from "@/lib/data-collection-config";
+import { API_BASE_URL } from "@/lib/config";
 import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { CacheCleanup } from "@/lib/cache-cleanup";
 import { useAuth } from "@/hooks/useAuth";
@@ -51,6 +52,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+const DATE_RANGE_DAYS = 14;
 
 interface ApiConfig {
   youtubeApiKey: string;
@@ -72,10 +75,11 @@ interface SystemConfig {
 const System = () => {
   const { userRole, isLoggedIn } = useAuth();
   const navigate = useNavigate();
+  const defaultApiUrl = API_BASE_URL || 'https://api.youthbepulse.com';
   const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
     // localStorage에서 저장된 설정 불러오기
     const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
-    const savedCustomApiUrl = localStorage.getItem('customApiUrl') || (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
+    const savedCustomApiUrl = localStorage.getItem('customApiUrl') || defaultApiUrl;
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
     const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
@@ -186,7 +190,7 @@ const System = () => {
     // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
     if (localStorage.getItem('customApiEnabled') === null) {
       localStorage.setItem('customApiEnabled', 'false'); // Railway 서버 문제로 비활성화
-      localStorage.setItem('customApiUrl', (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com');
+      localStorage.setItem('customApiUrl', defaultApiUrl);
       console.log('🔧 커스텀 API 기본값 설정 완료 (Railway 서버 문제로 비활성화)');
     }
   }, []);
@@ -230,9 +234,9 @@ const System = () => {
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
 
   const handleCleanupOldData = async () => {
-    if (window.confirm('7일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+    if (window.confirm(`${DATE_RANGE_DAYS}일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
       try {
-        const deletedCount = await indexedDBService.cleanupOldData(7);
+        const deletedCount = await indexedDBService.cleanupOldData(DATE_RANGE_DAYS);
         alert(`데이터 정리가 완료되었습니다!\n\n삭제된 데이터: ${deletedCount}개`);
       } catch (error) {
         console.error('데이터 정리 오류:', error);
@@ -246,7 +250,7 @@ const System = () => {
   const handleReloadApiConfig = () => {
     try {
       const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
-      const savedCustomApiUrl = localStorage.getItem('customApiUrl') || (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
+      const savedCustomApiUrl = localStorage.getItem('customApiUrl') || defaultApiUrl;
       const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
       const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
       const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
@@ -674,48 +678,58 @@ const System = () => {
         }
       }
 
-      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 7일간, 서버 우선)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 DATE_RANGE_DAYS일간, IndexedDB 전용)
       let existingClassifiedData: any[] = [];
+      const rangeStart = new Date();
+      rangeStart.setDate(rangeStart.getDate() - (DATE_RANGE_DAYS - 1));
+      const rangeStartString = rangeStart.toISOString().split('T')[0];
       try {
-        // 서버에서 최신 분류 데이터 조회 (실시간 최신 데이터)
-        console.log('📊 서버에서 실시간 분류 데이터 조회 중...');
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-        const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+        // API_BASE_URL이 없으면 IndexedDB 데이터만 사용
+        if (!API_BASE_URL) {
+          console.log('⚠️ API_BASE_URL 미설정 - IndexedDB 데이터만 사용합니다.');
+          const savedCategories = await indexedDBService.loadCategories();
+          if (savedCategories && Object.keys(savedCategories).length > 0) {
+            setDynamicSubCategories(savedCategories);
+          }
+          setIsLoading(false);
+          return;
+        }
         
-        const serverResponse = await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}/api/unclassified`);
-        if (serverResponse.ok) {
-          const serverResult = await serverResponse.json();
-          if (serverResult.success && serverResult.data) {
-            const allServerData = serverResult.data;
-            
-            existingClassifiedData = allServerData.filter((item: any) => {
-              const isClassified = item.status === 'classified';
-              const itemDate = item.dayKeyLocal || item.day_key_local || item.collectionDate || item.collection_date;
-              const isRecent = itemDate && itemDate >= sevenDaysAgoString;
-              return isClassified && isRecent;
-            });
-            
-            console.log(`📊 서버에서 분류 데이터 로드 성공`);
-            console.log(`📊 분류 데이터 참조 범위: 최근 7일 (${sevenDaysAgoString} 이후)`);
-            console.log(`📊 최근 7일 분류 데이터: ${existingClassifiedData.length}개`);
+        // IndexedDB 전용 모드에서는 서버 조회 스킵
+        if (API_BASE_URL) {
+          const serverResponse = await fetch(`${API_BASE_URL}/api/unclassified`);
+          if (serverResponse.ok) {
+            const serverResult = await serverResponse.json();
+            if (serverResult.success && serverResult.data) {
+              const allServerData = serverResult.data;
+              
+              existingClassifiedData = allServerData.filter((item: any) => {
+                const isClassified = item.status === 'classified';
+                const itemDate = item.dayKeyLocal || item.day_key_local || item.collectionDate || item.collection_date;
+                const isRecent = itemDate && itemDate >= rangeStartString;
+                return isClassified && isRecent;
+              });
+              
+              console.log(`📊 서버에서 분류 데이터 로드 성공`);
+              console.log(`📊 분류 데이터 참조 범위: 최근 ${DATE_RANGE_DAYS}일 (${rangeStartString} 이후)`);
+              console.log(`📊 최근 ${DATE_RANGE_DAYS}일 분류 데이터: ${existingClassifiedData.length}개`);
+            }
+          } else {
+            console.warn('서버 조회 실패, IndexedDB에서 로드 시도');
+            throw new Error('Server fetch failed');
           }
         } else {
-          console.warn('서버 조회 실패, IndexedDB에서 로드 시도');
-          throw new Error('Server fetch failed');
+          console.warn('⚠️ API_BASE_URL 미설정 - IndexedDB 데이터로 대체합니다.');
         }
       } catch (error) {
-        // 서버 실패 시 IndexedDB 폴백
-        console.log('📊 서버 조회 실패, IndexedDB에서 로드...');
+        // IndexedDB에서 로드 (서버 실패 또는 미설정 시)
+        console.log('📊 IndexedDB에서 분류 데이터 로드...');
         try {
           const allData = await hybridService.loadUnclassifiedData();
-          const fourteenDaysAgo = new Date();
-          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-          const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
-          
           existingClassifiedData = allData.filter((item: any) => {
             const isClassified = item.status === 'classified';
-            const isRecent = item.collectionDate >= fourteenDaysAgoString;
+            const collectionDate = item.dayKeyLocal || item.collectionDate || item.collection_date;
+            const isRecent = collectionDate && collectionDate >= rangeStartString;
             return isClassified && isRecent;
           });
           
@@ -751,8 +765,8 @@ const System = () => {
       });
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
-      console.log(`📊 분류 참조 기간: 최근 7일간의 최신 분류 정보만 사용`);
-      console.log(`📊 기존 분류 시스템: 7일간 분류 이력 기반 분류 적용`);
+      console.log(`📊 분류 참조 기간: 최근 ${DATE_RANGE_DAYS}일간의 최신 분류 정보만 사용`);
+      console.log(`📊 기존 분류 시스템: ${DATE_RANGE_DAYS}일간 분류 이력 기반 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       // utils 함수들은 이미 정적 import됨
@@ -796,8 +810,8 @@ const System = () => {
         }
         
         // 기존 분류 시스템만 사용
-        // - 7일 데이터에 있으면: 그 분류 사용 (classified)
-        // - 7일 데이터에 없으면: 수동 분류 대기 (unclassified)
+        // - 최근 DATE_RANGE_DAYS일 데이터에 있으면: 그 분류 사용 (classified)
+        // - 해당 기간 데이터에 없으면: 수동 분류 대기 (unclassified)
         
         return {
           id: Date.now() + index,
@@ -811,14 +825,14 @@ const System = () => {
           uploadDate: video.snippet.publishedAt.split('T')[0],
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
-          category: existingClassification?.category || '', // 7일 데이터만 사용, 없으면 빈값
+          category: existingClassification?.category || '', // 최근 DATE_RANGE_DAYS일 데이터만 사용, 없으면 빈값
           collectionType: 'manual', // 수동 수집으로 명시
           collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
           keyword: sourceKeyword, // 키워드 정보 추가
           source: sourceType, // 수집 소스 추가 (trending or keyword)
-          subCategory: existingClassification?.subCategory || '', // 7일 데이터만 사용, 없으면 빈값
-          status: existingClassification ? "classified" as const : "unclassified" as const, // 7일 데이터 없으면 무조건 unclassified
+          subCategory: existingClassification?.subCategory || '', // 최근 DATE_RANGE_DAYS일 데이터만 사용, 없으면 빈값
+          status: existingClassification ? "classified" as const : "unclassified" as const, // 해당 기간 데이터 없으면 무조건 unclassified
           autoClassified: !!existingClassification // 기존 분류 데이터로 분류된 경우만 true
         };
       });
@@ -909,7 +923,7 @@ const System = () => {
         console.log(`   - 같은 날짜 중복 업데이트: ${newData.length - (finalUniqueData.length - existingData.length)}개`);
         console.log(`   - 중복 ID 제거: ${dataWithUniqueIds.length - finalUniqueData.length}개`);
         
-        // 하이브리드 저장 (IndexedDB + PostgreSQL)
+        // IndexedDB 저장 (로컬 전용)
         await hybridService.saveUnclassifiedData(finalUniqueData);
       } catch (error) {
         console.error('IndexedDB 저장 오류:', error);
@@ -1134,7 +1148,7 @@ const System = () => {
               <h1 className="text-3xl font-bold text-foreground">시스템 설정</h1>
               <p className="text-muted-foreground">데이터 연동 및 시스템 설정을 관리합니다</p>
               <p className="text-xs text-muted-foreground mt-1">
-                저장 기준: IndexedDB + PostgreSQL (하이브리드) · 수집: 트렌드 + 키워드 혼합 · 정렬: 조회수 상위
+                저장 기준: IndexedDB (로컬 전용) · 수집: 트렌드 + 키워드 혼합 · 정렬: 조회수 상위
               </p>
             </div>
             <div className="flex items-center space-x-2">
@@ -1190,6 +1204,7 @@ const System = () => {
                                 <Input
                                   id="youtube-api-key"
                                   type="password"
+                                  autoComplete="off"
                                   placeholder="YouTube Data API 키를 입력하세요"
                                   value={apiConfig.youtubeApiKey}
                                   onChange={(e) => 
@@ -1252,65 +1267,91 @@ const System = () => {
                           )}
                         </div>
 
-                        {/* 커스텀 API */}
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium">커스텀 API</Label>
-                            <Switch
-                              checked={apiConfig.customApiEnabled}
-                              onCheckedChange={(checked) => 
-                                setApiConfig(prev => ({ ...prev, customApiEnabled: checked }))
-                              }
-                            />
-                          </div>
-                          {apiConfig.customApiEnabled && (
-                            <div className="space-y-2">
-                              <Label htmlFor="custom-api-url">API URL</Label>
-                              <div className="flex space-x-2">
-                                <Input
-                                  id="custom-api-url"
-                                  placeholder={(import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}
-                                  value={apiConfig.customApiUrl}
-                                  onChange={(e) => 
-                                    setApiConfig(prev => ({ ...prev, customApiUrl: e.target.value }))
-                                  }
-                                  className="flex-1"
-                                />
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={testApiConnection}
-                                  disabled={!apiConfig.customApiUrl || apiConnectionStatus === 'testing'}
-                                >
-                                  <TestTube className="w-4 h-4 mr-1" />
-                                  {apiConnectionStatus === 'testing' ? '테스트 중...' : '테스트'}
-                                </Button>
+                        {/* 커스텀 API - IndexedDB 전용 모드에서는 비활성화 */}
+                        {(() => {
+                          const isIndexedDBOnly = !API_BASE_URL;
+                          if (isIndexedDBOnly) {
+                            return (
+                              <div className="space-y-3">
+                                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                  <div className="flex items-center space-x-2 mb-2">
+                                    <Database className="w-5 h-5 text-blue-600" />
+                                    <Label className="text-sm font-medium text-blue-900">IndexedDB 전용 모드</Label>
+                                  </div>
+                                  <p className="text-xs text-blue-700">
+                                    현재 IndexedDB 전용 모드로 실행 중입니다.<br/>
+                                    서버 API 연결이 필요하지 않습니다.<br/>
+                                    모든 데이터는 로컬 IndexedDB에 저장됩니다.
+                                  </p>
+                                </div>
                               </div>
-                              
-                              {/* API 서버 테스트 결과 */}
-                              {apiConnectionStatus !== 'idle' && (
-                                <div className={`p-2 rounded-lg text-sm ${
-                                  apiConnectionStatus === 'success' 
-                                    ? 'bg-green-50 border border-green-200 text-green-800' 
-                                    : 'bg-red-50 border border-red-200 text-red-800'
-                                }`}>
-                                  {apiTestMessage}
+                            );
+                          }
+                          return (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <Label className="text-sm font-medium">커스텀 API</Label>
+                                <Switch
+                                  checked={apiConfig.customApiEnabled}
+                                  onCheckedChange={(checked) => 
+                                    setApiConfig(prev => ({ ...prev, customApiEnabled: checked }))
+                                  }
+                                />
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                현재 API URL: <span className="font-mono text-blue-600">{API_BASE_URL || '미설정'}</span>
+                              </div>
+                              {apiConfig.customApiEnabled && (
+                                <div className="space-y-2">
+                                  <Label htmlFor="custom-api-url">API URL</Label>
+                                  <div className="flex space-x-2">
+                                    <Input
+                                      id="custom-api-url"
+                                      placeholder={defaultApiUrl}
+                                      value={apiConfig.customApiUrl}
+                                      onChange={(e) => 
+                                        setApiConfig(prev => ({ ...prev, customApiUrl: e.target.value }))
+                                      }
+                                      className="flex-1"
+                                    />
+                                    <Button 
+                                      variant="outline" 
+                                      size="sm"
+                                      onClick={testApiConnection}
+                                      disabled={!apiConfig.customApiUrl || apiConnectionStatus === 'testing'}
+                                    >
+                                      <TestTube className="w-4 h-4 mr-1" />
+                                      {apiConnectionStatus === 'testing' ? '테스트 중...' : '테스트'}
+                                    </Button>
+                                  </div>
+                                  
+                                  {/* API 서버 테스트 결과 */}
+                                  {apiConnectionStatus !== 'idle' && (
+                                    <div className={`p-2 rounded-lg text-sm ${
+                                      apiConnectionStatus === 'success' 
+                                        ? 'bg-green-50 border border-green-200 text-green-800' 
+                                        : 'bg-red-50 border border-red-200 text-red-800'
+                                    }`}>
+                                      {apiTestMessage}
+                                    </div>
+                                  )}
+                                  
+                                  <Label htmlFor="custom-api-key">API 키 (선택사항)</Label>
+                                  <Input
+                                    id="custom-api-key"
+                                    type="password"
+                                    autoComplete="off"
+                                    placeholder="API 키를 입력하세요"
+                                    value={apiConfig.customApiKey}
+                                    onChange={(e) => 
+                                      setApiConfig(prev => ({ ...prev, customApiKey: e.target.value }))
+                                    }
+                                  />
                                 </div>
                               )}
-                              
-                              <Label htmlFor="custom-api-key">API 키 (선택사항)</Label>
-                              <Input
-                                id="custom-api-key"
-                                type="password"
-                                placeholder="API 키를 입력하세요"
-                                value={apiConfig.customApiKey}
-                                onChange={(e) => 
-                                  setApiConfig(prev => ({ ...prev, customApiKey: e.target.value }))
-                                }
-                              />
                             </div>
-                          )}
-                        </div>
+                          );
+                        })()}
                       </div>
                     </Card>
 
@@ -1326,8 +1367,8 @@ const System = () => {
                           <h4 className="text-sm font-medium text-blue-900 mb-2">💡 핵심 기능</h4>
                           <p className="text-xs text-blue-700">
                             • 기존 분류 이력 기반 분류 적용<br/>
-                            • 7일간 분류 이력 우선 적용<br/>
-                            • 하이브리드 저장 (IndexedDB + PostgreSQL)
+                            • 최근 {DATE_RANGE_DAYS}일 분류 이력 우선 적용<br/>
+                            • IndexedDB 저장 (로컬 전용)
                           </p>
                           </div>
                       </div>
@@ -1483,55 +1524,82 @@ const System = () => {
                         <h2 className="text-xl font-semibold text-foreground">연동 상태</h2>
                       </div>
                       
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              apiConfig.youtubeApiEnabled ? 'bg-green-500' : 'bg-gray-400'
-                            }`} />
-                            <span className="text-sm font-medium">YouTube API</span>
-                          </div>
-                          <Badge variant={apiConfig.youtubeApiEnabled ? "default" : "secondary"}>
-                            {apiConfig.youtubeApiEnabled ? "연결됨" : "연결 안됨"}
-                          </Badge>
-                        </div>
+                      {(() => {
+                        const isIndexedDBOnly = !API_BASE_URL;
+                        if (isIndexedDBOnly) {
+                          return (
+                            <div className="space-y-3">
+                              <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="flex items-center space-x-2 mb-2">
+                                  <Database className="w-5 h-5 text-blue-600" />
+                                  <span className="text-sm font-medium text-blue-900">IndexedDB 전용 모드</span>
+                                </div>
+                                <p className="text-xs text-blue-700 mb-3">
+                                  현재 IndexedDB 전용 모드로 실행 중입니다.<br/>
+                                  서버 API 연결이 필요하지 않습니다.
+                                </p>
+                                <div className="flex items-center justify-between p-3 bg-white rounded-lg">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                                    <span className="text-sm font-medium">IndexedDB</span>
+                                  </div>
+                                  <Badge variant="default">연결됨</Badge>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                              <div className="flex items-center space-x-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  apiConfig.youtubeApiEnabled ? 'bg-green-500' : 'bg-gray-400'
+                                }`} />
+                                <span className="text-sm font-medium">YouTube API</span>
+                              </div>
+                              <Badge variant={apiConfig.youtubeApiEnabled ? "default" : "secondary"}>
+                                {apiConfig.youtubeApiEnabled ? "연결됨" : "연결 안됨"}
+                              </Badge>
+                            </div>
 
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <div className={`w-2 h-2 rounded-full ${
-                              apiConfig.customApiEnabled ? 'bg-green-500' : 'bg-gray-400'
-                            }`} />
-                            <span className="text-sm font-medium">커스텀 API</span>
-                          </div>
-                          <Badge variant={apiConfig.customApiEnabled ? "default" : "secondary"}>
-                            {apiConfig.customApiEnabled ? "연결됨" : "연결 안됨"}
-                          </Badge>
-                        </div>
+                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                              <div className="flex items-center space-x-2">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  apiConfig.customApiEnabled ? 'bg-green-500' : 'bg-gray-400'
+                                }`} />
+                                <span className="text-sm font-medium">커스텀 API</span>
+                              </div>
+                              <Badge variant={apiConfig.customApiEnabled ? "default" : "secondary"}>
+                                {apiConfig.customApiEnabled ? "연결됨" : "연결 안됨"}
+                              </Badge>
+                            </div>
 
-                        {/* API 상태 상세 정보 */}
-                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <h4 className="font-medium text-sm mb-2 text-blue-800">API 설정 상세</h4>
-                          <div className="space-y-1 text-xs text-blue-700">
-                            <div className="flex justify-between">
-                              <span>YouTube API 키:</span>
-                              <span className={apiConfig.youtubeApiKey ? "text-green-600 font-medium" : "text-red-600"}>
-                                {apiConfig.youtubeApiKey ? "설정됨" : "미설정"}
-                              </span>
+                            {/* API 상태 상세 정보 */}
+                            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                              <h4 className="font-medium text-sm mb-2 text-blue-800">API 설정 상세</h4>
+                              <div className="space-y-1 text-xs text-blue-700">
+                                <div className="flex justify-between">
+                                  <span>YouTube API 키:</span>
+                                  <span className={apiConfig.youtubeApiKey ? "text-green-600 font-medium" : "text-red-600"}>
+                                    {apiConfig.youtubeApiKey ? "설정됨" : "미설정"}
+                                  </span>
+                              </div>
+                                <div className="flex justify-between">
+                                  <span>커스텀 API URL:</span>
+                                  <span className="text-blue-600 font-mono text-xs">{apiConfig.customApiUrl}</span>
+                            </div>
+                                <div className="flex justify-between">
+                                  <span>커스텀 API 키:</span>
+                                  <span className={apiConfig.customApiKey ? "text-green-600 font-medium" : "text-red-600"}>
+                                    {apiConfig.customApiKey ? "설정됨" : "미설정"}
+                                  </span>
+                              </div>
+                              </div>
+                            </div>
                           </div>
-                            <div className="flex justify-between">
-                              <span>커스텀 API URL:</span>
-                              <span className="text-blue-600 font-mono text-xs">{apiConfig.customApiUrl}</span>
-                        </div>
-                            <div className="flex justify-between">
-                              <span>커스텀 API 키:</span>
-                              <span className={apiConfig.customApiKey ? "text-green-600 font-medium" : "text-red-600"}>
-                                {apiConfig.customApiKey ? "설정됨" : "미설정"}
-                              </span>
-                          </div>
-                          </div>
-                        </div>
-
-                      </div>
+                        );
+                      })()}
                     </Card>
                   </div>
        </div>

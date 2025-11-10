@@ -6,6 +6,8 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
+const DATE_RANGE_DAYS = 14;
+
 // 데이터베이스 서비스 클래스
 export class SupabaseService {
   // 채널 데이터 저장
@@ -134,8 +136,8 @@ export class SupabaseService {
     }
   }
 
-  // 오래된 데이터 정리 (7일 이상)
-  async cleanupOldData(retentionDays: number = 7): Promise<number> {
+  // 오래된 데이터 정리 (DATE_RANGE_DAYS일 이상)
+  async cleanupOldData(retentionDays: number = DATE_RANGE_DAYS): Promise<number> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
