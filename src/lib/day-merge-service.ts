@@ -3,6 +3,8 @@
  * 서버(PostgreSQL) + 로컬(IndexedDB) 데이터의 일관성 유지
  */
 
+import { API_BASE_URL } from './config';
+
 // DayRow 모델 정의
 export interface DayRow {
   dayKey: string;          // '2025-10-05' 형식의 표준화된 날짜 키
@@ -222,21 +224,78 @@ export function convertToDayRows(
  * @param apiBase API 기본 URL
  * @returns 서버의 DayRow 배열
  */
-export async function fetchServerDays(apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'): Promise<DayRow[]> {
+export async function fetchServerDays(apiBase: string = API_BASE_URL): Promise<DayRow[]> {
+  if (!apiBase) {
+    console.warn('⚠️ API_BASE_URL 미설정 - 서버 데이터를 가져올 수 없습니다.');
+    return [];
+  }
+  const FETCH_TIMEOUT = 10000; // 10초 타임아웃 (더 빠른 실패)
+  const url = `${apiBase}/api/unclassified`;
+  
+  console.log('📡 서버 데이터 요청 시작:', url);
+  const fetchStartTime = Date.now();
+  
   try {
-    const response = await fetch(`${apiBase}/api/unclassified`);
-    if (!response.ok) {
-      throw new Error(`서버 응답 실패: ${response.status}`);
-    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn('⏱️ 서버 요청 타임아웃 (10초) - 요청 중단');
+      controller.abort();
+    }, FETCH_TIMEOUT);
+    
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
+      const fetchTime = Date.now() - fetchStartTime;
+      console.log(`📥 서버 응답 받음 (${fetchTime}ms):`, {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+      
+      if (!response.ok) {
+        throw new Error(`서버 응답 실패: ${response.status} ${response.statusText}`);
+      }
 
-    const result = await response.json();
-    if (!result.success || !result.data) {
-      return [];
-    }
+      const result = await response.json();
+      console.log('📦 서버 응답 데이터:', {
+        hasSuccess: 'success' in result,
+        success: result.success,
+        dataLength: result.data?.length || 0,
+        isArray: Array.isArray(result.data)
+      });
+      
+      if (!result.success || !result.data) {
+        console.warn('⚠️ 서버 응답에 데이터 없음:', result);
+        return [];
+      }
 
-    return convertToDayRows(result.data, 'server');
+      const dayRows = convertToDayRows(result.data, 'server');
+      console.log(`✅ 서버 데이터 변환 완료: ${dayRows.length}일`);
+      return dayRows;
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      const fetchTime = Date.now() - fetchStartTime;
+      console.error(`❌ 서버 요청 실패 (${fetchTime}ms):`, {
+        name: fetchError.name,
+        message: fetchError.message,
+        isAbortError: fetchError.name === 'AbortError'
+      });
+      
+      if (fetchError.name === 'AbortError') {
+        throw new Error('서버 요청 타임아웃 (10초)');
+      }
+      throw fetchError;
+    }
   } catch (error) {
-    console.warn('서버 데이터 가져오기 실패:', error);
+    // 서버 연결 실패 시 조용히 폴백 (너무 많은 경고 로그 방지)
+    if (error instanceof Error && error.message.includes('타임아웃')) {
+      console.warn('⚠️ 서버 연결 타임아웃 - 로컬 데이터만 사용합니다');
+    } else {
+      console.warn('⚠️ 서버 데이터 가져오기 실패 (빈 배열 반환):', error);
+    }
     return [];
   }
 }
@@ -246,12 +305,22 @@ export async function fetchServerDays(apiBase: string = (import.meta as any).env
  * @returns 로컬의 DayRow 배열
  */
 export async function fetchLocalDays(): Promise<DayRow[]> {
+  console.log('💾 로컬 데이터 요청 시작...');
+  const fetchStartTime = Date.now();
+  
   try {
     const { hybridService } = await import('./hybrid-service');
     const data = await hybridService.loadUnclassifiedData();
-    return convertToDayRows(data, 'local');
+    
+    const fetchTime = Date.now() - fetchStartTime;
+    console.log(`💾 로컬 데이터 로드 완료 (${fetchTime}ms): ${data.length}개 항목`);
+    
+    const dayRows = convertToDayRows(data, 'local');
+    console.log(`✅ 로컬 데이터 변환 완료: ${dayRows.length}일`);
+    return dayRows;
   } catch (error) {
-    console.warn('로컬 데이터 가져오기 실패:', error);
+    const fetchTime = Date.now() - fetchStartTime;
+    console.warn(`⚠️ 로컬 데이터 가져오기 실패 (${fetchTime}ms):`, error);
     return [];
   }
 }
@@ -264,24 +333,58 @@ export async function fetchLocalDays(): Promise<DayRow[]> {
  */
 export async function loadAndMergeDays(
   mode: MergeMode = 'overwrite',
-  apiBase: string = (import.meta as any).env?.VITE_API_BASE_URL || 'https://api.youthbepulse.com'
+  apiBase: string = API_BASE_URL
 ): Promise<MergeResult> {
   console.log('🔄 하이브리드 데이터 로드 시작...');
+  if (!apiBase) {
+    console.log('⚠️ API_BASE_URL 미설정 - IndexedDB 데이터만 사용합니다.');
+  }
 
-  // 병렬로 서버와 로컬 데이터 가져오기
-  const [serverDays, localDays] = await Promise.all([
-    fetchServerDays(apiBase),
-    fetchLocalDays()
-  ]);
-
-  console.log(`📊 서버 데이터: ${serverDays.length}일, 로컬 데이터: ${localDays.length}일`);
-
-  // 병합 실행
-  const result = mergeByDay(serverDays, localDays, mode);
+  const startTime = Date.now();
   
-  console.log(`✅ 병합 완료: ${result.mergedDays.length}일, 충돌: ${result.conflicts.length}개`);
-  
-  return result;
+  try {
+    // 병렬로 서버와 로컬 데이터 가져오기
+    console.log('📡 서버 및 로컬 데이터 병렬 로드 시작...');
+    const [serverDays, localDays] = await Promise.all([
+      fetchServerDays(apiBase).catch(err => {
+        console.error('❌ 서버 데이터 로드 실패:', err);
+        return []; // 실패 시 빈 배열 반환
+      }),
+      fetchLocalDays().catch(err => {
+        console.error('❌ 로컬 데이터 로드 실패:', err);
+        return []; // 실패 시 빈 배열 반환
+      })
+    ]);
+
+    const loadTime = Date.now() - startTime;
+    console.log(`📊 데이터 로드 완료 (${loadTime}ms): 서버 ${serverDays.length}일, 로컬 ${localDays.length}일`);
+
+    // 병합 실행
+    console.log('🔄 데이터 병합 시작...');
+    const result = mergeByDay(serverDays, localDays, mode);
+    
+    const mergeTime = Date.now() - startTime;
+    console.log(`✅ 병합 완료 (${mergeTime}ms): ${result.mergedDays.length}일, 충돌: ${result.conflicts.length}개`);
+    
+    return result;
+  } catch (error) {
+    console.error('❌ loadAndMergeDays 실패:', error);
+    console.error('❌ 에러 상세:', {
+      message: error instanceof Error ? error.message : '알 수 없는 오류',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    // 에러 발생 시 빈 결과 반환
+    return {
+      mergedDays: [],
+      conflicts: [],
+      stats: {
+        serverDays: 0,
+        localDays: 0,
+        mergedDays: 0,
+        conflicts: 0
+      }
+    };
+  }
 }
 
 /**

@@ -76,10 +76,10 @@ const TrendingChannelsDetail: React.FC = () => {
   const isAdmin = useMemo(() => !!userEmail, [userEmail]);
   const dynamicSubCategories = subCategories;
 
-  // 사용 가능한 날짜 목록 (최근 7일)
+  // 사용 가능한 날짜 목록 (최근 14일)
   useEffect(() => {
     const dates: string[] = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       dates.push(date.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }));

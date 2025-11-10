@@ -1,14 +1,14 @@
 /**
  * 하이브리드 동기화 서비스
- * 서버(PostgreSQL)와 로컬(IndexedDB) 간 안전한 양방향 동기화
+ * 로컬(IndexedDB) ↔ 서버(PostgreSQL) 간 데이터 동기화
  */
 
 import { indexedDBService } from './indexeddb-service';
 import { hybridDBService } from './hybrid-db-service';
 import { apiService } from './api-service';
 
-// API Base URL을 apiService에서 가져옴
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com';
+// API Base URL 구성
+import { API_BASE_URL } from './config';
 
 export interface SyncOperation {
   id: string;
@@ -115,6 +115,11 @@ class HybridSyncService {
 
   // 서버로 업로드 (로컬 → 서버)
   private async uploadToServer(): Promise<{ uploaded: number; errors: string[] }> {
+    if (!API_BASE_URL) {
+      console.warn('⚠️ API_BASE_URL 미설정 - 서버 업로드를 건너뜁니다.');
+      return { uploaded: 0, errors: [] };
+    }
+    
     const pendingOps = this.syncQueue.filter(op => op.status === 'pending');
     let uploaded = 0;
     const errors: string[] = [];
@@ -160,6 +165,11 @@ class HybridSyncService {
 
   // 서버에서 다운로드 (서버 → 로컬)
   private async downloadFromServer(fullSync: boolean = false): Promise<{ downloaded: number; conflicts: number }> {
+    if (!API_BASE_URL) {
+      console.warn('⚠️ API_BASE_URL 미설정 - 서버 다운로드를 건너뜁니다.');
+      return { downloaded: 0, conflicts: 0 };
+    }
+    
     try {
       let downloaded = 0;
       const conflicts = 0;

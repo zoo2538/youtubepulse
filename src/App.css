@@ -21,9 +21,11 @@
 @keyframes logo-spin {
   from {
     transform: rotate(0deg);
+    will-change: transform;
   }
   to {
     transform: rotate(360deg);
+    will-change: transform;
   }
 }
 

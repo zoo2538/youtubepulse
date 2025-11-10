@@ -35,29 +35,31 @@ const loadClassifiedFromLocalStorage = (): any[] => {
   return [];
 };
 
+const DATE_RANGE_DAYS = 14;
+
 // 수집일 기준 일별 조회수 데이터 생성
 const getViewsData = async (classifiedData: any[], categories: Record<string, string[]>) => {
   console.log('📊 getViewsData - 전체 데이터 개수:', classifiedData.length);
   console.log('📊 getViewsData - 데이터 샘플:', classifiedData.slice(0, 3));
   
-  // 7일간 모든 날짜 생성 (한국 시간 기준)
+  // 최근 DATE_RANGE_DAYS일간 모든 날짜 생성 (한국 시간 기준)
   const { getKoreanDateString } = await import('@/lib/utils');
   const today = getKoreanDateString();
-  const sevenDays = [];
+  const dateRange: string[] = [];
   
-  for (let i = 6; i >= 0; i--) {
+  for (let i = DATE_RANGE_DAYS - 1; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    sevenDays.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));
+    dateRange.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));
   }
   
-  console.log('📊 getViewsData - 7일간 날짜들:', sevenDays);
+  console.log(`📊 getViewsData - 최근 ${DATE_RANGE_DAYS}일간 날짜들:`, dateRange);
   
   // 모든 카테고리 목록
   const allCategories = Object.keys(categories);
   console.log('📊 getViewsData - 모든 카테고리:', allCategories);
 
-  const viewsData = sevenDays.map((date) => {
+  const viewsData = dateRange.map((date) => {
     const dayItems = classifiedData.filter((it: any) => (it.collectionDate || it.uploadDate)?.split('T')[0] === date);
     const dayData: any = { date };
     
@@ -371,7 +373,7 @@ export function DashboardOverview() {
         }
         setPreviousDayStats(previousStats);
 
-        // 선택된 날짜 기준 7일간 추세 데이터: dailySummary 우선, 일부 없으면 classifiedData로 보충
+        // 선택된 날짜 기준 최근 DATE_RANGE_DAYS일간 추세 데이터: dailySummary 우선, 일부 없으면 classifiedData로 보충
         try {
           const { getKoreanDateStringWithOffset } = await import('@/lib/utils');
           const dates: string[] = [];
@@ -382,12 +384,12 @@ export function DashboardOverview() {
           const baseDateObj = new Date(baseDate);
           console.log(`📊 차트 기준 날짜: ${baseDate} (선택된 날짜: ${selectedDate}, 한국시간 오늘: ${getKoreanDateString()})`);
           
-          for (let i = 6; i >= 0; i--) {
+          for (let i = DATE_RANGE_DAYS - 1; i >= 0; i--) {
             const date = new Date(baseDateObj);
             date.setDate(baseDateObj.getDate() - i);
             dates.push(date.toISOString().split('T')[0]);
           }
-          console.log(`📊 차트 날짜 범위: ${dates[0]} ~ ${dates[6]}`);
+          console.log(`📊 차트 날짜 범위: ${dates[0]} ~ ${dates[DATE_RANGE_DAYS - 1]}`);
 
           const summaries = await Promise.all(dates.map(async (d) => {
             try {
@@ -502,7 +504,7 @@ export function DashboardOverview() {
               📈 카테고리별 일별 조회수 트렌드
             </h3>
             <p className="text-sm text-muted-foreground mt-1">
-              최근 7일간 카테고리별 조회수 변화 추이
+              {`최근 ${DATE_RANGE_DAYS}일간 카테고리별 조회수 변화 추이`}
             </p>
           </div>
           <ResponsiveContainer width="100%" height={400}>

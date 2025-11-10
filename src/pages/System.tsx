@@ -53,8 +53,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-const DATE_RANGE_DAYS = 14;
-
 interface ApiConfig {
   youtubeApiKey: string;
   youtubeApiEnabled: boolean;
@@ -234,9 +232,9 @@ const System = () => {
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
 
   const handleCleanupOldData = async () => {
-    if (window.confirm(`${DATE_RANGE_DAYS}일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+    if (window.confirm('7일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
       try {
-        const deletedCount = await indexedDBService.cleanupOldData(DATE_RANGE_DAYS);
+        const deletedCount = await indexedDBService.cleanupOldData(7);
         alert(`데이터 정리가 완료되었습니다!\n\n삭제된 데이터: ${deletedCount}개`);
       } catch (error) {
         console.error('데이터 정리 오류:', error);
@@ -678,11 +676,8 @@ const System = () => {
         }
       }
 
-      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 DATE_RANGE_DAYS일간, IndexedDB 전용)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 7일간, IndexedDB 전용)
       let existingClassifiedData: any[] = [];
-      const rangeStart = new Date();
-      rangeStart.setDate(rangeStart.getDate() - (DATE_RANGE_DAYS - 1));
-      const rangeStartString = rangeStart.toISOString().split('T')[0];
       try {
         // API_BASE_URL이 없으면 IndexedDB 데이터만 사용
         if (!API_BASE_URL) {
@@ -706,13 +701,13 @@ const System = () => {
               existingClassifiedData = allServerData.filter((item: any) => {
                 const isClassified = item.status === 'classified';
                 const itemDate = item.dayKeyLocal || item.day_key_local || item.collectionDate || item.collection_date;
-                const isRecent = itemDate && itemDate >= rangeStartString;
+                const isRecent = itemDate && itemDate >= sevenDaysAgoString;
                 return isClassified && isRecent;
               });
               
               console.log(`📊 서버에서 분류 데이터 로드 성공`);
-              console.log(`📊 분류 데이터 참조 범위: 최근 ${DATE_RANGE_DAYS}일 (${rangeStartString} 이후)`);
-              console.log(`📊 최근 ${DATE_RANGE_DAYS}일 분류 데이터: ${existingClassifiedData.length}개`);
+              console.log(`📊 분류 데이터 참조 범위: 최근 7일 (${sevenDaysAgoString} 이후)`);
+              console.log(`📊 최근 7일 분류 데이터: ${existingClassifiedData.length}개`);
             }
           } else {
             console.warn('서버 조회 실패, IndexedDB에서 로드 시도');
@@ -726,10 +721,13 @@ const System = () => {
         console.log('📊 IndexedDB에서 분류 데이터 로드...');
         try {
           const allData = await hybridService.loadUnclassifiedData();
+          const fourteenDaysAgo = new Date();
+          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+          const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
+          
           existingClassifiedData = allData.filter((item: any) => {
             const isClassified = item.status === 'classified';
-            const collectionDate = item.dayKeyLocal || item.collectionDate || item.collection_date;
-            const isRecent = collectionDate && collectionDate >= rangeStartString;
+            const isRecent = item.collectionDate >= fourteenDaysAgoString;
             return isClassified && isRecent;
           });
           
@@ -765,8 +763,8 @@ const System = () => {
       });
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
-      console.log(`📊 분류 참조 기간: 최근 ${DATE_RANGE_DAYS}일간의 최신 분류 정보만 사용`);
-      console.log(`📊 기존 분류 시스템: ${DATE_RANGE_DAYS}일간 분류 이력 기반 분류 적용`);
+      console.log(`📊 분류 참조 기간: 최근 7일간의 최신 분류 정보만 사용`);
+      console.log(`📊 기존 분류 시스템: 7일간 분류 이력 기반 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       // utils 함수들은 이미 정적 import됨
@@ -810,8 +808,8 @@ const System = () => {
         }
         
         // 기존 분류 시스템만 사용
-        // - 최근 DATE_RANGE_DAYS일 데이터에 있으면: 그 분류 사용 (classified)
-        // - 해당 기간 데이터에 없으면: 수동 분류 대기 (unclassified)
+        // - 7일 데이터에 있으면: 그 분류 사용 (classified)
+        // - 7일 데이터에 없으면: 수동 분류 대기 (unclassified)
         
         return {
           id: Date.now() + index,
@@ -825,14 +823,14 @@ const System = () => {
           uploadDate: video.snippet.publishedAt.split('T')[0],
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
-          category: existingClassification?.category || '', // 최근 DATE_RANGE_DAYS일 데이터만 사용, 없으면 빈값
+          category: existingClassification?.category || '', // 7일 데이터만 사용, 없으면 빈값
           collectionType: 'manual', // 수동 수집으로 명시
           collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
           keyword: sourceKeyword, // 키워드 정보 추가
           source: sourceType, // 수집 소스 추가 (trending or keyword)
-          subCategory: existingClassification?.subCategory || '', // 최근 DATE_RANGE_DAYS일 데이터만 사용, 없으면 빈값
-          status: existingClassification ? "classified" as const : "unclassified" as const, // 해당 기간 데이터 없으면 무조건 unclassified
+          subCategory: existingClassification?.subCategory || '', // 7일 데이터만 사용, 없으면 빈값
+          status: existingClassification ? "classified" as const : "unclassified" as const, // 7일 데이터 없으면 무조건 unclassified
           autoClassified: !!existingClassification // 기존 분류 데이터로 분류된 경우만 true
         };
       });
@@ -1367,7 +1365,7 @@ const System = () => {
                           <h4 className="text-sm font-medium text-blue-900 mb-2">💡 핵심 기능</h4>
                           <p className="text-xs text-blue-700">
                             • 기존 분류 이력 기반 분류 적용<br/>
-                            • 최근 {DATE_RANGE_DAYS}일 분류 이력 우선 적용<br/>
+                            • 7일간 분류 이력 우선 적용<br/>
                             • IndexedDB 저장 (로컬 전용)
                           </p>
                           </div>

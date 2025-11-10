@@ -1,6 +1,7 @@
 // 오프라인/하이브리드 복원력 서비스
 // import { autoCollectionScheduler } from './auto-collection-scheduler'; // 사용하지 않음 (서버 전용)
 import { serverAuthoritativeService } from './server-authoritative-service';
+import { API_BASE_URL } from './config';
 
 interface OfflineState {
   isOnline: boolean;
@@ -64,7 +65,11 @@ class OfflineResilienceService {
 
   private checkConnection = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}/health`, {
+      if (!API_BASE_URL) {
+        throw new Error('API base URL is not configured.');
+      }
+
+      const response = await fetch(`${API_BASE_URL}/health`, {
         method: 'HEAD',
         cache: 'no-cache'
       });

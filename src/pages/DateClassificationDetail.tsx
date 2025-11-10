@@ -117,59 +117,108 @@ const DateClassificationDetail = () => {
   // 데이터 로드
   React.useEffect(() => {
     const loadData = async () => {
+      // 강제 타임아웃: 15초 후 무조건 로딩 해제
+      const forceTimeout = setTimeout(() => {
+        console.warn('⏰ 강제 타임아웃 (15초) - 로딩 상태 강제 해제');
+        setIsLoading(false);
+      }, 15000);
+      
       try {
         setIsLoading(true);
         console.log('📅 날짜별 데이터 로드 시작:', selectedDate);
         
-        // 1. 서버 우선 하이브리드 로드 (서버 권위성 보장)
-        let allData = [];
-        let dataSource = '';
-        
-        try {
-          // 자동수집 데이터인 경우 별도 API 사용
-          if (collectionType === 'auto') {
-            console.log('📊 자동수집 데이터 - 전용 API 사용...');
-            const response = await fetch(`${API_BASE_URL}/api/auto-collected`);
-            if (response.ok) {
-              const serverData = await response.json();
-              if (serverData.success && serverData.data && serverData.data.length > 0) {
-                // 선택된 날짜의 자동수집 데이터만 필터링
-                allData = serverData.data.filter(item => {
-                  const itemDate = item.collectionDate || item.dayKeyLocal || item.uploadDate;
-                  const dateStr = itemDate ? itemDate.split('T')[0] : '';
-                  return dateStr === selectedDate;
+        // API_BASE_URL이 설정된 경우 서버 우선 로드 수행
+        if (API_BASE_URL) {
+          try {
+            // 자동수집 데이터인 경우 별도 API 사용
+            if (collectionType === 'auto') {
+              console.log('📊 자동수집 데이터 - 전용 API 사용...');
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+              
+              try {
+                const response = await fetch(`${API_BASE_URL}/api/auto-collected`, {
+                  signal: controller.signal
                 });
-                dataSource = 'server-auto';
-                console.log(`✅ 서버에서 자동수집 데이터 로드 (${selectedDate}):`, allData.length, '개');
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                  const serverData = await response.json();
+                  if (serverData.success && serverData.data && serverData.data.length > 0) {
+                    // 선택된 날짜의 자동수집 데이터만 필터링
+                    allData = serverData.data.filter(item => {
+                      const itemDate = item.collectionDate || item.dayKeyLocal || item.uploadDate;
+                      const dateStr = itemDate ? itemDate.split('T')[0] : '';
+                      return dateStr === selectedDate;
+                    });
+                    dataSource = 'server-auto';
+                    console.log(`✅ 서버에서 자동수집 데이터 로드 (${selectedDate}):`, allData.length, '개');
+                  }
+                }
+              } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                if (fetchError.name !== 'AbortError') {
+                  console.warn('⚠️ 자동수집 API 호출 실패:', fetchError.message);
+                }
+              }
+            } else if (collectionType === 'manual') {
+              // 수동수집 데이터 - classified API 사용 (collection_type='manual' 필터링)
+              console.log('📊 수동수집 데이터 - classified API 사용...');
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+              
+              try {
+                const response = await fetch(`${API_BASE_URL}/api/classified?date=${selectedDate}`, {
+                  signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                  const serverData = await response.json();
+                  if (serverData.success && serverData.data && serverData.data.length > 0) {
+                    allData = serverData.data;
+                    dataSource = 'server-manual';
+                    console.log('✅ 서버에서 수동수집 데이터 로드:', allData.length, '개');
+                  }
+                }
+              } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                if (fetchError.name !== 'AbortError') {
+                  console.warn('⚠️ 수동수집 API 호출 실패:', fetchError.message);
+                }
+              }
+            } else if (collectionType === 'total') {
+              // 전체 데이터 - unclassified_data 테이블에서 날짜별로 조회
+              console.log('📊 전체 데이터 - unclassified_data 테이블 사용...');
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+              
+              try {
+                const response = await fetch(`${API_BASE_URL}/api/unclassified-by-date?date=${selectedDate}`, {
+                  signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                  const serverData = await response.json();
+                  if (serverData.success && serverData.data && serverData.data.length > 0) {
+                    allData = serverData.data;
+                    dataSource = 'server-total';
+                    console.log('✅ 서버에서 전체 데이터 로드 (수동+자동):', allData.length, '개');
+                  }
+                }
+              } catch (fetchError: any) {
+                clearTimeout(timeoutId);
+                if (fetchError.name !== 'AbortError') {
+                  console.warn('⚠️ 전체 데이터 API 호출 실패:', fetchError.message);
+                }
               }
             }
-          } else if (collectionType === 'manual') {
-            // 수동수집 데이터 - classified API 사용 (collection_type='manual' 필터링)
-            console.log('📊 수동수집 데이터 - classified API 사용...');
-            const response = await fetch(`${API_BASE_URL}/api/classified?date=${selectedDate}`);
-            if (response.ok) {
-              const serverData = await response.json();
-              if (serverData.success && serverData.data && serverData.data.length > 0) {
-                allData = serverData.data;
-                dataSource = 'server-manual';
-                console.log('✅ 서버에서 수동수집 데이터 로드:', allData.length, '개');
-              }
-            }
-          } else if (collectionType === 'total') {
-            // 전체 데이터 - unclassified_data 테이블에서 날짜별로 조회
-            console.log('📊 전체 데이터 - unclassified_data 테이블 사용...');
-            const response = await fetch(`${API_BASE_URL}/api/unclassified-by-date?date=${selectedDate}`);
-            if (response.ok) {
-              const serverData = await response.json();
-              if (serverData.success && serverData.data && serverData.data.length > 0) {
-                allData = serverData.data;
-                dataSource = 'server-total';
-                console.log('✅ 서버에서 전체 데이터 로드 (수동+자동):', allData.length, '개');
-              }
-            }
+          } catch (serverError) {
+            console.warn('⚠️ 서버 로드 실패:', serverError);
           }
-        } catch (serverError) {
-          console.log('⚠️ 서버 로드 실패:', serverError);
+        } else {
+          console.warn('⚠️ API_BASE_URL 미설정 - 서버 데이터를 요청할 수 없습니다.');
         }
         
         // 서버에 데이터가 없으면 IndexedDB에서 시도 (백업 복원 데이터 포함)
@@ -309,6 +358,7 @@ const DateClassificationDetail = () => {
         console.error('데이터 로드 실패:', error);
         setUnclassifiedData([]);
       } finally {
+        clearTimeout(forceTimeout);
         setIsLoading(false);
       }
     };

@@ -444,10 +444,16 @@ const SidebarGroupAction = React.forwardRef<
 >(({ className, asChild = false, ...props }, ref) => {
   const Comp = asChild ? Slot : "button"
 
+  // 접근성을 위한 기본 속성 (props에 없으면 기본값 사용)
+  const ariaLabel = props['aria-label'] || props.title || '그룹 액션';
+  const title = props.title || props['aria-label'] || '그룹 액션';
+
   return (
     <Comp
       ref={ref}
       data-sidebar="group-action"
+      aria-label={ariaLabel}
+      title={title}
       className={cn(
         "absolute right-3 top-3.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.
@@ -590,10 +596,16 @@ const SidebarMenuAction = React.forwardRef<
 >(({ className, asChild = false, showOnHover = false, ...props }, ref) => {
   const Comp = asChild ? Slot : "button"
 
+  // 접근성을 위한 기본 속성 (props에 없으면 기본값 사용)
+  const ariaLabel = props['aria-label'] || props.title || '메뉴 액션';
+  const title = props.title || props['aria-label'] || '메뉴 액션';
+
   return (
     <Comp
       ref={ref}
       data-sidebar="menu-action"
+      aria-label={ariaLabel}
+      title={title}
       className={cn(
         "absolute right-1 top-1.5 flex aspect-square w-5 items-center justify-center rounded-md p-0 text-sidebar-foreground outline-none ring-sidebar-ring transition-transform hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 peer-hover/menu-button:text-sidebar-accent-foreground [&>svg]:size-4 [&>svg]:shrink-0",
         // Increases the hit area of the button on mobile.

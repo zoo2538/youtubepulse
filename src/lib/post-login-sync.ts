@@ -1,6 +1,7 @@
-// 로그인 후 하이브리드 동기화 시퀀스
+// 로그인 후 동기화 시퀀스 (서버 + IndexedDB 하이브리드)
 import { hybridSyncService } from './hybrid-sync-service';
 import { indexedDBService } from './indexeddb-service';
+import { API_BASE_URL } from './config';
 
 interface PostLoginSyncContext {
   api: {
@@ -12,8 +13,19 @@ interface PostLoginSyncContext {
 }
 
 export async function postLoginSync({ api, idb, lastSyncAt }: PostLoginSyncContext) {
+  if (!API_BASE_URL) {
+    console.warn('⚠️ API_BASE_URL 미설정 - 로그인 후 서버 동기화를 건너뜁니다.');
+    return {
+      success: true,
+      syncedAt: new Date().toISOString(),
+      uploaded: 0,
+      downloaded: 0,
+      classifiedLoaded: 0
+    };
+  }
+  
   try {
-    console.log('🔄 로그인 후 하이브리드 동기화 시작...');
+    console.log('🔄 로그인 후 서버 동기화 시작...');
     
     // 1. 서버에서 분류 완료 데이터 전체 로드 (IndexedDB 캐시 갱신)
     console.log('[1/4] 서버→로컬 분류 데이터 전체 로드...');
@@ -57,7 +69,7 @@ export async function postLoginSync({ api, idb, lastSyncAt }: PostLoginSyncConte
     const syncedAt = new Date().toISOString();
     await idb.saveSystemConfig('lastSyncAt', syncedAt);
     
-    console.log('🎉 하이브리드 동기화 완료!');
+    console.log('🎉 서버 동기화 완료!');
     return { 
       success: true, 
       syncedAt,
@@ -67,7 +79,7 @@ export async function postLoginSync({ api, idb, lastSyncAt }: PostLoginSyncConte
     };
     
   } catch (error) {
-    console.error('❌ 하이브리드 동기화 실패:', error);
+    console.error('❌ 서버 동기화 실패:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error',

@@ -1,8 +1,9 @@
-// IndexedDB와 API 서버를 함께 사용하는 하이브리드 서비스
+// 하이브리드 데이터 서비스 (서버 + IndexedDB)
 import { indexedDBService } from './indexeddb-service';
 import { hybridDBService } from './hybrid-db-service';
 import { apiService } from './api-service';
 import { outboxService } from './outbox-service';
+import { API_BASE_URL } from './config';
 
 interface HybridServiceConfig {
   useApiServer: boolean;
@@ -13,19 +14,25 @@ class HybridService {
   private config: HybridServiceConfig;
 
   constructor() {
-    // 개발 환경 감지
-    const isDevelopment = window.location.hostname === 'localhost' || 
-                         window.location.hostname === '127.0.0.1';
-    
+    // Electron 환경 감지
+    const isElectron = typeof window !== 'undefined' && 
+                       (window as any).electronAPI !== undefined;
+
+    const hasApiServer = !!API_BASE_URL;
+    const useApiServer = hasApiServer && !isElectron;
+
     this.config = {
-      useApiServer: true, // 항상 API 서버 사용 (개발/프로덕션 모두)
-      fallbackToLocal: true, // API 실패시 로컬 사용
+      useApiServer,
+      fallbackToLocal: true,
     };
-    
-    if (isDevelopment) {
-      console.log('🔧 개발 환경: IndexedDB + PostgreSQL (하이브리드)');
-    } else {
-      console.log('🌐 프로덕션 환경: IndexedDB + PostgreSQL (하이브리드)');
+
+    if (useApiServer) {
+      console.log('🌐 하이브리드 모드 활성화: 서버 API + IndexedDB');
+      console.log(`📡 API_BASE_URL: ${API_BASE_URL}`);
+    } else if (!hasApiServer) {
+      console.log('⚠️ API_BASE_URL이 설정되지 않아 IndexedDB 폴백 모드로 실행됩니다.');
+    } else if (isElectron) {
+      console.log('🖥️ Electron 환경: 서버 API 비활성화, IndexedDB 전용 모드');
     }
   }
 
@@ -481,11 +488,21 @@ class HybridService {
     }
   }
 
-  // 분류 데이터 조회 (서버 우선 + 캐시 갱신)
+  // 분류 데이터 조회 (서버 우선 + 캐시 갱신 + 백그라운드 동기화)
   async getClassifiedData(): Promise<any[]> {
     try {
       if (this.config.useApiServer) {
+        console.log('🔄 서버에서 분류 데이터 조회 시도...');
         const result = await apiService.getClassifiedData();
+        
+        // 응답 로깅
+        console.log('📦 서버 응답:', {
+          isArray: Array.isArray(result),
+          hasSuccess: result && typeof result === 'object' && 'success' in result,
+          success: result && typeof result === 'object' && 'success' in result ? result.success : undefined,
+          dataLength: result && typeof result === 'object' && 'data' in result && Array.isArray(result.data) ? result.data.length : undefined,
+          error: result && typeof result === 'object' && 'error' in result ? result.error : undefined
+        });
         
         // 응답 래퍼 언래핑 (API 응답 표준화)
         const classifiedData = Array.isArray(result) 
@@ -497,23 +514,35 @@ class HybridService {
         if (classifiedData.length > 0) {
           console.log('✅ API 서버에서 분류 데이터 조회 완료:', classifiedData.length, '개');
           
-          // 개선된 안전한 배치 저장
-          try {
-            await hybridDBService.saveDataInBatches(classifiedData, 500);
-            console.log('✅ 안전한 IndexedDB 캐시 갱신 완료');
-          } catch (cacheError) {
-            console.warn('⚠️ 안전한 IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
-          }
+          // 개선된 안전한 배치 저장 (비동기로 실행, 실패해도 데이터 반환)
+          hybridDBService.saveDataInBatches(classifiedData, 500)
+            .then(() => {
+              console.log('✅ 안전한 IndexedDB 캐시 갱신 완료');
+            })
+            .catch((cacheError) => {
+              console.warn('⚠️ 안전한 IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
+              // 백그라운드에서 재시도
+              this.scheduleBackgroundSync();
+            });
           
           return classifiedData;
+        } else {
+          console.warn('⚠️ 서버에서 분류 데이터 없음 (빈 배열 또는 실패)');
         }
       }
 
+      // 서버 데이터 없거나 실패 시 IndexedDB 폴백
       if (this.config.fallbackToLocal) {
-        // 개선된 HybridDBService 사용
+        console.log('🔄 IndexedDB에서 분류 데이터 조회 시도...');
         const localData = await hybridDBService.loadAllData();
-        console.log('⚠️ 안전한 IndexedDB에서 분류 데이터 조회 (서버 연결 실패)');
-        return localData;
+        if (localData.length > 0) {
+          console.log('⚠️ 안전한 IndexedDB에서 분류 데이터 조회 (서버 연결 실패):', localData.length, '개');
+          return localData;
+        } else {
+          console.warn('⚠️ IndexedDB도 비어있음 - 백그라운드 동기화 시도');
+          // IndexedDB가 비어있으면 백그라운드에서 동기화 시도
+          this.scheduleBackgroundSync();
+        }
       }
 
       return [];
@@ -521,14 +550,89 @@ class HybridService {
       console.error('❌ 분류 데이터 조회 실패:', error);
       
       if (this.config.fallbackToLocal) {
-        // 개선된 HybridDBService 사용
-        const localData = await hybridDBService.loadAllData();
-        console.log('⚠️ 오류 발생, 안전한 IndexedDB 폴백');
-        return localData;
+        try {
+          const localData = await hybridDBService.loadAllData();
+          if (localData.length > 0) {
+            console.log('⚠️ 오류 발생, 안전한 IndexedDB 폴백:', localData.length, '개');
+            return localData;
+          }
+        } catch (fallbackError) {
+          console.error('❌ IndexedDB 폴백도 실패:', fallbackError);
+        }
+        
+        // 백그라운드 동기화 시도
+        this.scheduleBackgroundSync();
       }
       
       return [];
     }
+  }
+
+  // 백그라운드 동기화 스케줄링 (비동기, 논블로킹)
+  private scheduleBackgroundSync(): void {
+    // 이미 스케줄링되어 있으면 중복 방지
+    if ((this as any).backgroundSyncScheduled) {
+      return;
+    }
+    
+    (this as any).backgroundSyncScheduled = true;
+    
+    // 5초 후 백그라운드 동기화 시도
+    setTimeout(async () => {
+      try {
+        console.log('🔄 백그라운드 동기화 시작...');
+        
+        // 분류 데이터와 미분류 데이터 모두 동기화
+        const [classifiedResult, unclassifiedResult] = await Promise.allSettled([
+          apiService.getClassifiedData(),
+          apiService.getUnclassifiedData()
+        ]);
+        
+        let totalSynced = 0;
+        
+        // 분류 데이터 동기화
+        if (classifiedResult.status === 'fulfilled') {
+          const classifiedData = Array.isArray(classifiedResult.value) 
+            ? classifiedResult.value 
+            : (classifiedResult.value.success && classifiedResult.value.data && Array.isArray(classifiedResult.value.data)) 
+              ? classifiedResult.value.data 
+              : [];
+          
+          if (classifiedData.length > 0) {
+            await hybridDBService.saveDataInBatches(classifiedData, 500);
+            totalSynced += classifiedData.length;
+            console.log('✅ 백그라운드 동기화 완료 (분류):', classifiedData.length, '개');
+          }
+        } else {
+          console.warn('⚠️ 백그라운드 분류 데이터 동기화 실패:', classifiedResult.reason);
+        }
+        
+        // 미분류 데이터 동기화
+        if (unclassifiedResult.status === 'fulfilled') {
+          const unclassifiedData = Array.isArray(unclassifiedResult.value) 
+            ? unclassifiedResult.value 
+            : (unclassifiedResult.value.success && unclassifiedResult.value.data && Array.isArray(unclassifiedResult.value.data)) 
+              ? unclassifiedResult.value.data 
+              : [];
+          
+          if (unclassifiedData.length > 0) {
+            await hybridDBService.saveDataInBatches(unclassifiedData, 500);
+            totalSynced += unclassifiedData.length;
+            console.log('✅ 백그라운드 동기화 완료 (미분류):', unclassifiedData.length, '개');
+          }
+        } else {
+          console.warn('⚠️ 백그라운드 미분류 데이터 동기화 실패:', unclassifiedResult.reason);
+        }
+        
+        if (totalSynced > 0) {
+          console.log('✅ 백그라운드 동기화 완료 (전체):', totalSynced, '개');
+        }
+      } catch (error) {
+        console.warn('⚠️ 백그라운드 동기화 실패:', error);
+      } finally {
+        (this as any).backgroundSyncScheduled = false;
+      }
+    }, 5000);
   }
 
   // 미분류 데이터 저장 (어댑티브 배치 처리 - 500개씩)
@@ -570,11 +674,21 @@ class HybridService {
     }
   }
 
-  // 미분류 데이터 조회
+  // 미분류 데이터 조회 (서버 우선 + 캐시 갱신 + 백그라운드 동기화)
   async getUnclassifiedData(): Promise<any[]> {
     try {
       if (this.config.useApiServer) {
+        console.log('🔄 서버에서 미분류 데이터 조회 시도...');
         const result = await apiService.getUnclassifiedData();
+        
+        // 응답 로깅
+        console.log('📦 서버 응답 (미분류):', {
+          isArray: Array.isArray(result),
+          hasSuccess: result && typeof result === 'object' && 'success' in result,
+          success: result && typeof result === 'object' && 'success' in result ? result.success : undefined,
+          dataLength: result && typeof result === 'object' && 'data' in result && Array.isArray(result.data) ? result.data.length : undefined,
+          error: result && typeof result === 'object' && 'error' in result ? result.error : undefined
+        });
         
         // 응답 래퍼 언래핑 (API 응답 표준화)
         const unclassifiedData = Array.isArray(result) 
@@ -585,14 +699,36 @@ class HybridService {
         
         if (unclassifiedData.length > 0) {
           console.log('✅ API 서버에서 미분류 데이터 조회 완료:', unclassifiedData.length, '개');
+          
+          // 개선된 안전한 배치 저장 (비동기로 실행, 실패해도 데이터 반환)
+          hybridDBService.saveDataInBatches(unclassifiedData, 500)
+            .then(() => {
+              console.log('✅ 안전한 IndexedDB 캐시 갱신 완료 (미분류)');
+            })
+            .catch((cacheError) => {
+              console.warn('⚠️ 안전한 IndexedDB 캐시 갱신 실패 (데이터는 정상 반환):', cacheError);
+              // 백그라운드에서 재시도
+              this.scheduleBackgroundSync();
+            });
+          
           return unclassifiedData;
+        } else {
+          console.warn('⚠️ 서버에서 미분류 데이터 없음 (빈 배열 또는 실패)');
         }
       }
 
+      // 서버 데이터 없거나 실패 시 IndexedDB 폴백
       if (this.config.fallbackToLocal) {
-        const localData = await indexedDBService.loadUnclassifiedData();
-        console.log('⚠️ 로컬 IndexedDB에서 미분류 데이터 조회');
-        return localData;
+        console.log('🔄 IndexedDB에서 미분류 데이터 조회 시도...');
+        const localData = await hybridDBService.loadAllData();
+        if (localData.length > 0) {
+          console.log('⚠️ 안전한 IndexedDB에서 미분류 데이터 조회 (서버 연결 실패):', localData.length, '개');
+          return localData;
+        } else {
+          console.warn('⚠️ IndexedDB도 비어있음 - 백그라운드 동기화 시도 (미분류)');
+          // IndexedDB가 비어있으면 백그라운드에서 동기화 시도
+          this.scheduleBackgroundSync();
+        }
       }
 
       return [];
@@ -605,13 +741,18 @@ class HybridService {
       });
       
       if (this.config.fallbackToLocal) {
-        console.log('🔄 로컬 IndexedDB로 폴백 시도...');
         try {
-          return await indexedDBService.loadUnclassifiedData();
-        } catch (localError) {
-          console.error('❌ 로컬 IndexedDB 조회도 실패:', localError);
-          return [];
+          const localData = await hybridDBService.loadAllData();
+          if (localData.length > 0) {
+            console.log('⚠️ 오류 발생, 안전한 IndexedDB 폴백 (미분류):', localData.length, '개');
+            return localData;
+          }
+        } catch (fallbackError) {
+          console.error('❌ IndexedDB 폴백도 실패:', fallbackError);
         }
+        
+        // 백그라운드 동기화 시도
+        this.scheduleBackgroundSync();
       }
       
       return [];

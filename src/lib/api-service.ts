@@ -19,23 +19,59 @@ class ApiService {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
+    if (!this.baseURL) {
+      console.warn('⚠️ API_BASE_URL이 설정되지 않아 서버 요청을 수행할 수 없습니다.');
+      return {
+        success: false,
+        error: 'API base URL is not configured.'
+      };
+    }
+    
+    const url = `${this.baseURL}${endpoint}`;
+    
+    // 네트워크 상태 확인
+    if (typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine) {
+      console.warn('⚠️ 오프라인 상태 - 네트워크 연결을 확인하세요');
+      return {
+        success: false,
+        error: 'Network is offline. Please check your internet connection.'
+      };
+    }
+    
+    // 사용자 정의 signal이 있으면 사용, 없으면 타임아웃용 signal 생성
+    let controller: AbortController | null = null;
+    let timeoutId: NodeJS.Timeout | null = null;
+    let signal: AbortSignal | undefined = options.signal;
+    
+    // 사용자 정의 signal이 없으면 타임아웃용 signal 생성
+    if (!signal) {
+      controller = new AbortController();
+      signal = controller.signal;
+      timeoutId = setTimeout(() => {
+        if (controller) {
+          console.warn('⏱️ 요청 타임아웃 (120초) - 서버 응답이 지연되고 있습니다');
+          controller.abort();
+        }
+      }, 120000); // 120초 타임아웃
+    }
+    
     try {
-      const url = `${this.baseURL}${endpoint}`;
-      
-      // 타임아웃 설정 (60초로 증가)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      // options에서 signal 제거 (이미 위에서 설정)
+      const { signal: _, ...restOptions } = options;
       
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...restOptions.headers,
         },
-        signal: controller.signal,
-        ...options,
+        signal,
+        ...restOptions,
       });
 
-      clearTimeout(timeoutId);
+      // 타임아웃 정리
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
 
       if (!response.ok) {
         // 서버 에러 상세 정보 수집
@@ -69,14 +105,39 @@ class ApiService {
       // 그렇지 않으면 래핑
       return { success: true, data };
     } catch (error) {
-      console.error('API 요청 실패:', error);
+      // 타임아웃 정리 (에러 발생 시에도)
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       
+      // AbortError 상세 로깅
       if (error instanceof Error && error.name === 'AbortError') {
+        const isTimeout = controller?.signal.aborted && !options.signal?.aborted;
+        const errorMessage = isTimeout 
+          ? 'Request timeout (120s)' 
+          : 'Request aborted';
+        
+        console.error('🚨 API 요청 중단:', {
+          url,
+          error: errorMessage,
+          reason: error.message || 'No reason provided',
+          wasTimeout: isTimeout,
+          hasCustomSignal: !!options.signal
+        });
+        
         return { 
           success: false, 
-          error: 'Request timeout (60s)' 
+          error: errorMessage 
         };
       }
+      
+      // 네트워크 오류 상세 로깅
+      console.error('🚨 API 요청 실패:', {
+        url,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       
       return { 
         success: false, 

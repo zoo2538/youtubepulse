@@ -58,6 +58,8 @@ function formatTimeAgo(uploadDate: string): string {
   return `${diffWeeks}주 전`;
 }
 
+const DATE_RANGE_DAYS = 14;
+
 const TrendingVideosDetail = () => {
   const navigate = useNavigate();
   const { logout, userEmail } = useAuth();
@@ -95,10 +97,10 @@ const TrendingVideosDetail = () => {
     console.log('📊 하드코딩된 카테고리 사용:', subCategories);
   }, []);
 
-  // 사용 가능한 날짜 목록 생성 (최근 7일)
+  // 사용 가능한 날짜 목록 생성 (최근 DATE_RANGE_DAYS일)
   useEffect(() => {
     const dates = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < DATE_RANGE_DAYS; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       dates.push(date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"}));

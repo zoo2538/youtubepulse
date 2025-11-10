@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>YouTube Pulse Dashboard - 유튜브 통계 분석</title>
     <meta name="description" content="실시간 유튜브 조회수 급등 채널과 영상 분석 대시보드. 트렌딩 비디오, 채널 순위, 카테고리별 분석을 제공합니다." />
@@ -28,6 +28,9 @@
     <!-- PWA Meta Tags -->
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#1f2937" />
+    <!-- Firefox 지원 -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#1f2937" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1f2937" />
     <meta name="msapplication-TileColor" content="#1f2937" />
     
     <!-- PWA Icons -->
@@ -51,24 +54,86 @@
       
       // GitHub Pages SPA 라우팅을 위한 리다이렉트 처리
       (function(l) {
-        if (l.search[1] === '/' ) {
-          var decoded = l.search.slice(1).split('&').map(function(s) { 
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
-          );
+        console.log('🔍 URL 정규화 시작:', {
+          href: l.href,
+          pathname: l.pathname,
+          search: l.search,
+          hash: l.hash
+        });
+        
+        var searchParams = new URLSearchParams(l.search);
+        var shouldRedirect = false;
+        var newPath = l.pathname;
+        
+        // 패턴 1: ?p=/path 형태 (GitHub Pages 404 리다이렉트)
+        if (searchParams.has('p')) {
+          var pValue = searchParams.get('p');
+          console.log('🔍 p 파라미터 발견:', {
+            raw: pValue,
+            startsWithSlash: pValue && pValue.startsWith('/'),
+            length: pValue ? pValue.length : 0
+          });
+          
+          // URLSearchParams는 이미 디코딩된 값을 반환하므로 추가 디코딩 불필요
+          // 하지만 안전을 위해 체크
+          if (pValue) {
+            // 이미 디코딩되어 있을 수 있음
+            if (pValue.startsWith('/')) {
+              newPath = pValue === '/' ? '/' : pValue;
+              shouldRedirect = true;
+              console.log('🔄 ?p= 파라미터 감지:', pValue, '→', newPath);
+            } else if (pValue.startsWith('%2F') || pValue.includes('%')) {
+              // 인코딩된 경우 수동 디코딩
+              try {
+                var decoded = decodeURIComponent(pValue);
+                if (decoded.startsWith('/')) {
+                  newPath = decoded === '/' ? '/' : decoded;
+                  shouldRedirect = true;
+                  console.log('🔄 ?p= 파라미터 디코딩:', pValue, '→', decoded, '→', newPath);
+                }
+              } catch (e) {
+                console.warn('⚠️ URL 디코딩 실패:', e);
+              }
+            }
+          }
         }
-      }(window.location))
+        
+        // 패턴 2: ?/path 형태 (기존 방식)
+        if (l.search && l.search.length > 1 && l.search[1] === '/') {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&');
+          }).join('?');
+          newPath = decoded;
+          shouldRedirect = true;
+          console.log('🔄 ?/ 파라미터 감지:', decoded);
+        }
+        
+        // 리다이렉트 실행
+        if (shouldRedirect) {
+          var newUrl = newPath + l.hash;
+          var currentUrl = l.pathname + l.search + l.hash;
+          if (newUrl !== currentUrl) {
+            console.log('🔄 URL 정규화:', currentUrl, '→', newUrl);
+            window.history.replaceState(null, null, newUrl);
+            console.log('✅ URL 정규화 완료:', window.location.href);
+          } else {
+            console.log('⚠️ URL 변경 불필요:', newUrl);
+          }
+        } else {
+          console.log('✅ URL 정규화 불필요 (쿼리 파라미터 없음)');
+        }
+      }(window.location));
       
       // 404.html에서 리다이렉트된 URL 처리
       if (sessionStorage.redirect) {
         var redirectUrl = sessionStorage.redirect;
         console.log('🔄 404.html에서 리다이렉트된 URL:', redirectUrl);
         sessionStorage.removeItem('redirect');
+        sessionStorage.removeItem('redirecting');
         
         // 무한 루프 방지: 같은 URL이면 리다이렉트하지 않음
-        if (redirectUrl !== location.href) {
+        var currentUrl = location.pathname + location.search + location.hash;
+        if (redirectUrl !== currentUrl && redirectUrl !== location.href) {
           console.log('🔄 다른 URL로 리다이렉트:', redirectUrl);
           window.location.replace(redirectUrl);
         } else {

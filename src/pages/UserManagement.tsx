@@ -612,7 +612,13 @@ const UserManagement = () => {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="text-white hover:bg-white/10">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="text-white hover:bg-white/10"
+                              aria-label="더보기 메뉴"
+                              title="더보기 메뉴"
+                            >
                               <MoreHorizontal className="w-4 h-4" />
                             </Button>
                           </DropdownMenuTrigger>

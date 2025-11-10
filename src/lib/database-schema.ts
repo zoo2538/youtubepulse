@@ -1,8 +1,6 @@
 // 데이터베이스 스키마 정의
 import { indexedDBService } from './indexeddb-service';
 
-const DATE_RANGE_DAYS = 14;
-
 export interface Channel {
   channelId: string;
   channelName: string;
@@ -59,8 +57,8 @@ export const initializeDatabase = async () => {
   // 기존 localStorage 데이터가 있으면 마이그레이션
   await migrateFromLocalStorage();
   
-  // 최근 DATE_RANGE_DAYS일 외 데이터 정리 실행
-  await indexedDBService.cleanupOldData(DATE_RANGE_DAYS);
+  // 7일 데이터 정리 실행
+  await indexedDBService.cleanupOldData(7);
   
   // 자동 정리 스케줄러 시작 (매일 자정)
   startAutoCleanupScheduler();
@@ -72,7 +70,7 @@ export const initializeDatabase = async () => {
 const startAutoCleanupScheduler = () => {
   console.log('🧹 IndexedDB 자동 정리 스케줄러 시작 (매일 자정)');
   
-  // 매일 자정에 DATE_RANGE_DAYS일 데이터 정리 실행
+  // 매일 자정에 7일 데이터 정리 실행
   setInterval(() => {
     const now = new Date();
     const kstHour = parseInt(now.toLocaleString('en-US', { 
@@ -87,9 +85,9 @@ const startAutoCleanupScheduler = () => {
     
     // 자정(00:00~00:05)에 실행
     if (kstHour === 0 && kstMinute < 5) {
-      console.log(`🕛 KST 자정 감지 - IndexedDB ${DATE_RANGE_DAYS}일 데이터 자동 정리 실행`);
-      indexedDBService.cleanupOldData(DATE_RANGE_DAYS).then(deletedCount => {
-        console.log(`✅ IndexedDB 자동 정리 완료: ${deletedCount}개 삭제 (${DATE_RANGE_DAYS}일 기준)`);
+      console.log('🕛 KST 자정 감지 - IndexedDB 7일 데이터 자동 정리 실행');
+      indexedDBService.cleanupOldData(7).then(deletedCount => {
+        console.log(`✅ IndexedDB 자동 정리 완료: ${deletedCount}개 삭제`);
       }).catch(error => {
         console.error('❌ IndexedDB 자동 정리 실패:', error);
       });
@@ -210,8 +208,8 @@ export const getDatabaseInfo = async () => {
   return await indexedDBService.getDatabaseInfo();
 };
 
-// DATE_RANGE_DAYS일 데이터 정리 실행
-export const cleanupOldData = async (retentionDays: number = DATE_RANGE_DAYS) => {
+// 7일 데이터 정리 실행
+export const cleanupOldData = async (retentionDays: number = 7) => {
   return await indexedDBService.cleanupOldData(retentionDays);
 };
 

@@ -80,7 +80,7 @@ const PerformanceVideosDetail: React.FC = () => {
 
   useEffect(() => {
     const dates: string[] = [];
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       dates.push(date.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }));

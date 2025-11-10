@@ -1,6 +1,8 @@
 // IndexedDB 데이터 저장 서비스
 import { getKoreanDateString } from './utils';
 
+const DATE_RANGE_DAYS = 14;
+
 class IndexedDBService {
   private dbName = 'YouTubePulseDB';
   private version = 10; // 스키마 재생성을 위한 대폭 증가
@@ -375,7 +377,7 @@ class IndexedDBService {
     });
   }
 
-  // 사용 가능한 날짜 목록 조회 (7일 범위 자동 생성 포함)
+  // 사용 가능한 날짜 목록 조회 (DATE_RANGE_DAYS 범위 자동 생성 포함)
   async getAvailableDates(): Promise<string[]> {
     if (!this.db) await this.init();
     
@@ -388,25 +390,25 @@ class IndexedDBService {
       const checkCompletion = () => {
         completedRequests++;
         if (completedRequests === totalRequests) {
-          // 7일 범위의 날짜 자동 생성 (한국 시간 기준)
+          // DATE_RANGE_DAYS 범위의 날짜 자동 생성 (한국 시간 기준)
           // 한국 시간으로 오늘 날짜 계산
           const now = new Date();
           const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
           const today = koreaTime.toISOString().split('T')[0];
           
-          // 7일 범위의 모든 날짜 생성 (오늘 포함)
-          for (let i = 0; i < 7; i++) {
+          // DATE_RANGE_DAYS 범위의 모든 날짜 생성 (오늘 포함)
+          for (let i = 0; i < DATE_RANGE_DAYS; i++) {
             const date = new Date(koreaTime.getTime() - i * 24 * 60 * 60 * 1000);
             const dateStr = date.toISOString().split('T')[0];
             dates.add(dateStr);
           }
           
-          // 백업된 날짜들도 포함 (7일 범위를 벗어나더라도)
+          // 백업된 날짜들도 포함 (DATE_RANGE_DAYS 범위를 벗어나더라도)
           // 이미 dates Set에 추가된 날짜들은 중복되지 않음
           
           // 날짜 정렬 (최신순)
           const sortedDates = Array.from(dates).sort((a, b) => b.localeCompare(a));
-          console.log(`📅 사용 가능한 날짜들 (7일 범위 자동 생성): ${sortedDates.length}개`, sortedDates);
+          console.log(`📅 사용 가능한 날짜들 (${DATE_RANGE_DAYS}일 범위 자동 생성): ${sortedDates.length}개`, sortedDates);
           resolve(sortedDates);
         }
       };
@@ -1264,8 +1266,8 @@ class IndexedDBService {
     });
   }
 
-  // 7일 데이터 정리
-  async cleanupOldData(retentionDays: number = 7): Promise<number> {
+  // DATE_RANGE_DAYS 데이터 정리
+  async cleanupOldData(retentionDays: number = DATE_RANGE_DAYS): Promise<number> {
     if (!this.db) await this.init();
     
     const cutoffDate = new Date();
@@ -1353,7 +1355,7 @@ class IndexedDBService {
       };
     });
     
-    console.log(`🧹 7일 데이터 정리 완료: ${totalDeleted}개 데이터 삭제`);
+    console.log(`🧹 ${retentionDays}일 데이터 정리 완료: ${totalDeleted}개 데이터 삭제`);
     return totalDeleted;
   }
 
@@ -1366,7 +1368,7 @@ class IndexedDBService {
       version: this.version,
       objectStores: Array.from(this.db!.objectStoreNames),
       size: 0,
-      retentionDays: 7,
+      retentionDays: DATE_RANGE_DAYS,
       lastCleanup: null
     };
 

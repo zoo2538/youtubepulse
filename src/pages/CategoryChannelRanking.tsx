@@ -74,6 +74,12 @@ const CategoryChannelRanking = () => {
   // 분류된 데이터 로드 (IndexedDB 우선 로딩)
   useEffect(() => {
     const loadClassifiedData = async () => {
+      // 강제 타임아웃: 15초 후 무조건 로딩 해제
+      const forceTimeout = setTimeout(() => {
+        console.warn('⏰ 카테고리 채널 순위 데이터 로드 강제 타임아웃 (15초)');
+        setIsLoading(false);
+      }, 15000);
+      
       try {
         setIsLoading(true);
         
@@ -81,11 +87,23 @@ const CategoryChannelRanking = () => {
         const data = await indexedDBService.loadClassifiedData();
         console.log(`📊 카테고리 채널 순위 - IndexedDB에서 로드: ${data.length}개`);
         
-        // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음)
+        // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음) - 타임아웃 적용
         setTimeout(async () => {
           try {
-            const serverData = await hybridService.getClassifiedData();
-            if (serverData.length > data.length) {
+            // 타임아웃 보호: Promise.race로 타임아웃 적용
+            const timeoutPromise = new Promise<any[]>((_, reject) => {
+              setTimeout(() => {
+                console.warn('⏱️ 백그라운드 서버 동기화 타임아웃 (10초)');
+                reject(new Error('백그라운드 동기화 타임아웃'));
+              }, 10000);
+            });
+            
+            const serverData = await Promise.race([
+              hybridService.getClassifiedData(),
+              timeoutPromise
+            ]) as any[];
+            
+            if (serverData && serverData.length > data.length) {
               console.log(`🔄 백그라운드 동기화: 서버 데이터 ${serverData.length}개 > 로컬 ${data.length}개`);
               // 서버에 더 많은 데이터가 있으면 업데이트
               setClassifiedData(serverData);
@@ -202,6 +220,9 @@ const CategoryChannelRanking = () => {
         }
       } catch (error) {
         console.error('분류된 데이터 로드 실패:', error);
+      } finally {
+        clearTimeout(forceTimeout);
+        setIsLoading(false);
       }
     };
 

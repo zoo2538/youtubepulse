@@ -170,12 +170,13 @@ class DateRolloverService {
   }
 
   private async executeCollection(dateKey: string): Promise<void> {
-    // 실제 수집 로직은 여기서 구현
-    // 서버 API 호출 → IndexedDB 저장
+    // ✅ 클라이언트 자동 수집 완전 비활성화 (서버 전용)
+    // 서버의 cron job이 자동 수집을 처리하므로 클라이언트는 실행하지 않음
     console.log('🔄 수집 실행:', dateKey);
+    console.log('ℹ️ 클라이언트 수집 비활성화 (서버 전용) - 즉시 완료');
     
-    // 임시 구현 - 실제로는 서버 API 호출
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // 수집 비활성화로 인해 즉시 완료 (지연 없음)
+    return;
   }
 
   // 콜백 등록

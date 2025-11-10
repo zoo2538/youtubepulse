@@ -316,7 +316,13 @@ const ChannelDetail = () => {
                   >
                     {channelData.channelId}
                   </Badge>
-                  <Button variant="ghost" size="sm" className="p-1 h-auto">
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="p-1 h-auto"
+                    aria-label="닫기"
+                    title="닫기"
+                  >
                     <X className="w-3 h-3" />
                   </Button>
                 </div>

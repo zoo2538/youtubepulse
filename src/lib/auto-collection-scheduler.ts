@@ -1,4 +1,5 @@
 // 자동 수집 스케줄러 - 누락 보정 + 중복 방지
+import { API_BASE_URL } from './config';
 interface CollectionMetadata {
   lastRunAt: string;
   lastDateProcessed: string;
@@ -119,38 +120,29 @@ class AutoCollectionScheduler {
     }
   }
 
-  private async executeServerCollection(dateKey: string): Promise<void> {
-    // ⚠️ 클라이언트에서 서버 자동수집 API 호출 비활성화
-    // 서버의 cron job이 자동 수집을 처리하므로 클라이언트는 호출하지 않음
-    console.log('⏭️ 클라이언트 자동수집 호출 비활성화 (서버 전용)');
-    return;
-    
-    // 아래 코드는 비활성화됨
-    /*
-    console.log('🔄 서버 자동 수집 실행:', dateKey);
-    
-    try {
-      // 서버 API 호출
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}/api/auto-collect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ dateKey })
-      });
-
-      if (!response.ok) {
-        throw new Error(`서버 응답 오류: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('✅ 서버 자동 수집 성공:', result);
-      
-    } catch (error) {
-      console.error('❌ 서버 자동 수집 실패:', error);
-      throw error;
+  private async executeServerCollection(dateKey: string): Promise<any> {
+    if (!API_BASE_URL) {
+      throw new Error('API base URL is not configured.');
     }
-    */
+ 
+    console.log('🔄 서버 자동 수집 실행:', dateKey);
+ 
+    const response = await fetch(`${API_BASE_URL}/api/auto-collect`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ dateKey, trigger: 'client' })
+    });
+ 
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`서버 응답 오류: ${response.status} ${errorText}`);
+    }
+ 
+    const result = await response.json();
+    console.log('✅ 서버 자동 수집 성공:', result);
+    return result;
   }
 
   private async saveToIndexedDB(dateKey: string): Promise<void> {
@@ -189,12 +181,6 @@ class AutoCollectionScheduler {
 
   // 재시도 큐 처리
   async processRetryQueue(): Promise<void> {
-    // ⚠️ 클라이언트 자동수집 비활성화로 재시도도 비활성화
-    console.log('⏭️ 클라이언트 재시도 큐 처리 비활성화 (서버 전용)');
-    return;
-    
-    // 아래 코드는 비활성화됨
-    /*
     try {
       const retryQueue = JSON.parse(localStorage.getItem('auto_collection_retry_queue') || '[]');
       
@@ -249,20 +235,20 @@ class AutoCollectionScheduler {
     } catch (error) {
       console.error('❌ 재시도 큐 처리 실패:', error);
     }
-    */
   }
 
   // 수동 트리거
-  async triggerManualCollection(): Promise<void> {
-    // ⚠️ 클라이언트 자동수집 비활성화로 수동 트리거도 비활성화
-    console.log('⏭️ 클라이언트 수동 트리거 비활성화 (서버 전용)');
-    return;
-    
-    // 아래 코드는 비활성화됨
-    /*
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
-    await this.runCollection(today);
-    */
+  async triggerManualCollection(dateKey?: string) {
+    const targetDate = dateKey || new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
+    console.log('🛰️ 수동 자동수집 트리거:', targetDate);
+
+    const result = await this.executeServerCollection(targetDate);
+    await this.saveToIndexedDB(targetDate);
+    this.metadata.lastRunAt = new Date().toISOString();
+    this.metadata.lastDateProcessed = targetDate;
+    this.saveMetadata();
+
+    return { success: true, dateKey: targetDate, result };
   }
 
   // 메타데이터 조회

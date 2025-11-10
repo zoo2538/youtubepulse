@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { EMAILJS_CONFIG } from '@/config/emailjs';
 import { postLoginSync } from '@/lib/post-login-sync';
 import { indexedDBService } from '@/lib/indexeddb-service';
+import { API_BASE_URL } from '@/lib/config';
 import { AuthContext, AuthContextType } from './auth-context';
 
 // useAuth 훅은 별도 파일로 분리됨 (src/hooks/useAuth.ts)
@@ -123,55 +124,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               setUserRole('admin');
             console.log('✅ 프로덕션 관리자 로그인 성공:', { email, role: 'admin' });
             
-            // 로그인 후 하이브리드 동기화 실행
-            try {
-              console.log('🔄 로그인 후 동기화 시작...');
-              const syncResult = await postLoginSync({
-                api: {
-                  get: async (url: string) => {
-                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`);
-                    return response.json();
-                  },
-                  post: async (url: string, data: any) => {
-                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(data)
-                    });
-                    return response.json();
-                  }
-                },
-                idb: indexedDBService,
-                lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
-              });
-              
-              if (syncResult.success) {
-                console.log('🎉 로그인 후 동기화 완료:', syncResult);
-              } else {
-                console.warn('⚠️ 로그인 후 동기화 실패:', syncResult.error);
-              }
-            } catch (syncError) {
-              console.error('❌ 로그인 후 동기화 오류:', syncError);
-            }
-            
-            // 로그인 성공 후 캐시 클리어 및 페이지 새로고침
-            console.log('🔄 캐시 클리어 및 페이지 새로고침 시작...');
-            if ('caches' in window) {
-              try {
-                const cacheNames = await caches.keys();
-                await Promise.all(
-                  cacheNames.map(cacheName => caches.delete(cacheName))
-                );
-                console.log('✅ 서비스 워커 캐시 클리어 완료');
-              } catch (cacheError) {
-                console.warn('⚠️ 캐시 클리어 실패:', cacheError);
-              }
-            }
-            
             setIsLoading(false);
             
-            // 페이지 강제 새로고침 (캐시 무시)
-            window.location.reload();
+            // 로그인 후 동기화를 백그라운드에서 비동기 실행 (서버 + 로컬 하이브리드)
+            console.log('🔄 백그라운드 동기화 시작...');
+            (async () => {
+              try {
+                // 타임아웃 보호 (30초)
+                const syncTimeout = new Promise((_, reject) => {
+                  setTimeout(() => reject(new Error('동기화 타임아웃 (30초)')), 30000);
+                });
+                
+                if (!API_BASE_URL) {
+                  console.warn('⚠️ API_BASE_URL 미설정 - 서버 동기화를 건너뜁니다.');
+                  return;
+                }
+
+                const syncPromise = postLoginSync({
+                  api: {
+                    get: async (url: string) => {
+                      const response = await fetch(`${API_BASE_URL}${url}`);
+                      return response.json();
+                    },
+                    post: async (url: string, data: any) => {
+                      const response = await fetch(`${API_BASE_URL}${url}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                      });
+                      return response.json();
+                    }
+                  },
+                  idb: indexedDBService,
+                  lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
+                });
+                
+                const syncResult = await Promise.race([syncPromise, syncTimeout]) as any;
+                
+                if (syncResult.success) {
+                  console.log('🎉 백그라운드 동기화 완료:', syncResult);
+                } else {
+                  console.warn('⚠️ 백그라운드 동기화 실패:', syncResult.error);
+                }
+              } catch (syncError) {
+                console.error('❌ 백그라운드 동기화 오류:', syncError);
+              }
+            })();
+            
+            // 캐시 클리어를 백그라운드에서 실행
+            if ('caches' in window) {
+              (async () => {
+                try {
+                  const cacheNames = await caches.keys();
+                  await Promise.all(
+                    cacheNames.map(cacheName => caches.delete(cacheName))
+                  );
+                  console.log('✅ 서비스 워커 캐시 클리어 완료');
+                } catch (cacheError) {
+                  console.warn('⚠️ 캐시 클리어 실패:', cacheError);
+                }
+              })();
+            }
+            
+            // 로그인 성공 후 즉시 대시보드로 이동 (동기화 완료를 기다리지 않음)
+            navigate('/dashboard', { replace: true });
             return true;
             } else {
               throw new Error('저장된 데이터가 일치하지 않음');
@@ -194,55 +210,70 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             
             console.log('✅ 개발 관리자 로그인 성공:', { email, role: 'admin' });
             
-            // 로그인 후 하이브리드 동기화 실행
-            try {
-              console.log('🔄 로그인 후 동기화 시작...');
-              const syncResult = await postLoginSync({
-                api: {
-                  get: async (url: string) => {
-                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`);
-                    return response.json();
-                  },
-                  post: async (url: string, data: any) => {
-                    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(data)
-                    });
-                    return response.json();
-                  }
-                },
-                idb: indexedDBService,
-                lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
-              });
-              
-              if (syncResult.success) {
-                console.log('🎉 로그인 후 동기화 완료:', syncResult);
-              } else {
-                console.warn('⚠️ 로그인 후 동기화 실패:', syncResult.error);
-              }
-            } catch (syncError) {
-              console.error('❌ 로그인 후 동기화 오류:', syncError);
-            }
-            
-            // 로그인 성공 후 캐시 클리어 및 페이지 새로고침
-            console.log('🔄 캐시 클리어 및 페이지 새로고침 시작...');
-            if ('caches' in window) {
-              try {
-                const cacheNames = await caches.keys();
-                await Promise.all(
-                  cacheNames.map(cacheName => caches.delete(cacheName))
-                );
-                console.log('✅ 서비스 워커 캐시 클리어 완료');
-              } catch (cacheError) {
-                console.warn('⚠️ 캐시 클리어 실패:', cacheError);
-              }
-            }
-            
             setIsLoading(false);
             
-            // 페이지 강제 새로고침 (캐시 무시)
-            window.location.reload();
+            // 로그인 후 동기화를 백그라운드에서 비동기 실행 (서버 + 로컬 하이브리드)
+            console.log('🔄 백그라운드 동기화 시작...');
+            (async () => {
+              try {
+                // 타임아웃 보호 (30초)
+                const syncTimeout = new Promise((_, reject) => {
+                  setTimeout(() => reject(new Error('동기화 타임아웃 (30초)')), 30000);
+                });
+                
+                if (!API_BASE_URL) {
+                  console.warn('⚠️ API_BASE_URL 미설정 - 서버 동기화를 건너뜁니다.');
+                  return;
+                }
+
+                const syncPromise = postLoginSync({
+                  api: {
+                    get: async (url: string) => {
+                      const response = await fetch(`${API_BASE_URL}${url}`);
+                      return response.json();
+                    },
+                    post: async (url: string, data: any) => {
+                      const response = await fetch(`${API_BASE_URL}${url}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                      });
+                      return response.json();
+                    }
+                  },
+                  idb: indexedDBService,
+                  lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
+                });
+                
+                const syncResult = await Promise.race([syncPromise, syncTimeout]) as any;
+                
+                if (syncResult.success) {
+                  console.log('🎉 백그라운드 동기화 완료:', syncResult);
+                } else {
+                  console.warn('⚠️ 백그라운드 동기화 실패:', syncResult.error);
+                }
+              } catch (syncError) {
+                console.error('❌ 백그라운드 동기화 오류:', syncError);
+              }
+            })();
+            
+            // 캐시 클리어를 백그라운드에서 실행
+            if ('caches' in window) {
+              (async () => {
+                try {
+                  const cacheNames = await caches.keys();
+                  await Promise.all(
+                    cacheNames.map(cacheName => caches.delete(cacheName))
+                  );
+                  console.log('✅ 서비스 워커 캐시 클리어 완료');
+                } catch (cacheError) {
+                  console.warn('⚠️ 캐시 클리어 실패:', cacheError);
+                }
+              })();
+            }
+            
+            // 로그인 성공 후 즉시 대시보드로 이동 (동기화 완료를 기다리지 않음)
+            navigate('/dashboard', { replace: true });
             return true;
           } catch (storageError) {
             console.error('❌ 개발 localStorage 저장 실패:', storageError);
@@ -268,55 +299,71 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           console.log('✅ 사용자 로그인 성공:', { email, role: user.role });
           
-          // 로그인 후 하이브리드 동기화 실행
-          try {
-            console.log('🔄 로그인 후 동기화 시작...');
-            const syncResult = await postLoginSync({
-              api: {
-                get: async (url: string) => {
-                  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`);
-                  return response.json();
-                },
-                post: async (url: string, data: any) => {
-                  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://api.youthbepulse.com'}${url}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                  });
-                  return response.json();
-                }
-              },
-              idb: indexedDBService,
-              lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
-            });
-            
-            if (syncResult.success) {
-              console.log('🎉 로그인 후 동기화 완료:', syncResult);
-            } else {
-              console.warn('⚠️ 로그인 후 동기화 실패:', syncResult.error);
-            }
-          } catch (syncError) {
-            console.error('❌ 로그인 후 동기화 오류:', syncError);
-          }
-          
-          // 로그인 성공 후 캐시 클리어 및 페이지 새로고침
-          console.log('🔄 캐시 클리어 및 페이지 새로고침 시작...');
-          if ('caches' in window) {
-            try {
-              const cacheNames = await caches.keys();
-              await Promise.all(
-                cacheNames.map(cacheName => caches.delete(cacheName))
-              );
-              console.log('✅ 서비스 워커 캐시 클리어 완료');
-            } catch (cacheError) {
-              console.warn('⚠️ 캐시 클리어 실패:', cacheError);
-            }
-          }
-          
           setIsLoading(false);
           
-          // 페이지 강제 새로고침 (캐시 무시)
-          window.location.reload();
+          // 로그인 후 하이브리드 동기화를 백그라운드에서 비동기 실행 (UI 블로킹 방지)
+          console.log('🔄 백그라운드 동기화 시작...');
+          (async () => {
+            try {
+              // 타임아웃 보호 (30초)
+              const syncTimeout = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('동기화 타임아웃 (30초)')), 30000);
+              });
+              
+              const syncPromise = postLoginSync({
+                api: {
+                  get: async (url: string) => {
+                    if (!API_BASE_URL) {
+                      throw new Error('API base URL is not configured.');
+                    }
+                    const response = await fetch(`${API_BASE_URL}${url}`);
+                    return response.json();
+                  },
+                  post: async (url: string, data: any) => {
+                    if (!API_BASE_URL) {
+                      throw new Error('API base URL is not configured.');
+                    }
+                    const response = await fetch(`${API_BASE_URL}${url}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(data)
+                    });
+                    return response.json();
+                  }
+                },
+                idb: indexedDBService,
+                lastSyncAt: await indexedDBService.loadSystemConfig('lastSyncAt')
+              });
+              
+              const syncResult = await Promise.race([syncPromise, syncTimeout]) as any;
+              
+              if (syncResult.success) {
+                console.log('🎉 백그라운드 동기화 완료:', syncResult);
+              } else {
+                console.warn('⚠️ 백그라운드 동기화 실패:', syncResult.error);
+              }
+            } catch (syncError) {
+              console.error('❌ 백그라운드 동기화 오류:', syncError);
+            }
+          })();
+          
+          // 캐시 클리어를 백그라운드에서 실행
+          if ('caches' in window) {
+            (async () => {
+              try {
+                const cacheNames = await caches.keys();
+                await Promise.all(
+                  cacheNames.map(cacheName => caches.delete(cacheName))
+                );
+                console.log('✅ 서비스 워커 캐시 클리어 완료');
+              } catch (cacheError) {
+                console.warn('⚠️ 캐시 클리어 실패:', cacheError);
+              }
+            })();
+          }
+          
+          // 로그인 성공 후 즉시 대시보드로 이동 (동기화 완료를 기다리지 않음)
+          navigate('/dashboard', { replace: true });
           return true;
         }
       } catch (parseError) {

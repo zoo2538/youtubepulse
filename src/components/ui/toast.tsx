@@ -79,6 +79,8 @@ const ToastClose = React.forwardRef<
       className
     )}
     toast-close=""
+    aria-label="닫기"
+    title="닫기"
     {...props}
   >
     <X className="h-4 w-4" />
