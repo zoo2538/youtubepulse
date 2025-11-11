@@ -17,6 +17,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { 
   Settings, 
@@ -110,6 +111,8 @@ interface DataManagementConfig {
 }
 
 const DATE_RANGE_DAYS = 14;
+const fsAccessSupported = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+const BACKUP_SUBFOLDER_NAME = 'YouTubePulse-Backups';
 
 // 테스트 데이터 생성 함수 제거됨 - 실제 데이터만 사용
 
@@ -122,6 +125,12 @@ const DataClassification = () => {
   // 하드코딩된 세부카테고리 사용 (수정 불가)
   const dynamicSubCategories = subCategories;
   const isAdmin = userRole === 'admin'; // 관리자 권한 확인
+
+  const [backupDirectoryHandle, setBackupDirectoryHandle] = React.useState<FileSystemDirectoryHandle | null>(null);
+  const [backupFolderName, setBackupFolderName] = React.useState<string>('');
+  const [backupFolderStatus, setBackupFolderStatus] = React.useState<'idle' | 'ready' | 'unsupported' | 'denied'>(
+    fsAccessSupported ? 'idle' : 'unsupported'
+  );
 
   // 관리자 권한 확인 - 관리자가 아니면 대시보드로 리다이렉트
   React.useEffect(() => {
@@ -620,6 +629,155 @@ const DataClassification = () => {
     // 5. 기타
     return 0;
   };
+
+  const verifyDirectoryPermission = useCallback(
+    async (handle: FileSystemDirectoryHandle, write: boolean) => {
+      if (!handle) return false;
+      try {
+        const mode: FileSystemPermissionMode = write ? 'readwrite' : 'read';
+        if ('queryPermission' in handle) {
+          const queryResult = await (handle as any).queryPermission?.({ mode });
+          if (queryResult === 'granted') return true;
+          if (queryResult === 'denied') return false;
+        }
+        if ('requestPermission' in handle) {
+          const requestResult = await (handle as any).requestPermission?.({ mode });
+          return requestResult === 'granted';
+        }
+      } catch (error) {
+        console.warn('📁 백업 폴더 권한 확인 실패:', error);
+      }
+      return false;
+    },
+    []
+  );
+
+  const ensureBackupDirectory = useCallback(
+    async (options?: { forcePrompt?: boolean }): Promise<FileSystemDirectoryHandle | null> => {
+      if (!fsAccessSupported) {
+        showToast('현재 브라우저는 백업 폴더 지정을 지원하지 않습니다.', 'warning');
+        return null;
+      }
+
+      try {
+        let handle = backupDirectoryHandle;
+        if (handle && !options?.forcePrompt) {
+          const granted = await verifyDirectoryPermission(handle, true);
+          if (granted) {
+            setBackupFolderStatus('ready');
+            return handle;
+          }
+        }
+
+        handle = await (window as any).showDirectoryPicker?.({
+          id: 'youtubepulse-backups',
+          mode: 'readwrite',
+          startIn: 'downloads'
+        });
+
+        if (handle) {
+          const granted = await verifyDirectoryPermission(handle, true);
+          if (granted) {
+            setBackupDirectoryHandle(handle);
+            setBackupFolderName(handle.name ?? BACKUP_SUBFOLDER_NAME);
+            setBackupFolderStatus('ready');
+            try {
+              await indexedDBService.saveBackupDirectoryHandle(handle);
+            } catch (error) {
+              console.warn('📁 백업 폴더 핸들 저장 실패 (무시 가능):', error);
+            }
+            return handle;
+          }
+        }
+      } catch (error) {
+        if ((error as any)?.name === 'AbortError') {
+          console.log('📁 백업 폴더 선택이 취소되었습니다.');
+        } else {
+          console.error('📁 백업 폴더 선택 실패:', error);
+          showToast('백업 폴더를 선택하지 못했습니다.', 'error');
+        }
+      }
+
+      setBackupFolderStatus('denied');
+      try {
+        await indexedDBService.clearBackupDirectoryHandle();
+      } catch (error) {
+        console.warn('📁 백업 폴더 핸들 초기화 실패 (무시 가능):', error);
+      }
+      return null;
+    },
+    [backupDirectoryHandle, verifyDirectoryPermission]
+  );
+
+  const saveBlobToBackupFolder = useCallback(
+    async (filename: string, blob: Blob): Promise<boolean> => {
+      if (!fsAccessSupported) return false;
+
+      const directoryHandle = await ensureBackupDirectory();
+      if (!directoryHandle) return false;
+
+      try {
+        const backupFolderHandle = await directoryHandle.getDirectoryHandle(BACKUP_SUBFOLDER_NAME, { create: true });
+        const fileHandle = await backupFolderHandle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        setBackupFolderStatus('ready');
+        setBackupFolderName(directoryHandle.name ?? BACKUP_SUBFOLDER_NAME);
+        return true;
+      } catch (error) {
+        console.error('📁 백업 폴더에 파일 저장 실패:', error);
+        showToast('백업 폴더에 저장하지 못했습니다. 다른 폴더를 선택해주세요.', 'error');
+        return false;
+      }
+    },
+    [ensureBackupDirectory]
+  );
+
+  const downloadBlobViaAnchor = useCallback((filename: string, blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const promptBackupDirectorySelection = useCallback(async () => {
+    if (!fsAccessSupported) {
+      showToast('현재 브라우저는 폴더 지정을 지원하지 않습니다.', 'warning');
+      return;
+    }
+    const handle = await ensureBackupDirectory({ forcePrompt: true });
+    if (handle) {
+      showToast('백업 폴더가 설정되었습니다.', 'success');
+    }
+  }, [ensureBackupDirectory]);
+
+  React.useEffect(() => {
+    if (!fsAccessSupported) return;
+
+    (async () => {
+      try {
+        const savedHandle = await indexedDBService.getBackupDirectoryHandle();
+        if (savedHandle) {
+          const granted = await verifyDirectoryPermission(savedHandle, false);
+          if (granted) {
+            setBackupDirectoryHandle(savedHandle);
+            setBackupFolderName(savedHandle.name ?? BACKUP_SUBFOLDER_NAME);
+            setBackupFolderStatus('ready');
+          } else {
+            setBackupFolderStatus('denied');
+            await indexedDBService.clearBackupDirectoryHandle();
+          }
+        }
+      } catch (error) {
+        console.warn('📁 백업 폴더 핸들 로드 실패:', error);
+      }
+    })();
+  }, [verifyDirectoryPermission]);
 
   // 한국어/영어 판별 함수
   const isKoreanText = (text: string): boolean => {
@@ -1835,19 +1993,26 @@ const DataClassification = () => {
         version: '1.0'
       };
 
+      const filename = `youtubepulse_backup_${date}.json`;
       const blob = new Blob([JSON.stringify(backupData, null, 2)], { 
         type: 'application/json' 
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `youtubepulse_backup_${date}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
 
-      alert(`✅ ${date} 날짜 데이터 백업이 완료되었습니다.`);
+      let savedToFolder = false;
+      if (fsAccessSupported) {
+        savedToFolder = await saveBlobToBackupFolder(filename, blob);
+      }
+
+      if (!savedToFolder) {
+        downloadBlobViaAnchor(filename, blob);
+      }
+
+      const folderLabel = backupFolderName || BACKUP_SUBFOLDER_NAME;
+      const message = savedToFolder
+        ? `✅ ${date} 날짜 데이터가 백업 폴더(${folderLabel})에 저장되었습니다.`
+        : `✅ ${date} 날짜 데이터 백업이 완료되었습니다. 다운로드 폴더를 확인해주세요.`;
+
+      alert(message);
     } catch (error) {
       console.error('백업 다운로드 실패:', error);
       alert('❌ 백업 다운로드에 실패했습니다.');
@@ -1946,19 +2111,26 @@ const DataClassification = () => {
         }
       };
 
+      const filename = `youtubepulse_full_backup_${getKoreanDateString()}.json`;
       const blob = new Blob([JSON.stringify(allBackupData, null, 2)], { 
         type: 'application/json' 
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `youtubepulse_full_backup_${getKoreanDateString()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
 
-      alert('✅ 전체 데이터 백업이 완료되었습니다.');
+      let savedToFolder = false;
+      if (fsAccessSupported) {
+        savedToFolder = await saveBlobToBackupFolder(filename, blob);
+      }
+
+      if (!savedToFolder) {
+        downloadBlobViaAnchor(filename, blob);
+      }
+
+      const folderLabel = backupFolderName || BACKUP_SUBFOLDER_NAME;
+      const message = savedToFolder
+        ? `✅ 전체 데이터 백업이 백업 폴더(${folderLabel})에 저장되었습니다.`
+        : '✅ 전체 데이터 백업이 완료되었습니다.';
+
+      alert(message);
     } catch (error) {
       console.error('전체 백업 실패:', error);
       alert('❌ 전체 백업에 실패했습니다.');
@@ -2701,6 +2873,10 @@ const DataClassification = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={promptBackupDirectorySelection} disabled={!fsAccessSupported}>
+                    백업 폴더 설정
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   {rangeEnd && (
                     <DropdownMenuItem onClick={() => handleDownloadBackup(rangeEnd)}>
                       오늘 데이터 백업
@@ -2711,6 +2887,19 @@ const DataClassification = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {fsAccessSupported ? (
+                backupFolderStatus === 'ready' ? (
+                  <span>📁 백업 폴더: {backupFolderName || BACKUP_SUBFOLDER_NAME}</span>
+                ) : backupFolderStatus === 'denied' ? (
+                  <span>📁 백업 폴더 권한이 필요합니다. 다시 설정해주세요.</span>
+                ) : (
+                  <span>📁 백업 폴더가 설정되지 않았습니다.</span>
+                )
+              ) : (
+                <span>📁 현재 브라우저는 폴더 자동 저장을 지원하지 않습니다.</span>
+              )}
             </div>
           </div>
 

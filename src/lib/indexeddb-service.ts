@@ -5,7 +5,7 @@ const DATE_RANGE_DAYS = 14;
 
 class IndexedDBService {
   private dbName = 'YouTubePulseDB';
-  private version = 10; // 스키마 재생성을 위한 대폭 증가
+  private version = 11; // 스키마 재생성을 위한 대폭 증가
   private db: IDBDatabase | null = null;
 
   // 연결 재시작
@@ -142,6 +142,10 @@ class IndexedDBService {
         if (!db.objectStoreNames.contains('classifiedByDate')) {
           const byDate = db.createObjectStore('classifiedByDate', { keyPath: 'date' });
           byDate.createIndex('date', 'date', { unique: true });
+        }
+
+        if (!db.objectStoreNames.contains('backupSettings')) {
+          db.createObjectStore('backupSettings', { keyPath: 'key' });
         }
       };
     });
@@ -1695,6 +1699,59 @@ class IndexedDBService {
         
         getRequest.onerror = () => reject(getRequest.error);
       });
+    });
+  }
+
+  async saveBackupDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction(['backupSettings'], 'readwrite');
+        const store = transaction.objectStore('backupSettings');
+        const request = store.put({ key: 'backupDirectory', handle });
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async getBackupDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction(['backupSettings'], 'readonly');
+        const store = transaction.objectStore('backupSettings');
+        const request = store.get('backupDirectory');
+
+        request.onsuccess = () => {
+          resolve(request.result?.handle ?? null);
+        };
+        request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+
+  async clearBackupDirectoryHandle(): Promise<void> {
+    if (!this.db) await this.init();
+
+    return new Promise((resolve, reject) => {
+      try {
+        const transaction = this.db!.transaction(['backupSettings'], 'readwrite');
+        const store = transaction.objectStore('backupSettings');
+        const request = store.delete('backupDirectory');
+
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      } catch (error) {
+        reject(error);
+      }
     });
   }
 }
