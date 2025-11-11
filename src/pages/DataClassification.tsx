@@ -2447,6 +2447,8 @@ const DataClassification = () => {
   };
 
   const latestDates = React.useMemo(() => availableDates.slice(0, DATE_RANGE_DAYS), [availableDates]);
+  const DISPLAY_DAYS = 7;
+  const weekDates = React.useMemo(() => latestDates.slice(0, DISPLAY_DAYS), [latestDates]);
 
   const manualSummary = latestDates.reduce(
     (acc, date) => {
@@ -2479,6 +2481,31 @@ const DataClassification = () => {
 
   const rangeStart = latestDates.length > 0 ? latestDates[latestDates.length - 1] : undefined;
   const rangeEnd = latestDates.length > 0 ? latestDates[0] : undefined;
+
+  const dailySummaries = React.useMemo(
+    () =>
+      weekDates.map(date => {
+        const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+        const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
+        const autoProgress =
+          autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
+        const totalStats = {
+          total: manualStats.total + autoStats.total,
+          classified: manualStats.classified + autoStats.classified,
+          progress:
+            manualStats.total + autoStats.total > 0
+              ? Math.round(
+                  ((manualStats.classified + autoStats.classified) /
+                    (manualStats.total + autoStats.total)) *
+                    100
+                )
+              : 0,
+        };
+
+        return { date, manualStats, autoStats, autoProgress, totalStats };
+      }),
+    [weekDates, dateStats, autoCollectedStats]
+  );
 
   const formatDateLabel = (date: string) => {
     if (!date) return '날짜 없음';
@@ -2543,7 +2570,7 @@ const DataClassification = () => {
           <div>
             <h2 className="text-3xl font-bold text-foreground">{DATE_RANGE_DAYS}일 데이터 관리</h2>
             <p className="text-sm text-muted-foreground mt-2">
-              최근 {latestDates.length}일간의 YouTube 데이터를 서버와 IndexedDB에서 동기화하여 분류합니다.
+              최근 {DATE_RANGE_DAYS}일 데이터를 관리하고, 아래 표에는 최신 {weekDates.length}일을 요약해 제공합니다.
             </p>
             <p className="text-xs text-muted-foreground mt-2">
               💡 세부카테고리는 <code className="bg-muted px-1 rounded">src/lib/subcategories.ts</code>에서 관리합니다.
@@ -2688,121 +2715,101 @@ const DataClassification = () => {
           </div>
 
           <div className="space-y-4">
-            {latestDates.map(date => {
-              const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-              const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
-              const autoProgress =
-                autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
-              const totalStats = {
-                total: manualStats.total + autoStats.total,
-                classified: manualStats.classified + autoStats.classified,
-                progress:
-                  manualStats.total + autoStats.total > 0
-                    ? Math.round(
-                        ((manualStats.classified + autoStats.classified) /
-                          (manualStats.total + autoStats.total)) *
-                          100
-                      )
-                    : 0,
-              };
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+              {dailySummaries.map(({ date, manualStats, autoStats, autoProgress, totalStats }) => {
+                const manualDisabled = manualStats.total === 0;
+                const autoDisabled = autoStats.total === 0;
+                const totalDisabled = totalStats.total === 0;
 
-              const section = (
-                label: string,
-                stats: { total: number; classified: number; progress?: number },
-                progressValue: number,
-                accent: string,
-                textColor: string,
-                onClick: () => void,
-                buttonLabel: string,
-                disabled: boolean
-              ) => (
-                <div className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-sm font-semibold ${textColor}`}>{label}</span>
-                    <Badge variant={disabled ? 'outline' : 'secondary'}>
-                      {disabled ? '없음' : `${progressValue}%`}
-                    </Badge>
-                  </div>
-                  <div className={`w-full h-2 rounded-full ${accent}`}>
-                    <div
-                      className="h-2 bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
-                      style={{ width: `${Math.min(progressValue, 100)}%` }}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {stats.classified.toLocaleString()} / {stats.total.toLocaleString()} 완료
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full"
-                    disabled={disabled}
-                    onClick={onClick}
-                  >
-                    <BarChart3 className="w-4 h-4 mr-1" />
-                    {buttonLabel}
-                  </Button>
-                </div>
-              );
-
-              return (
-                <div key={date} className="border rounded-xl p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">한국시간</p>
-                      <h4 className="text-lg font-semibold text-foreground">
+                return (
+                  <div key={date} className="border rounded-xl p-3 space-y-3 bg-card">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-foreground">
                         {formatDateLabel(date)}
-                      </h4>
-                      <p className="text-xs text-muted-foreground">
-                        총 {totalStats.total.toLocaleString()}개 중{' '}
-                        {totalStats.classified.toLocaleString()}개 완료
-                      </p>
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownloadBackup(date)}
+                        title={`${date} 데이터 백업 다운로드`}
+                      >
+                        <FileDown className="w-4 h-4" />
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDownloadBackup(date)}
-                      title={`${date} 데이터 백업 다운로드`}
-                    >
-                      <FileDown className="w-4 h-4" />
-                    </Button>
-                  </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      총 {totalStats.total.toLocaleString()}개 중{' '}
+                      {totalStats.classified.toLocaleString()}개 완료
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="font-medium text-primary">수동수집</div>
+                      <div className="w-full h-2 rounded-full bg-primary/10">
+                        <div
+                          className="h-2 rounded-full bg-primary transition-all"
+                          style={{ width: `${Math.min(manualStats.progress ?? 0, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-muted-foreground">
+                        {manualStats.classified.toLocaleString()} /{' '}
+                        {manualStats.total.toLocaleString()} 완료
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={manualDisabled}
+                        onClick={() => handleDateClick(date, 'manual')}
+                      >
+                        <BarChart3 className="w-4 h-4 mr-1" />
+                        상세보기
+                      </Button>
 
-                  <div className="space-y-3">
-                    {section(
-                      '수동수집',
-                      manualStats,
-                      manualStats.progress ?? 0,
-                      'bg-primary/10',
-                      'text-primary',
-                      () => handleDateClick(date, 'manual'),
-                      '수동 분류',
-                      manualStats.total === 0
-                    )}
-                    {section(
-                      '자동수집',
-                      autoStats,
-                      autoProgress,
-                      'bg-green-100/80',
-                      'text-green-600',
-                      () => handleDateClick(date, 'auto'),
-                      '자동 통계',
-                      autoStats.total === 0
-                    )}
-                    {section(
-                      '합계',
-                      totalStats,
-                      totalStats.progress ?? 0,
-                      'bg-purple-100/80',
-                      'text-purple-600',
-                      () => handleDateClick(date, 'total'),
-                      '전체 보기',
-                      totalStats.total === 0
-                    )}
+                      <div className="font-medium text-green-600 pt-2">자동수집</div>
+                      <div className="w-full h-2 rounded-full bg-green-100/80">
+                        <div
+                          className="h-2 rounded-full bg-green-500 transition-all"
+                          style={{ width: `${Math.min(autoProgress, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-muted-foreground">
+                        {autoStats.classified.toLocaleString()} / {autoStats.total.toLocaleString()} 완료
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={autoDisabled}
+                        onClick={() => handleDateClick(date, 'auto')}
+                      >
+                        <BarChart3 className="w-4 h-4 mr-1" />
+                        상세보기
+                      </Button>
+
+                      <div className="font-medium text-purple-600 pt-2">합계</div>
+                      <div className="w-full h-2 rounded-full bg-purple-100/80">
+                        <div
+                          className="h-2 rounded-full bg-purple-500 transition-all"
+                          style={{ width: `${Math.min(totalStats.progress ?? 0, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-muted-foreground">
+                        {totalStats.classified.toLocaleString()} /{' '}
+                        {totalStats.total.toLocaleString()} 완료
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        disabled={totalDisabled}
+                        onClick={() => handleDateClick(date, 'total')}
+                      >
+                        <BarChart3 className="w-4 h-4 mr-1" />
+                        상세보기
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </Card>
 
