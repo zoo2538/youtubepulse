@@ -6,7 +6,7 @@
 export class HybridDBService {
   private dbName: string;
   private storeName: string;
-  private version: number = 10; // indexeddb-service와 동일하게 맞춤
+  private version: number = 11; // indexeddb-service와 동일하게 맞춤
   private db: IDBDatabase | null = null;
 
   constructor(dbName: string = 'YouTubePulseDB', storeName: string = 'unclassifiedData') {
