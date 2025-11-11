@@ -1705,6 +1705,11 @@ class IndexedDBService {
   async saveBackupDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
     if (!this.db) await this.init();
 
+    if (!this.db || !this.db.objectStoreNames.contains('backupSettings')) {
+      console.warn('📁 backupSettings 저장소가 없어 백업 폴더를 저장하지 않습니다.');
+      return Promise.resolve();
+    }
+
     return new Promise((resolve, reject) => {
       try {
         const transaction = this.db!.transaction(['backupSettings'], 'readwrite');
@@ -1721,6 +1726,11 @@ class IndexedDBService {
 
   async getBackupDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
     if (!this.db) await this.init();
+
+    if (!this.db || !this.db.objectStoreNames.contains('backupSettings')) {
+      console.warn('📁 backupSettings 저장소가 없어 기존 백업 폴더를 불러올 수 없습니다.');
+      return null;
+    }
 
     return new Promise((resolve, reject) => {
       try {
@@ -1740,6 +1750,11 @@ class IndexedDBService {
 
   async clearBackupDirectoryHandle(): Promise<void> {
     if (!this.db) await this.init();
+
+    if (!this.db || !this.db.objectStoreNames.contains('backupSettings')) {
+      console.warn('📁 backupSettings 저장소가 없어 초기화할 백업 폴더가 없습니다.');
+      return Promise.resolve();
+    }
 
     return new Promise((resolve, reject) => {
       try {
