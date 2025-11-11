@@ -53,8 +53,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+const MAX_YOUTUBE_API_KEYS = 3;
+
 interface ApiConfig {
-  youtubeApiKey: string;
+  youtubeApiKeys: string[];
+  activeYoutubeApiKeyIndex: number;
   youtubeApiEnabled: boolean;
   customApiUrl: string;
   customApiEnabled: boolean;
@@ -76,7 +79,34 @@ const System = () => {
   const defaultApiUrl = API_BASE_URL || 'https://api.youthbepulse.com';
   const [apiConfig, setApiConfig] = useState<ApiConfig>(() => {
     // localStorage에서 저장된 설정 불러오기
-    const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
+    const savedApiKeysRaw = localStorage.getItem('youtubeApiKeys');
+    let savedApiKeys: string[] = [];
+    if (savedApiKeysRaw) {
+      try {
+        const parsed = JSON.parse(savedApiKeysRaw);
+        if (Array.isArray(parsed)) {
+          savedApiKeys = parsed.filter(key => typeof key === 'string').slice(0, MAX_YOUTUBE_API_KEYS);
+        }
+      } catch (error) {
+        console.warn('YouTube API 키 목록 파싱 실패, 기본값 사용:', error);
+      }
+    }
+
+    const legacyApiKey = localStorage.getItem('youtubeApiKey') || '';
+    if (legacyApiKey && !savedApiKeys.length) {
+      savedApiKeys = [legacyApiKey];
+    }
+
+    if (!savedApiKeys.length) {
+      savedApiKeys = [''];
+    }
+
+    const savedActiveIndexRaw = localStorage.getItem('activeYoutubeApiKeyIndex');
+    let savedActiveIndex = savedActiveIndexRaw ? parseInt(savedActiveIndexRaw, 10) : 0;
+    if (Number.isNaN(savedActiveIndex) || savedActiveIndex < 0 || savedActiveIndex >= savedApiKeys.length) {
+      savedActiveIndex = 0;
+    }
+
     const savedCustomApiUrl = localStorage.getItem('customApiUrl') || defaultApiUrl;
     const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
     const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
@@ -86,7 +116,7 @@ const System = () => {
     const defaultCustomApiEnabled = savedCustomApiEnabled !== null ? savedCustomApiEnabled : false;
     
     // YouTube API 키가 있으면 자동으로 활성화
-    const youtubeApiEnabled = savedApiKey ? true : savedYoutubeApiEnabled;
+    const youtubeApiEnabled = savedApiKeys.some(key => key) ? true : savedYoutubeApiEnabled;
     
     console.log('🔧 설정 로드:', {
       youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
@@ -106,7 +136,8 @@ const System = () => {
     });
     
     return {
-      youtubeApiKey: savedApiKey,
+      youtubeApiKeys: savedApiKeys,
+      activeYoutubeApiKeyIndex: savedActiveIndex,
       youtubeApiEnabled: youtubeApiEnabled,
       customApiUrl: savedCustomApiUrl,
       customApiEnabled: defaultCustomApiEnabled,
@@ -122,6 +153,10 @@ const System = () => {
     enableAutoSync: true,
     enableNotifications: true
   });
+
+  const activeYoutubeApiKey =
+    apiConfig.youtubeApiKeys[apiConfig.activeYoutubeApiKeyIndex] || '';
+  const hasAnyYoutubeApiKey = apiConfig.youtubeApiKeys.some(key => key.trim().length > 0);
 
 
   // 캐시 정리 상태
@@ -198,12 +233,18 @@ const System = () => {
     const saveApiConfig = () => {
       try {
         console.log('💾 API 설정 자동 저장 중:', {
-          youtubeApiKey: apiConfig.youtubeApiKey ? '설정됨' : '미설정',
+          youtubeApiKeys: apiConfig.youtubeApiKeys.map((key, index) => ({
+            index,
+            status: key ? '설정됨' : '미설정'
+          })),
+          activeYoutubeApiKeyIndex: apiConfig.activeYoutubeApiKeyIndex,
           customApiKey: apiConfig.customApiKey ? '설정됨' : '미설정',
           customApiUrl: apiConfig.customApiUrl
         });
         
-        localStorage.setItem('youtubeApiKey', apiConfig.youtubeApiKey || '');
+        localStorage.setItem('youtubeApiKeys', JSON.stringify(apiConfig.youtubeApiKeys));
+        localStorage.setItem('activeYoutubeApiKeyIndex', apiConfig.activeYoutubeApiKeyIndex.toString());
+        localStorage.setItem('youtubeApiKey', activeYoutubeApiKey || '');
         localStorage.setItem('customApiUrl', apiConfig.customApiUrl || '');
         localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
         localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
@@ -230,6 +271,93 @@ const System = () => {
   const [apiTestMessage, setApiTestMessage] = useState('');
   const [youtubeApiStatus, setYoutubeApiStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
+  const [lastTestedYoutubeKeyIndex, setLastTestedYoutubeKeyIndex] = useState<number | null>(null);
+
+  const ensureAtLeastOneYoutubeKey = (keys: string[]): string[] => {
+    if (keys.length === 0) return [''];
+    return keys;
+  };
+
+  const handleAddYoutubeApiKeyField = () => {
+    if (apiConfig.youtubeApiKeys.length >= MAX_YOUTUBE_API_KEYS) {
+      alert(`YouTube API 키는 최대 ${MAX_YOUTUBE_API_KEYS}개까지 등록할 수 있습니다.`);
+      return;
+    }
+
+    setApiConfig(prev => {
+      return {
+        ...prev,
+        youtubeApiKeys: [...prev.youtubeApiKeys, '']
+      };
+    });
+  };
+
+  const handleRemoveYoutubeApiKey = (index: number) => {
+    setApiConfig(prev => {
+      let keys = [...prev.youtubeApiKeys];
+      if (keys.length === 1) {
+        keys = [''];
+        return {
+          ...prev,
+          youtubeApiKeys: keys,
+          activeYoutubeApiKeyIndex: 0
+        };
+      }
+
+      keys.splice(index, 1);
+      keys = ensureAtLeastOneYoutubeKey(keys);
+
+      let activeIndex = prev.activeYoutubeApiKeyIndex;
+      if (activeIndex === index) {
+        activeIndex = 0;
+      } else if (activeIndex > index) {
+        activeIndex = activeIndex - 1;
+      }
+
+      return {
+        ...prev,
+        youtubeApiKeys: keys,
+        activeYoutubeApiKeyIndex: activeIndex
+      };
+    });
+
+    if (lastTestedYoutubeKeyIndex !== null) {
+      if (lastTestedYoutubeKeyIndex === index) {
+        setYoutubeApiStatus('idle');
+        setYoutubeApiMessage('');
+        setLastTestedYoutubeKeyIndex(null);
+      } else if (lastTestedYoutubeKeyIndex > index) {
+        setLastTestedYoutubeKeyIndex(lastTestedYoutubeKeyIndex - 1);
+      }
+    }
+  };
+
+  const handleSetActiveYoutubeApiKey = (index: number) => {
+    setApiConfig(prev => ({
+      ...prev,
+      activeYoutubeApiKeyIndex: index
+    }));
+  };
+
+  const handleUpdateYoutubeApiKey = (index: number, value: string) => {
+    setApiConfig(prev => {
+      const keys = [...prev.youtubeApiKeys];
+      if (index >= keys.length) {
+        return prev;
+      }
+      keys[index] = value;
+      return {
+        ...prev,
+        youtubeApiKeys: ensureAtLeastOneYoutubeKey(keys)
+      };
+    });
+
+    if (lastTestedYoutubeKeyIndex === index) {
+      setYoutubeApiStatus('idle');
+      setYoutubeApiMessage('');
+      setLastTestedYoutubeKeyIndex(null);
+    }
+  };
 
   const handleCleanupOldData = async () => {
     if (window.confirm('7일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
@@ -247,17 +375,45 @@ const System = () => {
   // API 설정 수동 불러오기 핸들러
   const handleReloadApiConfig = () => {
     try {
-      const savedApiKey = localStorage.getItem('youtubeApiKey') || '';
+      const savedApiKeysRaw = localStorage.getItem('youtubeApiKeys');
+      let savedApiKeys: string[] = [];
+      if (savedApiKeysRaw) {
+        try {
+          const parsed = JSON.parse(savedApiKeysRaw);
+          if (Array.isArray(parsed)) {
+            savedApiKeys = parsed.filter(key => typeof key === 'string').slice(0, MAX_YOUTUBE_API_KEYS);
+          }
+        } catch (error) {
+          console.warn('YouTube API 키 목록 파싱 실패:', error);
+        }
+      }
+
+      const legacyApiKey = localStorage.getItem('youtubeApiKey') || '';
+      if (legacyApiKey && !savedApiKeys.length) {
+        savedApiKeys = [legacyApiKey];
+      }
+
+      if (!savedApiKeys.length) {
+        savedApiKeys = [''];
+      }
+
+      const savedActiveIndexRaw = localStorage.getItem('activeYoutubeApiKeyIndex');
+      let savedActiveIndex = savedActiveIndexRaw ? parseInt(savedActiveIndexRaw, 10) : 0;
+      if (Number.isNaN(savedActiveIndex) || savedActiveIndex < 0 || savedActiveIndex >= savedApiKeys.length) {
+        savedActiveIndex = 0;
+      }
+
       const savedCustomApiUrl = localStorage.getItem('customApiUrl') || defaultApiUrl;
       const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
       const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
       const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
       
       // YouTube API 키가 있으면 자동으로 활성화
-      const youtubeApiEnabled = savedApiKey ? true : savedYoutubeApiEnabled;
+      const youtubeApiEnabled = savedApiKeys.some(key => key) ? true : savedYoutubeApiEnabled;
       
       setApiConfig({
-        youtubeApiKey: savedApiKey,
+        youtubeApiKeys: savedApiKeys,
+        activeYoutubeApiKeyIndex: savedActiveIndex,
         youtubeApiEnabled: youtubeApiEnabled,
         customApiUrl: savedCustomApiUrl,
         customApiEnabled: savedCustomApiEnabled,
@@ -265,7 +421,11 @@ const System = () => {
       });
       
       console.log('🔄 API 설정 수동 불러오기 완료:', {
-        youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
+        youtubeApiKeys: savedApiKeys.map((key, index) => ({
+          index,
+          status: key ? '설정됨' : '미설정'
+        })),
+        activeYoutubeApiKeyIndex: savedActiveIndex,
         youtubeApiEnabled: youtubeApiEnabled,
         customApiKey: savedCustomApiKey ? '설정됨' : '미설정',
         customApiUrl: savedCustomApiUrl
@@ -314,14 +474,25 @@ const System = () => {
 
   // PostgreSQL과 Redis 연결 테스트 함수 제거 - 서버에서 자동 관리
 
-  const testYouTubeAPI = async () => {
+  const testYouTubeAPI = async (index?: number) => {
+    const keyIndex = index ?? apiConfig.activeYoutubeApiKeyIndex;
+    const targetKey = apiConfig.youtubeApiKeys[keyIndex]?.trim();
+
+    if (!targetKey) {
+      setLastTestedYoutubeKeyIndex(keyIndex);
+      setYoutubeApiStatus('error');
+      setYoutubeApiMessage(`API 키 ${keyIndex + 1}번이 비어 있습니다.`);
+      return;
+    }
+
+    setLastTestedYoutubeKeyIndex(keyIndex);
     setYoutubeApiStatus('testing');
-    setYoutubeApiMessage('YouTube API를 테스트하고 있습니다...');
+    setYoutubeApiMessage(`YouTube API 키 ${keyIndex + 1}번을 테스트하고 있습니다...`);
     
     try {
       // YouTube API 테스트 (간단한 검색 요청)
       const response = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=test&maxResults=1&key=${apiConfig.youtubeApiKey}`
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&q=test&maxResults=1&key=${targetKey}`
       );
       
       if (!response.ok) {
@@ -335,7 +506,7 @@ const System = () => {
       }
       
       setYoutubeApiStatus('success');
-      setYoutubeApiMessage('YouTube API 연결이 성공했습니다!');
+      setYoutubeApiMessage(`YouTube API 키 ${keyIndex + 1}번 연결이 성공했습니다!`);
     } catch (error) {
       setYoutubeApiStatus('error');
       setYoutubeApiMessage(error instanceof Error ? error.message : 'API 테스트에 실패했습니다.');
@@ -399,20 +570,49 @@ const System = () => {
       return;
     }
 
-    // API 키 저장
-    setApiConfig(prev => ({
-      ...prev,
-      youtubeApiKey: tempApiKey.trim(),
-      youtubeApiEnabled: true
-    }));
+    const trimmedKey = tempApiKey.trim();
+    let replacedOldest = false;
 
-    localStorage.setItem('youtubeApiKey', tempApiKey.trim());
-    localStorage.setItem('youtubeApiEnabled', 'true');
+    setApiConfig(prev => {
+      let nextKeys = [...prev.youtubeApiKeys];
+      let nextActiveIndex = prev.activeYoutubeApiKeyIndex;
+
+      const existingIndex = nextKeys.findIndex(key => key === trimmedKey);
+      if (existingIndex >= 0) {
+        nextActiveIndex = existingIndex;
+        nextKeys[existingIndex] = trimmedKey;
+      } else {
+        const emptyIndex = nextKeys.findIndex(key => !key.trim());
+        if (emptyIndex >= 0) {
+          nextKeys[emptyIndex] = trimmedKey;
+          nextActiveIndex = emptyIndex;
+        } else if (nextKeys.length < MAX_YOUTUBE_API_KEYS) {
+          nextKeys = [...nextKeys, trimmedKey];
+          nextActiveIndex = nextKeys.length - 1;
+        } else {
+          nextKeys = [...nextKeys.slice(1), trimmedKey];
+          nextActiveIndex = nextKeys.length - 1;
+          replacedOldest = true;
+        }
+      }
+
+      return {
+        ...prev,
+        youtubeApiKeys: ensureAtLeastOneYoutubeKey(nextKeys),
+        activeYoutubeApiKeyIndex: nextActiveIndex,
+        youtubeApiEnabled: true
+      };
+    });
+
+    if (replacedOldest) {
+      alert(`YouTube API 키는 최대 ${MAX_YOUTUBE_API_KEYS}개까지만 저장됩니다.\n가장 오래된 키를 교체하고 새 키를 추가했습니다.`);
+    }
 
     console.log('✅ API 키 저장 완료:', tempApiKey.trim().substring(0, 10) + '...');
     
     // 다이얼로그 닫기
     setShowApiKeyDialog(false);
+    setTempApiKey('');
     
     // 저장 상태 표시
     setSaveStatus('success');
@@ -432,7 +632,7 @@ const System = () => {
 
   const handleStartDataCollection = async () => {
     // API 키 확인
-    if (!apiConfig.youtubeApiKey) {
+    if (!activeYoutubeApiKey) {
       // API 키가 없으면 다이얼로그 표시
       setTempApiKey('');
       setShowApiKeyDialog(true);
@@ -445,7 +645,8 @@ const System = () => {
 
   const startDataCollectionProcess = async () => {
     try {
-      if (!apiConfig.youtubeApiKey) {
+      const youtubeApiKey = activeYoutubeApiKey?.trim();
+      if (!youtubeApiKey) {
         alert('YouTube API 키가 필요합니다.');
         return;
       }
@@ -478,7 +679,7 @@ const System = () => {
         // 상위 200개 수집 (50개씩 4페이지) - YouTube API 실제 제공량
         let nextPageToken = '';
         for (let page = 0; page < 4; page++) {
-          const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiConfig.youtubeApiKey}`;
+          const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${youtubeApiKey}`;
           const trendingResponse = await fetch(trendingUrl);
           
           if (trendingResponse.ok) {
@@ -538,7 +739,7 @@ const System = () => {
           console.log(`키워드 "${keyword}" 수집 시작...`);
           
           // 키워드로 검색 (조회수 순 상위 50개)
-          const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiConfig.youtubeApiKey}`;
+          const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${youtubeApiKey}`;
         
         const searchResponse = await fetch(searchUrl);
         
@@ -564,7 +765,7 @@ const System = () => {
         const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
         
         // 비디오 상세 정보 조회
-        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiConfig.youtubeApiKey}`;
+        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${youtubeApiKey}`;
         
         const videosResponse = await fetch(videosUrl);
         
@@ -643,7 +844,7 @@ const System = () => {
       for (let i = 0; i < channelIds.length; i += 50) {
         const batchChannelIds = channelIds.slice(i, i + 50);
         const channelsResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchChannelIds.join(',')}&key=${apiConfig.youtubeApiKey}`
+          `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchChannelIds.join(',')}&key=${youtubeApiKey}`
         );
 
         if (!channelsResponse.ok) {
@@ -1190,54 +1391,105 @@ const System = () => {
                             <Label className="text-sm font-medium">YouTube Data API</Label>
                             <Switch
                               checked={apiConfig.youtubeApiEnabled}
-                              onCheckedChange={(checked) => 
-                                setApiConfig(prev => ({ ...prev, youtubeApiEnabled: checked }))
+                              onCheckedChange={(checked) =>
+                                setApiConfig(prev => ({
+                                  ...prev,
+                                  youtubeApiEnabled: checked,
+                                  youtubeApiKeys: checked
+                                    ? ensureAtLeastOneYoutubeKey(prev.youtubeApiKeys)
+                                    : prev.youtubeApiKeys
+                                }))
                               }
                             />
                           </div>
                           {apiConfig.youtubeApiEnabled && (
-                            <div className="space-y-2">
-                              <Label htmlFor="youtube-api-key">API 키</Label>
-                              <div className="flex space-x-2">
-                                <Input
-                                  id="youtube-api-key"
-                                  type="password"
-                                  autoComplete="off"
-                                  placeholder="YouTube Data API 키를 입력하세요"
-                                  value={apiConfig.youtubeApiKey}
-                                  onChange={(e) => 
-                                    setApiConfig(prev => ({ ...prev, youtubeApiKey: e.target.value }))
-                                  }
-                                  className="flex-1"
-                                />
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={testYouTubeAPI}
-                                  disabled={!apiConfig.youtubeApiKey || youtubeApiStatus === 'testing'}
-                                >
-                                  <TestTube className="w-4 h-4 mr-1" />
-                                  {youtubeApiStatus === 'testing' ? '테스트 중...' : '테스트'}
-                                </Button>
-                              </div>
-                              
-                              {/* API 테스트 결과 */}
-                              {youtubeApiStatus !== 'idle' && (
-                                <div className={`p-2 rounded-lg text-sm ${
-                                  youtubeApiStatus === 'success' 
-                                    ? 'bg-green-50 border border-green-200 text-green-800' 
-                                    : youtubeApiStatus === 'error'
-                                    ? 'bg-red-50 border border-red-200 text-red-800'
-                                    : 'bg-blue-50 border border-blue-200 text-blue-800'
-                                }`}>
-                                  <div className="flex items-center space-x-2">
-                                    {youtubeApiStatus === 'success' && <CheckCircle className="w-4 h-4" />}
-                                    {youtubeApiStatus === 'error' && <XCircle className="w-4 h-4" />}
-                                    {youtubeApiStatus === 'testing' && <RefreshCw className="w-4 h-4 animate-spin" />}
-                                    <span>{youtubeApiMessage}</span>
+                            <div className="space-y-3">
+                              {apiConfig.youtubeApiKeys.map((key, index) => {
+                                const isActive = apiConfig.activeYoutubeApiKeyIndex === index;
+                                const isTesting = youtubeApiStatus === 'testing' && lastTestedYoutubeKeyIndex === index;
+                                const showStatus = lastTestedYoutubeKeyIndex === index && youtubeApiStatus !== 'idle';
+                                return (
+                                  <div key={index} className="border border-muted rounded-lg p-3 space-y-2 bg-muted/30">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center space-x-2">
+                                        <Badge variant={isActive ? 'default' : 'outline'}>
+                                          {isActive ? '사용 중' : '대기'}
+                                        </Badge>
+                                        <span className="text-sm font-medium">
+                                          API 키 {index + 1}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <Button
+                                          variant={isActive ? 'secondary' : 'outline'}
+                                          size="sm"
+                                          onClick={() => handleSetActiveYoutubeApiKey(index)}
+                                          disabled={!key.trim() || isActive}
+                                        >
+                                          {isActive ? '현재 사용 중' : '이 키 사용'}
+                                        </Button>
+                                        {apiConfig.youtubeApiKeys.length > 1 && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleRemoveYoutubeApiKey(index)}
+                                            title="API 키 삭제"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex space-x-2">
+                                      <Input
+                                        id={`youtube-api-key-${index}`}
+                                        type="password"
+                                        autoComplete="off"
+                                        placeholder="YouTube Data API 키를 입력하세요"
+                                        value={key}
+                                        onChange={(e) => handleUpdateYoutubeApiKey(index, e.target.value)}
+                                        className="flex-1 font-mono text-sm"
+                                      />
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => testYouTubeAPI(index)}
+                                        disabled={!key.trim() || youtubeApiStatus === 'testing'}
+                                      >
+                                        <TestTube className={`w-4 h-4 mr-1 ${isTesting ? 'animate-spin' : ''}`} />
+                                        {isTesting ? '테스트 중...' : '테스트'}
+                                      </Button>
+                                    </div>
+
+                                    {showStatus && (
+                                      <div
+                                        className={`p-2 rounded-lg text-sm ${
+                                          youtubeApiStatus === 'success'
+                                            ? 'bg-green-50 border border-green-200 text-green-800'
+                                            : youtubeApiStatus === 'error'
+                                            ? 'bg-red-50 border border-red-200 text-red-800'
+                                            : 'bg-blue-50 border border-blue-200 text-blue-800'
+                                        }`}
+                                      >
+                                        <div className="flex items-center space-x-2">
+                                          {youtubeApiStatus === 'success' && <CheckCircle className="w-4 h-4" />}
+                                          {youtubeApiStatus === 'error' && <XCircle className="w-4 h-4" />}
+                                          {youtubeApiStatus === 'testing' && <RefreshCw className="w-4 h-4 animate-spin" />}
+                                          <span>{youtubeApiMessage}</span>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                </div>
+                                );
+                              })}
+
+                              {apiConfig.youtubeApiKeys.length < MAX_YOUTUBE_API_KEYS && (
+                                <Button variant="outline" size="sm" onClick={handleAddYoutubeApiKeyField}>
+                                  <span className="font-medium text-sm">+ API 키 추가</span>
+                                </Button>
                               )}
+
                               <div className="space-y-2">
                                 <p className="text-xs text-muted-foreground">
                                   <ExternalLink className="w-3 h-3 inline mr-1" />
@@ -1579,8 +1831,8 @@ const System = () => {
                               <div className="space-y-1 text-xs text-blue-700">
                                 <div className="flex justify-between">
                                   <span>YouTube API 키:</span>
-                                  <span className={apiConfig.youtubeApiKey ? "text-green-600 font-medium" : "text-red-600"}>
-                                    {apiConfig.youtubeApiKey ? "설정됨" : "미설정"}
+                                  <span className={hasAnyYoutubeApiKey ? "text-green-600 font-medium" : "text-red-600"}>
+                                    {hasAnyYoutubeApiKey ? `설정됨 (${apiConfig.youtubeApiKeys.filter(key => key.trim()).length}개)` : "미설정"}
                                   </span>
                               </div>
                                 <div className="flex justify-between">
