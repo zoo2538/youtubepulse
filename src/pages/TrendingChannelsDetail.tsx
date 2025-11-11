@@ -92,39 +92,38 @@ const TrendingChannelsDetail: React.FC = () => {
     navigate("/");
   }, [logout, navigate]);
 
-  const loadChannelData = useCallback(async () => {
-    setLoading(true);
-    try {
-      let classifiedData = await indexedDBService.loadClassifiedData();
-      console.log(`📊 급등 채널 상세 - IndexedDB에서 ${classifiedData.length}개 로드`);
+  const applyFiltersForData = useCallback(
+    (data: ChannelData[]): ChannelData[] => {
+      let filtered = [...data];
 
-      // 백그라운드 서버 동기화 (UI 블로킹 없음)
-      setTimeout(async () => {
-        try {
-          const serverData = await hybridService.getClassifiedData();
-          if (serverData.length > classifiedData.length) {
-            console.log(
-              `🔄 급등 채널 상세 - 서버 데이터 ${serverData.length}개 > 로컬 ${classifiedData.length}개`
-            );
-            classifiedData = serverData;
-            generateChannelStats(serverData);
-          }
-        } catch (error) {
-          console.warn("⚠️ 급등 채널 상세 - 백그라운드 동기화 실패 (무시)", error);
-        }
-      }, 1000);
+      if (selectedCategory !== "all") {
+        filtered = filtered.filter((channel) => channel.category === selectedCategory);
+      }
 
-      generateChannelStats(classifiedData);
-    } catch (error) {
-      console.error("❌ 급등 채널 데이터 로드 실패:", error);
-      setChannelData([]);
-      setFilteredChannelData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedDate]);
+      if (selectedSubCategory !== "all") {
+        filtered = filtered.filter((channel) => channel.subCategory === selectedSubCategory);
+      }
 
-  const generateChannelStats = (classifiedData: any[]) => {
+      switch (sortOption) {
+        case "changeAmount":
+          filtered.sort((a, b) => b.changeAmount - a.changeAmount);
+          break;
+        case "todayViews":
+          filtered.sort((a, b) => b.todayViews - a.todayViews);
+          break;
+        case "changePercent":
+        default:
+          filtered.sort((a, b) => b.changePercent - a.changePercent);
+          break;
+      }
+
+      return filtered;
+    },
+    [selectedCategory, selectedSubCategory, sortOption]
+  );
+
+  const generateChannelStats = useCallback(
+    (classifiedData: any[]) => {
     if (!classifiedData || classifiedData.length === 0) {
       setChannelData([]);
       setFilteredChannelData([]);
@@ -229,46 +228,46 @@ const TrendingChannelsDetail: React.FC = () => {
     });
 
     setChannelData(channels);
-    setFilteredChannelData(applyFiltersForData(channels, selectedCategory, selectedSubCategory, sortOption));
-  };
+      setFilteredChannelData(applyFiltersForData(channels));
+    },
+    [selectedDate, applyFiltersForData]
+  );
 
-  const applyFiltersForData = (
-    data: ChannelData[],
-    category: string,
-    subCategory: string,
-    sort: string
-  ): ChannelData[] => {
-    let filtered = [...data];
+  const loadChannelData = useCallback(async () => {
+    setLoading(true);
+    try {
+      let classifiedData = await indexedDBService.loadClassifiedData();
+      console.log(`📊 급등 채널 상세 - IndexedDB에서 ${classifiedData.length}개 로드`);
 
-    if (category !== "all") {
-      filtered = filtered.filter((channel) => channel.category === category);
+      // 백그라운드 서버 동기화 (UI 블로킹 없음)
+      setTimeout(async () => {
+        try {
+          const serverData = await hybridService.getClassifiedData();
+          if (serverData.length > classifiedData.length) {
+            console.log(
+              `🔄 급등 채널 상세 - 서버 데이터 ${serverData.length}개 > 로컬 ${classifiedData.length}개`
+            );
+            classifiedData = serverData;
+            generateChannelStats(serverData);
+          }
+        } catch (error) {
+          console.warn("⚠️ 급등 채널 상세 - 백그라운드 동기화 실패 (무시)", error);
+        }
+      }, 1000);
+
+      generateChannelStats(classifiedData);
+    } catch (error) {
+      console.error("❌ 급등 채널 데이터 로드 실패:", error);
+      setChannelData([]);
+      setFilteredChannelData([]);
+    } finally {
+      setLoading(false);
     }
-
-    if (subCategory !== "all") {
-      filtered = filtered.filter((channel) => channel.subCategory === subCategory);
-    }
-
-    switch (sort) {
-      case "changeAmount":
-        filtered.sort((a, b) => b.changeAmount - a.changeAmount);
-        break;
-      case "todayViews":
-        filtered.sort((a, b) => b.todayViews - a.todayViews);
-        break;
-      case "changePercent":
-      default:
-        filtered.sort((a, b) => b.changePercent - a.changePercent);
-        break;
-    }
-
-    return filtered;
-  };
+  }, [generateChannelStats]);
 
   const applyFilters = useCallback(() => {
-    setFilteredChannelData(
-      applyFiltersForData(channelData, selectedCategory, selectedSubCategory, sortOption)
-    );
-  }, [channelData, selectedCategory, selectedSubCategory, sortOption]);
+    setFilteredChannelData(applyFiltersForData(channelData));
+  }, [channelData, applyFiltersForData]);
 
   useEffect(() => {
     applyFilters();

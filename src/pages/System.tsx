@@ -231,7 +231,7 @@ const System = () => {
       localStorage.setItem('customApiUrl', defaultApiUrl);
       console.log('🔧 커스텀 API 기본값 설정 완료 (Railway 서버 문제로 비활성화)');
     }
-  }, []);
+  }, [defaultApiUrl]);
 
   // API 설정 자동 저장
   useEffect(() => {
@@ -266,7 +266,7 @@ const System = () => {
     const timeoutId = setTimeout(saveApiConfig, 500);
     
     return () => clearTimeout(timeoutId);
-  }, [apiConfig, systemConfig]);
+  }, [apiConfig, systemConfig, activeYoutubeApiKey]);
 
   // 마이그레이션 상태 로드
 

@@ -156,7 +156,7 @@ const PerformanceVideosDetail: React.FC = () => {
   const loadPerformanceData = useCallback(async () => {
     setLoading(true);
     try {
-      let classifiedData = await indexedDBService.loadClassifiedData();
+      const classifiedData = await indexedDBService.loadClassifiedData();
       console.log(`📊 평균 대비 고성과 동영상 - IndexedDB에서 ${classifiedData.length}개 로드`);
 
       buildPerformanceData(classifiedData);
