@@ -631,25 +631,188 @@ const System = () => {
   };
 
   const handleStartDataCollection = async () => {
-    // API 키 확인
-    if (!activeYoutubeApiKey) {
-      // API 키가 없으면 다이얼로그 표시
+    const trimmedKeys = apiConfig.youtubeApiKeys.map(key => key.trim());
+    const hasValidKey = trimmedKeys.some(key => key.length > 0);
+
+    if (!hasValidKey) {
       setTempApiKey('');
       setShowApiKeyDialog(true);
       return;
     }
 
-    // API 키가 있으면 바로 수집 시작
+    const activeKeyTrimmed = trimmedKeys[apiConfig.activeYoutubeApiKeyIndex];
+    if (!activeKeyTrimmed) {
+      const fallbackIndex = trimmedKeys.findIndex(key => key.length > 0);
+      if (fallbackIndex >= 0) {
+        setApiConfig(prev => ({
+          ...prev,
+          activeYoutubeApiKeyIndex: fallbackIndex,
+          youtubeApiEnabled: true
+        }));
+      }
+    }
+
     await startDataCollectionProcess();
   };
 
   const startDataCollectionProcess = async () => {
     try {
-      const youtubeApiKey = activeYoutubeApiKey?.trim();
-      if (!youtubeApiKey) {
+      const rawKeys = apiConfig.youtubeApiKeys;
+      const trimmedKeys = rawKeys.map(key => key.trim());
+      const totalKeySlots = trimmedKeys.length;
+
+      if (!trimmedKeys.some(key => key.length > 0)) {
         alert('YouTube API 키가 필요합니다.');
         return;
       }
+
+      let currentKeyIndex = apiConfig.activeYoutubeApiKeyIndex;
+      if (!trimmedKeys[currentKeyIndex]) {
+        const nextValidIndex = trimmedKeys.findIndex(key => key.length > 0);
+        if (nextValidIndex === -1) {
+          alert('사용 가능한 YouTube API 키가 없습니다. 시스템 페이지에서 키를 등록해 주세요.');
+          return;
+        }
+        currentKeyIndex = nextValidIndex;
+        setApiConfig(prev => ({
+          ...prev,
+          activeYoutubeApiKeyIndex: nextValidIndex,
+          youtubeApiEnabled: true
+        }));
+      }
+
+      let currentYoutubeApiKey = trimmedKeys[currentKeyIndex];
+
+      const quotaReasonKeywords = [
+        'quotaexceeded',
+        'dailylimitexceeded',
+        'ratelimitexceeded',
+        'userratelimitexceeded',
+        'keyinvalid',
+        'quota'
+      ];
+
+      const isQuotaExceededError = (status: number, data: any) => {
+        if (status === 403 || status === 429) {
+          const errors = data?.error?.errors;
+          if (Array.isArray(errors)) {
+            if (
+              errors.some((err: any) =>
+                quotaReasonKeywords.some(keyword =>
+                  (err?.reason || '').toString().toLowerCase().includes(keyword.toLowerCase())
+                )
+              )
+            ) {
+              return true;
+            }
+          }
+
+          const message = (data?.error?.message || '').toString().toLowerCase();
+          if (quotaReasonKeywords.some(keyword => message.includes(keyword.toLowerCase()))) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      const trySwitchYoutubeApiKey = (phase: string, detail: string) => {
+        if (totalKeySlots <= 1) {
+          return false;
+        }
+
+        for (let step = 1; step < totalKeySlots; step++) {
+          const nextIndex = (currentKeyIndex + step) % totalKeySlots;
+          const candidate = trimmedKeys[nextIndex];
+          if (candidate) {
+            currentKeyIndex = nextIndex;
+            currentYoutubeApiKey = candidate;
+            setApiConfig(prev => ({
+              ...prev,
+              activeYoutubeApiKeyIndex: nextIndex,
+              youtubeApiEnabled: true
+            }));
+            console.warn(
+              `⚠️ ${phase}: YouTube API 키(${currentKeyIndex + 1}번)로 전환합니다. 사유: ${detail}`
+            );
+            return true;
+          }
+        }
+        return false;
+      };
+
+      const fetchWithYoutubeKey = async (
+        urlBuilder: (apiKey: string) => string,
+        phase: string
+      ): Promise<any> => {
+        let attempts = 0;
+
+        while (attempts < totalKeySlots) {
+          if (!currentYoutubeApiKey) {
+            const switched = trySwitchYoutubeApiKey(phase, '현재 키가 비어 있습니다');
+            if (!switched) {
+              break;
+            }
+            attempts++;
+            continue;
+          }
+
+          const url = urlBuilder(currentYoutubeApiKey);
+
+          try {
+            const response = await fetch(url);
+            const rawText = await response.text();
+            let data: any = null;
+
+            if (rawText) {
+              try {
+                data = JSON.parse(rawText);
+              } catch {
+                data = null;
+              }
+            }
+
+            if (!response.ok || data?.error) {
+              const reasonMessage =
+                data?.error?.message ||
+                data?.error?.errors?.[0]?.message ||
+                `${response.status} ${response.statusText}` ||
+                '알 수 없는 오류';
+
+              if (isQuotaExceededError(response.status, data)) {
+                const switched = trySwitchYoutubeApiKey(phase, reasonMessage);
+                if (!switched) {
+                  throw new Error(
+                    `YouTube API 키 할당량이 모두 소진되었습니다. (${reasonMessage})`
+                  );
+                }
+                attempts++;
+                continue;
+              }
+
+              throw new Error(`${phase} 요청 실패: ${reasonMessage}`);
+            }
+
+            return data ?? {};
+          } catch (error) {
+            if (error instanceof Error && error.message.includes('할당량이 모두 소진')) {
+              throw error;
+            }
+
+            const switched = trySwitchYoutubeApiKey(
+              phase,
+              error instanceof Error ? error.message : '네트워크 오류'
+            );
+            if (!switched) {
+              throw error instanceof Error
+                ? error
+                : new Error(`${phase} 요청 중 오류가 발생했습니다.`);
+            }
+            attempts++;
+          }
+        }
+
+        throw new Error('사용 가능한 YouTube API 키가 없습니다. 새로운 키를 등록해 주세요.');
+      };
 
       // 자동 수집 중인지 확인
       if (window.autoCollectionInProgress) {
@@ -679,28 +842,35 @@ const System = () => {
         // 상위 200개 수집 (50개씩 4페이지) - YouTube API 실제 제공량
         let nextPageToken = '';
         for (let page = 0; page < 4; page++) {
-          const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${youtubeApiKey}`;
-          const trendingResponse = await fetch(trendingUrl);
-          
-          if (trendingResponse.ok) {
-            const trendingData = await trendingResponse.json();
-            requestCount++;
-            
-            if (trendingData.items) {
-              trendingVideos = [...trendingVideos, ...trendingData.items];
-              console.log(`✅ 트렌드 영상 ${(page + 1) * 50}개 수집 중... (현재: ${trendingVideos.length}개)`);
-              
-              nextPageToken = trendingData.nextPageToken;
-              console.log(`📄 페이지 ${page + 1}: nextPageToken = ${nextPageToken ? '있음' : '없음 (더 이상 페이지 없음)'}`);
-              if (!nextPageToken) break; // 더 이상 페이지 없음
-            }
+          const trendingData = await fetchWithYoutubeKey(
+            apiKey =>
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${
+                nextPageToken ? `&pageToken=${nextPageToken}` : ''
+              }&key=${apiKey}`,
+            `트렌드 영상 수집 (페이지 ${page + 1})`
+          );
+
+          requestCount++;
+
+          if (trendingData?.items) {
+            trendingVideos = [...trendingVideos, ...trendingData.items];
+            console.log(
+              `✅ 트렌드 영상 ${(page + 1) * 50}개 수집 중... (현재: ${trendingVideos.length}개)`
+            );
+
+            nextPageToken = trendingData.nextPageToken;
+            console.log(
+              `📄 페이지 ${page + 1}: nextPageToken = ${
+                nextPageToken ? '있음' : '없음 (더 이상 페이지 없음)'
+              }`
+            );
+            if (!nextPageToken) break;
           } else {
             console.warn('⚠️ 트렌드 영상 수집 실패, 키워드 수집만 진행');
             break;
           }
-          
-          // API 요청 간 지연
-          if (page < 4) await new Promise(resolve => setTimeout(resolve, 500));
+
+          if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
         }
         
         console.log(`✅ 트렌드 영상 총 ${trendingVideos.length}개 수집 완료`);
@@ -739,50 +909,31 @@ const System = () => {
           console.log(`키워드 "${keyword}" 수집 시작...`);
           
           // 키워드로 검색 (조회수 순 상위 50개)
-          const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${youtubeApiKey}`;
-        
-        const searchResponse = await fetch(searchUrl);
-        
-        if (!searchResponse.ok) {
-          console.error(`키워드 "${keyword}" 검색 오류:`, searchResponse.status);
-          continue;
-        }
-        
-        const searchData = await searchResponse.json();
-        requestCount++;
-        
-        if (searchData.error) {
-          console.error(`키워드 "${keyword}" API 오류:`, searchData.error);
-          continue;
-        }
-        
-        if (!searchData.items || searchData.items.length === 0) {
-          console.log(`키워드 "${keyword}" 검색 결과 없음`);
-          continue;
-        }
-        
-        // 비디오 ID 추출
-        const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
-        
-        // 비디오 상세 정보 조회
-        const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${youtubeApiKey}`;
-        
-        const videosResponse = await fetch(videosUrl);
-        
-        if (!videosResponse.ok) {
-          console.error(`키워드 "${keyword}" 비디오 정보 오류:`, videosResponse.status);
-          continue;
-        }
-        
-        const videosData = await videosResponse.json();
-        requestCount++;
-          
-          if (videosData.error) {
-            console.error(`키워드 "${keyword}" 비디오 API 오류:`, videosData.error);
+          const searchData = await fetchWithYoutubeKey(
+            apiKey =>
+              `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(
+                keyword
+              )}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`,
+            `키워드 "${keyword}" 검색`
+          );
+
+          requestCount++;
+
+          if (!searchData.items || searchData.items.length === 0) {
+            console.log(`키워드 "${keyword}" 검색 결과 없음`);
             continue;
           }
-          
-          // 조회수 필터링 제거 - 모든 결과 추가 (키워드 정보 포함)
+
+          const videoIds = searchData.items.map((item: any) => item.id.videoId).join(',');
+
+          const videosData = await fetchWithYoutubeKey(
+            apiKey =>
+              `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`,
+            `키워드 "${keyword}" 영상 상세`
+          );
+
+          requestCount++;
+
           const videos = videosData.items || [];
           const videosWithKeyword = videos.map(item => ({
             ...item,
@@ -843,30 +994,17 @@ const System = () => {
       // 채널 ID를 50개씩 나누어서 요청 (YouTube API 제한)
       for (let i = 0; i < channelIds.length; i += 50) {
         const batchChannelIds = channelIds.slice(i, i + 50);
-        const channelsResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchChannelIds.join(',')}&key=${youtubeApiKey}`
+        const channelsData = await fetchWithYoutubeKey(
+          apiKey =>
+            `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${batchChannelIds.join(
+              ','
+            )}&key=${apiKey}`,
+          '채널 정보 수집'
         );
 
-        if (!channelsResponse.ok) {
-          if (channelsResponse.status === 403) {
-            console.error('❌ YouTube API 할당량 초과 또는 권한 오류 (403)');
-            console.error('해결 방법:');
-            console.error('1. YouTube API 할당량 확인');
-            console.error('2. API 키 권한 확인');
-            console.error('3. 잠시 후 다시 시도');
-            throw new Error('YouTube API 할당량 초과 또는 권한 오류 (403). 잠시 후 다시 시도해주세요.');
-          }
-          throw new Error(`채널 정보 수집 오류: ${channelsResponse.status}`);
-        }
-
-        const channelsData = await channelsResponse.json();
-        
-        if (channelsData.error) {
-          throw new Error(channelsData.error.message || '채널 정보 수집 오류');
-        }
+        requestCount++;
         
         allChannels = [...allChannels, ...channelsData.items];
-        requestCount++; // 채널 정보 요청 카운트
         
         // 진행 상황 표시
         console.log(`채널 정보 수집: ${allChannels.length}/${channelIds.length} 채널 완료`);
