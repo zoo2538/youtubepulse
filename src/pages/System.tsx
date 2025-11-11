@@ -1553,14 +1553,19 @@ const System = () => {
                                 const showStatus = lastTestedYoutubeKeyIndex === index && youtubeApiStatus !== 'idle';
                                 return (
                                   <div key={index} className="border border-muted rounded-lg p-3 space-y-2 bg-muted/30">
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center space-x-2">
-                                        <Badge variant={isActive ? 'default' : 'outline'}>
-                                          {isActive ? '사용 중' : '대기'}
-                                        </Badge>
-                                        <span className="text-sm font-medium">
-                                          API 키 {index + 1}
-                                        </span>
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center space-x-2">
+                                          <Badge variant={isActive ? 'default' : 'outline'}>
+                                            {isActive ? '사용 중' : '대기'}
+                                          </Badge>
+                                          <span className="text-sm font-semibold text-foreground">
+                                            API 키 {index + 1}
+                                          </span>
+                                        </div>
+                                        <code className="block text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded break-all">
+                                          {key || '(미입력)'}
+                                        </code>
                                       </div>
                                       <div className="flex items-center space-x-2">
                                         <Button
@@ -1587,7 +1592,7 @@ const System = () => {
                                     <div className="flex space-x-2">
                                       <Input
                                         id={`youtube-api-key-${index}`}
-                                        type="password"
+                                        type="text"
                                         autoComplete="off"
                                         placeholder="YouTube Data API 키를 입력하세요"
                                         value={key}
