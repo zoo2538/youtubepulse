@@ -2687,155 +2687,133 @@ const DataClassification = () => {
             </div>
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-1">수동수집</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-                {latestDates.map(date => {
-                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-                  const hasData = stats.total > 0;
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            {latestDates.map(date => {
+              const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+              const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
+              const autoProgress =
+                autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
+              const totalStats = {
+                total: manualStats.total + autoStats.total,
+                classified: manualStats.classified + autoStats.classified,
+                progress:
+                  manualStats.total + autoStats.total > 0
+                    ? Math.round(
+                        ((manualStats.classified + autoStats.classified) /
+                          (manualStats.total + autoStats.total)) *
+                          100
+                      )
+                    : 0,
+              };
 
-                  return (
-                    <div
-                      key={`manual-${date}`}
-                      className="border rounded-lg p-3 space-y-2 hover:border-primary transition cursor-pointer group"
-                      onClick={() => handleDateClick(date, 'manual')}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-primary">
-                          {formatDateLabel(date)}
-                        </span>
-                        <Badge variant={hasData ? 'secondary' : 'outline'}>
-                          {hasData ? `${stats.progress}%` : '데이터 없음'}
-                        </Badge>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+              const sections: Array<{
+                key: 'manual' | 'auto' | 'total';
+                label: string;
+                stats: { total: number; classified: number; progress?: number };
+                progress: number;
+                accent: string;
+                textColor: string;
+                buttonLabel: string;
+              }> = [
+                {
+                  key: 'manual',
+                  label: '수동수집',
+                  stats: manualStats,
+                  progress: manualStats.progress ?? 0,
+                  accent: 'bg-primary/10',
+                  textColor: 'text-primary',
+                  buttonLabel: '수동 분류',
+                },
+                {
+                  key: 'auto',
+                  label: '자동수집',
+                  stats: autoStats,
+                  progress: autoProgress,
+                  accent: 'bg-green-100/80',
+                  textColor: 'text-green-600',
+                  buttonLabel: '자동 통계',
+                },
+                {
+                  key: 'total',
+                  label: '합계',
+                  stats: totalStats,
+                  progress: totalStats.progress,
+                  accent: 'bg-purple-100/80',
+                  textColor: 'text-purple-600',
+                  buttonLabel: '전체 보기',
+                },
+              ];
+
+              return (
+                <div key={date} className="border rounded-xl p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground">한국시간</p>
+                      <h4 className="text-lg font-semibold text-foreground">
+                        {formatDateLabel(date)}
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">
+                        총 {totalStats.total.toLocaleString()}개 중{' '}
+                        {totalStats.classified.toLocaleString()}개 완료
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownloadBackup(date)}
+                        title={`${date} 데이터 백업 다운로드`}
+                      >
+                        <FileDown className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {sections.map(section => {
+                      const hasData = section.stats.total > 0;
+                      return (
                         <div
-                          className={`h-2 rounded-full transition-all ${
-                            stats.progress >= 100
-                              ? 'bg-green-500'
-                              : stats.progress >= 50
-                              ? 'bg-yellow-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${stats.progress}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {stats.classified}/{stats.total} 완료
-                      </div>
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-xs text-primary">상세 보기</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={event => {
-                            event.stopPropagation();
-                            handleDownloadBackup(date);
-                          }}
-                          title={`${date} 데이터 백업 다운로드`}
+                          key={`${date}-${section.key}`}
+                          className={`rounded-lg border p-3 space-y-3 hover:border-muted-foreground/50 transition`}
                         >
-                          <FileDown className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-1">자동수집</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-                {latestDates.map(date => {
-                  const stats = autoCollectedStats[date] || { total: 0, classified: 0 };
-                  const total = stats.total;
-                  const classified = stats.classified;
-                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
-                  const hasData = total > 0;
-
-                  return (
-                    <div
-                      key={`auto-${date}`}
-                      className="border rounded-lg p-3 space-y-2 hover:border-green-400 transition cursor-pointer"
-                      onClick={() => handleDateClick(date, 'auto')}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-green-600">
-                          {formatDateLabel(date)}
-                        </span>
-                        <Badge variant={hasData ? 'secondary' : 'outline'}>
-                          {hasData ? `${progress}%` : '데이터 없음'}
-                        </Badge>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-2 rounded-full transition-all ${
-                            progress >= 100
-                              ? 'bg-green-500'
-                              : progress >= 50
-                              ? 'bg-yellow-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {classified}/{total} 진행
-                      </div>
-                      <div className="text-xs text-green-600 pt-1">상세 보기</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-1">합계</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-                {latestDates.map(date => {
-                  const manual = dateStats[date] || { total: 0, classified: 0 };
-                  const auto = autoCollectedStats[date] || { total: 0, classified: 0 };
-                  const total = manual.total + auto.total;
-                  const classified = manual.classified + auto.classified;
-                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
-                  const hasData = total > 0;
-
-                  return (
-                    <div
-                      key={`total-${date}`}
-                      className="border rounded-lg p-3 space-y-2 hover:border-purple-400 transition cursor-pointer"
-                      onClick={() => handleDateClick(date, 'total')}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-purple-600">
-                          {formatDateLabel(date)}
-                        </span>
-                        <Badge variant={hasData ? 'secondary' : 'outline'}>
-                          {hasData ? `${progress}%` : '데이터 없음'}
-                        </Badge>
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                        <div
-                          className={`h-2 rounded-full transition-all ${
-                            progress >= 100
-                              ? 'bg-green-500'
-                              : progress >= 50
-                              ? 'bg-yellow-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {classified}/{total} 진행
-                      </div>
-                      <div className="text-xs text-purple-600 pt-1">상세 보기</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+                          <div className="flex items-center justify-between">
+                            <span className={`text-sm font-semibold ${section.textColor}`}>
+                              {section.label}
+                            </span>
+                            <Badge variant={hasData ? 'secondary' : 'outline'}>
+                              {hasData ? `${section.progress}%` : '없음'}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            <div className={`w-full h-2 rounded-full ${section.accent}`}>
+                              <div
+                                className="h-2 bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
+                                style={{ width: `${Math.min(section.progress, 100)}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {section.stats.classified.toLocaleString()} /{' '}
+                              {section.stats.total.toLocaleString()} 완료
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                            disabled={!hasData}
+                            onClick={() => handleDateClick(date, section.key === 'total' ? 'total' : section.key)}
+                          >
+                            <BarChart3 className="w-4 h-4 mr-1" />
+                            {section.buttonLabel}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
 
