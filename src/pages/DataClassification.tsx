@@ -41,7 +41,8 @@ import {
   ChevronRight,
   Archive,
   FileDown,
-  BarChart3
+  BarChart3,
+  Save
   } from "lucide-react";
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
@@ -2844,6 +2845,14 @@ const DataClassification = () => {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={handleDownloadAllBackup}
+              >
+                <Save className="w-4 h-4 mr-2" />
+                데이터 저장하기
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={async () => {
                   try {
                     await refreshData();
@@ -2903,19 +2912,6 @@ const DataClassification = () => {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {fsAccessSupported ? (
-                backupFolderStatus === 'ready' ? (
-                  <span>📁 백업 폴더: {backupFolderName || BACKUP_SUBFOLDER_NAME}</span>
-                ) : backupFolderStatus === 'denied' ? (
-                  <span>📁 백업 폴더 권한이 필요합니다. 다시 설정해주세요.</span>
-                ) : (
-                  <span>📁 백업 폴더가 설정되지 않았습니다.</span>
-                )
-              ) : (
-                <span>📁 현재 브라우저는 폴더 자동 저장을 지원하지 않습니다.</span>
-              )}
             </div>
           </div>
 
