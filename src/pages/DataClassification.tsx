@@ -2687,103 +2687,89 @@ const DataClassification = () => {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <div className="hidden md:grid grid-cols-[1.1fr,1fr,1fr,1fr] gap-2 text-xs font-medium text-muted-foreground px-2">
-              <span>날짜</span>
-              <span>수동수집</span>
-              <span>자동수집</span>
-              <span>합계</span>
-            </div>
-            <div className="space-y-2">
-              {latestDates.map(date => {
-                const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-                const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
-                const autoProgress =
-                  autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
-                const totalStats = {
-                  total: manualStats.total + autoStats.total,
-                  classified: manualStats.classified + autoStats.classified,
-                  progress:
-                    manualStats.total + autoStats.total > 0
-                      ? Math.round(
-                          ((manualStats.classified + autoStats.classified) /
-                            (manualStats.total + autoStats.total)) *
-                            100
-                        )
-                      : 0,
-                };
+          <div className="space-y-4">
+            {latestDates.map(date => {
+              const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+              const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
+              const autoProgress =
+                autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
+              const totalStats = {
+                total: manualStats.total + autoStats.total,
+                classified: manualStats.classified + autoStats.classified,
+                progress:
+                  manualStats.total + autoStats.total > 0
+                    ? Math.round(
+                        ((manualStats.classified + autoStats.classified) /
+                          (manualStats.total + autoStats.total)) *
+                          100
+                      )
+                    : 0,
+              };
 
-                const cell = (
-                  label: string,
-                  stats: { total: number; classified: number; progress?: number },
-                  progressValue: number,
-                  accent: string,
-                  textColor: string,
-                  onClick: () => void,
-                  buttonLabel: string,
-                  disabled: boolean
-                ) => (
-                  <div className="border rounded-lg p-3 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm font-semibold ${textColor}`}>{label}</span>
-                      <Badge variant={disabled ? 'outline' : 'secondary'}>
-                        {disabled ? '없음' : `${progressValue}%`}
-                      </Badge>
+              const section = (
+                label: string,
+                stats: { total: number; classified: number; progress?: number },
+                progressValue: number,
+                accent: string,
+                textColor: string,
+                onClick: () => void,
+                buttonLabel: string,
+                disabled: boolean
+              ) => (
+                <div className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-sm font-semibold ${textColor}`}>{label}</span>
+                    <Badge variant={disabled ? 'outline' : 'secondary'}>
+                      {disabled ? '없음' : `${progressValue}%`}
+                    </Badge>
+                  </div>
+                  <div className={`w-full h-2 rounded-full ${accent}`}>
+                    <div
+                      className="h-2 bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
+                      style={{ width: `${Math.min(progressValue, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.classified.toLocaleString()} / {stats.total.toLocaleString()} 완료
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={disabled}
+                    onClick={onClick}
+                  >
+                    <BarChart3 className="w-4 h-4 mr-1" />
+                    {buttonLabel}
+                  </Button>
+                </div>
+              );
+
+              return (
+                <div key={date} className="border rounded-xl p-4 space-y-4 bg-card">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">한국시간</p>
+                      <h4 className="text-lg font-semibold text-foreground">
+                        {formatDateLabel(date)}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        총 {totalStats.total.toLocaleString()}개 중{' '}
+                        {totalStats.classified.toLocaleString()}개 완료
+                      </p>
                     </div>
-                    <div className={`w-full h-2 rounded-full ${accent}`}>
-                      <div
-                        className="h-2 bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
-                        style={{ width: `${Math.min(progressValue, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {stats.classified.toLocaleString()} / {stats.total.toLocaleString()} 완료
-                    </p>
                     <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      disabled={disabled}
-                      onClick={onClick}
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDownloadBackup(date)}
+                      title={`${date} 데이터 백업 다운로드`}
                     >
-                      <BarChart3 className="w-4 h-4 mr-1" />
-                      {buttonLabel}
+                      <FileDown className="w-4 h-4" />
                     </Button>
                   </div>
-                );
 
-                return (
-                  <div
-                    key={date}
-                    className="grid grid-cols-1 md:grid-cols-[1.1fr,1fr,1fr,1fr] gap-2 border rounded-xl p-3 bg-card"
-                  >
-                    <div className="flex md:block justify-between items-center md:items-start space-y-2 md:space-y-3">
-                      <div>
-                        <p className="text-xs text-muted-foreground">한국시간</p>
-                        <h4 className="text-sm md:text-base font-semibold text-foreground">
-                          {formatDateLabel(date)}
-                        </h4>
-                        <p className="text-[11px] text-muted-foreground md:hidden">
-                          총 {totalStats.total.toLocaleString()}개 중{' '}
-                          {totalStats.classified.toLocaleString()}개 완료
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="hidden md:inline-flex">
-                          총 {totalStats.total.toLocaleString()}개 중{' '}
-                          {totalStats.classified.toLocaleString()}개 완료
-                        </Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDownloadBackup(date)}
-                          title={`${date} 데이터 백업 다운로드`}
-                        >
-                          <FileDown className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {cell(
+                  <div className="space-y-3">
+                    {section(
                       '수동수집',
                       manualStats,
                       manualStats.progress ?? 0,
@@ -2793,7 +2779,7 @@ const DataClassification = () => {
                       '수동 분류',
                       manualStats.total === 0
                     )}
-                    {cell(
+                    {section(
                       '자동수집',
                       autoStats,
                       autoProgress,
@@ -2803,7 +2789,7 @@ const DataClassification = () => {
                       '자동 통계',
                       autoStats.total === 0
                     )}
-                    {cell(
+                    {section(
                       '합계',
                       totalStats,
                       totalStats.progress ?? 0,
@@ -2814,9 +2800,9 @@ const DataClassification = () => {
                       totalStats.total === 0
                     )}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </Card>
 
