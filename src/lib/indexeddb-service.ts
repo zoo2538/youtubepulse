@@ -1754,6 +1754,10 @@ class IndexedDBService {
       }
     });
   }
+
+  getDBInstance(): IDBDatabase | null {
+    return this.db;
+  }
 }
 
 // 싱글톤 인스턴스 생성

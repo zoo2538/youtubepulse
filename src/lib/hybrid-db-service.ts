@@ -3,6 +3,8 @@
  * IndexedDB 연결 문제 해결을 위한 안전한 데이터 저장/로드
  */
 
+import { indexedDBService } from './indexeddb-service';
+
 export class HybridDBService {
   private dbName: string;
   private storeName: string;
@@ -28,11 +30,19 @@ export class HybridDBService {
       return;
     }
 
-    // indexedDBService가 이미 초기화했다면 그 DB 인스턴스를 재사용
-    // 단, indexedDBService의 db는 private이므로 직접 접근할 수 없다.
-    // 따라서 여기서는 새로운 요청으로 DB를 여는데, 이는 indexedDBService와 동일한 버전으로 열린다.
-    
     console.log('🔄 HybridDBService IndexedDB 연결 확인...');
+
+    try {
+      await indexedDBService.init();
+      const existingDb = indexedDBService.getDBInstance();
+      if (existingDb && existingDb.readyState === 'open') {
+        this.db = existingDb;
+        console.log('✅ HybridDBService IndexedDB 기존 인스턴스 재사용');
+        return;
+      }
+    } catch (error) {
+      console.warn('⚠️ HybridDBService에서 indexedDBService.init() 실행 중 경고:', error);
+    }
     
     return new Promise((resolve, reject) => {
       // 타임아웃 설정 (10초)
