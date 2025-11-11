@@ -125,6 +125,8 @@ const DateClassificationDetail = () => {
       
       try {
         setIsLoading(true);
+        let allData: UnclassifiedData[] = [];
+        let dataSource: 'server-auto' | 'server-manual' | 'server-total' | 'indexeddb' | 'none' = 'none';
         console.log('📅 날짜별 데이터 로드 시작:', selectedDate);
         
         // API_BASE_URL이 설정된 경우 서버 우선 로드 수행
