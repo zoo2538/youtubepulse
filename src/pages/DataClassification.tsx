@@ -2844,6 +2844,22 @@ const DataClassification = () => {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={async () => {
+                  try {
+                    await loadData();
+                    showToast('데이터를 최신 상태로 불러왔습니다.', 'success');
+                  } catch (error) {
+                    console.error('데이터 불러오기 실패:', error);
+                    showToast('데이터 불러오기에 실패했습니다.', 'error');
+                  }
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                데이터 불러오기
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleRemoveDuplicatesByDate}
               >
                 <Trash2 className="w-4 h-4 mr-2" />
@@ -2879,11 +2895,11 @@ const DataClassification = () => {
                   <DropdownMenuSeparator />
                   {rangeEnd && (
                     <DropdownMenuItem onClick={() => handleDownloadBackup(rangeEnd)}>
-                      오늘 데이터 백업
+                      오늘 데이터 저장하기
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={handleDownloadAllBackup}>
-                    전체 백업 다운로드
+                    데이터 저장하기
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
