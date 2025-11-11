@@ -2694,7 +2694,7 @@ const DataClassification = () => {
   };
 
   if (isLoading) {
-    return (
+  return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-3">
           <RefreshCw className="w-8 h-8 animate-spin mx-auto text-primary" />
@@ -2739,7 +2739,7 @@ const DataClassification = () => {
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-          <div>
+    <div>
             <h2 className="text-3xl font-bold text-foreground">{DATE_RANGE_DAYS}일 데이터 관리</h2>
             <p className="text-sm text-muted-foreground mt-2">
               최근 {DATE_RANGE_DAYS}일 데이터를 관리하고, 아래 표에는 최신 {weekDates.length}일을 요약해 제공합니다.
@@ -2846,7 +2846,7 @@ const DataClassification = () => {
                 size="sm"
                 onClick={async () => {
                   try {
-                    await loadData();
+                    await refreshData();
                     showToast('데이터를 최신 상태로 불러왔습니다.', 'success');
                   } catch (error) {
                     console.error('데이터 불러오기 실패:', error);
