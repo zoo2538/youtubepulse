@@ -2687,133 +2687,136 @@ const DataClassification = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-            {latestDates.map(date => {
-              const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
-              const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
-              const autoProgress =
-                autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
-              const totalStats = {
-                total: manualStats.total + autoStats.total,
-                classified: manualStats.classified + autoStats.classified,
-                progress:
-                  manualStats.total + autoStats.total > 0
-                    ? Math.round(
-                        ((manualStats.classified + autoStats.classified) /
-                          (manualStats.total + autoStats.total)) *
-                          100
-                      )
-                    : 0,
-              };
+          <div className="space-y-2">
+            <div className="hidden md:grid grid-cols-[1.1fr,1fr,1fr,1fr] gap-2 text-xs font-medium text-muted-foreground px-2">
+              <span>날짜</span>
+              <span>수동수집</span>
+              <span>자동수집</span>
+              <span>합계</span>
+            </div>
+            <div className="space-y-2">
+              {latestDates.map(date => {
+                const manualStats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                const autoStats = autoCollectedStats[date] || { total: 0, classified: 0, progress: 0 };
+                const autoProgress =
+                  autoStats.total > 0 ? Math.round((autoStats.classified / autoStats.total) * 100) : 0;
+                const totalStats = {
+                  total: manualStats.total + autoStats.total,
+                  classified: manualStats.classified + autoStats.classified,
+                  progress:
+                    manualStats.total + autoStats.total > 0
+                      ? Math.round(
+                          ((manualStats.classified + autoStats.classified) /
+                            (manualStats.total + autoStats.total)) *
+                            100
+                        )
+                      : 0,
+                };
 
-              const sections: Array<{
-                key: 'manual' | 'auto' | 'total';
-                label: string;
-                stats: { total: number; classified: number; progress?: number };
-                progress: number;
-                accent: string;
-                textColor: string;
-                buttonLabel: string;
-              }> = [
-                {
-                  key: 'manual',
-                  label: '수동수집',
-                  stats: manualStats,
-                  progress: manualStats.progress ?? 0,
-                  accent: 'bg-primary/10',
-                  textColor: 'text-primary',
-                  buttonLabel: '수동 분류',
-                },
-                {
-                  key: 'auto',
-                  label: '자동수집',
-                  stats: autoStats,
-                  progress: autoProgress,
-                  accent: 'bg-green-100/80',
-                  textColor: 'text-green-600',
-                  buttonLabel: '자동 통계',
-                },
-                {
-                  key: 'total',
-                  label: '합계',
-                  stats: totalStats,
-                  progress: totalStats.progress,
-                  accent: 'bg-purple-100/80',
-                  textColor: 'text-purple-600',
-                  buttonLabel: '전체 보기',
-                },
-              ];
-
-              return (
-                <div key={date} className="border rounded-xl p-4 space-y-4 bg-card">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">한국시간</p>
-                      <h4 className="text-lg font-semibold text-foreground">
-                        {formatDateLabel(date)}
-                      </h4>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">
-                        총 {totalStats.total.toLocaleString()}개 중{' '}
-                        {totalStats.classified.toLocaleString()}개 완료
+                const cell = (
+                  label: string,
+                  stats: { total: number; classified: number; progress?: number },
+                  progressValue: number,
+                  accent: string,
+                  textColor: string,
+                  onClick: () => void,
+                  buttonLabel: string,
+                  disabled: boolean
+                ) => (
+                  <div className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-semibold ${textColor}`}>{label}</span>
+                      <Badge variant={disabled ? 'outline' : 'secondary'}>
+                        {disabled ? '없음' : `${progressValue}%`}
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDownloadBackup(date)}
-                        title={`${date} 데이터 백업 다운로드`}
-                      >
-                        <FileDown className="w-4 h-4" />
-                      </Button>
                     </div>
+                    <div className={`w-full h-2 rounded-full ${accent}`}>
+                      <div
+                        className="h-2 bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
+                        style={{ width: `${Math.min(progressValue, 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {stats.classified.toLocaleString()} / {stats.total.toLocaleString()} 완료
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      disabled={disabled}
+                      onClick={onClick}
+                    >
+                      <BarChart3 className="w-4 h-4 mr-1" />
+                      {buttonLabel}
+                    </Button>
                   </div>
+                );
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {sections.map(section => {
-                      const hasData = section.stats.total > 0;
-                      return (
-                        <div
-                          key={`${date}-${section.key}`}
-                          className={`rounded-lg border p-3 space-y-3 hover:border-muted-foreground/50 transition`}
+                return (
+                  <div
+                    key={date}
+                    className="grid grid-cols-1 md:grid-cols-[1.1fr,1fr,1fr,1fr] gap-2 border rounded-xl p-3 bg-card"
+                  >
+                    <div className="flex md:block justify-between items-center md:items-start space-y-2 md:space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">한국시간</p>
+                        <h4 className="text-sm md:text-base font-semibold text-foreground">
+                          {formatDateLabel(date)}
+                        </h4>
+                        <p className="text-[11px] text-muted-foreground md:hidden">
+                          총 {totalStats.total.toLocaleString()}개 중{' '}
+                          {totalStats.classified.toLocaleString()}개 완료
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="hidden md:inline-flex">
+                          총 {totalStats.total.toLocaleString()}개 중{' '}
+                          {totalStats.classified.toLocaleString()}개 완료
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDownloadBackup(date)}
+                          title={`${date} 데이터 백업 다운로드`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-sm font-semibold ${section.textColor}`}>
-                              {section.label}
-                            </span>
-                            <Badge variant={hasData ? 'secondary' : 'outline'}>
-                              {hasData ? `${section.progress}%` : '없음'}
-                            </Badge>
-                          </div>
-                          <div className="space-y-2">
-                            <div className={`w-full h-2 rounded-full ${section.accent}`}>
-                              <div
-                                className="h-2 bg-gradient-to-r from-primary to-primary/70 rounded-full transition-all"
-                                style={{ width: `${Math.min(section.progress, 100)}%` }}
-                              />
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {section.stats.classified.toLocaleString()} /{' '}
-                              {section.stats.total.toLocaleString()} 완료
-                            </p>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                            disabled={!hasData}
-                            onClick={() => handleDateClick(date, section.key === 'total' ? 'total' : section.key)}
-                          >
-                            <BarChart3 className="w-4 h-4 mr-1" />
-                            {section.buttonLabel}
-                          </Button>
-                        </div>
-                      );
-                    })}
+                          <FileDown className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {cell(
+                      '수동수집',
+                      manualStats,
+                      manualStats.progress ?? 0,
+                      'bg-primary/10',
+                      'text-primary',
+                      () => handleDateClick(date, 'manual'),
+                      '수동 분류',
+                      manualStats.total === 0
+                    )}
+                    {cell(
+                      '자동수집',
+                      autoStats,
+                      autoProgress,
+                      'bg-green-100/80',
+                      'text-green-600',
+                      () => handleDateClick(date, 'auto'),
+                      '자동 통계',
+                      autoStats.total === 0
+                    )}
+                    {cell(
+                      '합계',
+                      totalStats,
+                      totalStats.progress ?? 0,
+                      'bg-purple-100/80',
+                      'text-purple-600',
+                      () => handleDateClick(date, 'total'),
+                      '전체 보기',
+                      totalStats.total === 0
+                    )}
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </Card>
 
