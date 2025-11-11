@@ -118,17 +118,22 @@ const System = () => {
     // YouTube API 키가 있으면 자동으로 활성화
     const youtubeApiEnabled = savedApiKeys.some(key => key) ? true : savedYoutubeApiEnabled;
     
+    const primaryApiKey = savedApiKeys.find(key => key)?.substring(0, 10) || null;
     console.log('🔧 설정 로드:', {
-      youtubeApiKey: savedApiKey ? '설정됨' : '미설정',
+      youtubeApiKeys: savedApiKeys.map((key, index) => ({
+        index,
+        status: key ? '설정됨' : '미설정'
+      })),
+      primaryYoutubeApiKey: primaryApiKey ? `${primaryApiKey}...` : '미설정',
       youtubeApiEnabled: youtubeApiEnabled,
       customApiUrl: savedCustomApiUrl,
       customApiEnabled: defaultCustomApiEnabled,
       customApiKey: savedCustomApiKey ? '설정됨' : '미설정'
     });
-    
-    // 디버깅: localStorage 값 직접 확인
+
     console.log('🔍 localStorage 직접 확인:', {
-      youtubeApiKey: localStorage.getItem('youtubeApiKey'),
+      youtubeApiKeys: localStorage.getItem('youtubeApiKeys'),
+      legacyYoutubeApiKey: localStorage.getItem('youtubeApiKey'),
       youtubeApiEnabled: localStorage.getItem('youtubeApiEnabled'),
       customApiKey: localStorage.getItem('customApiKey'),
       customApiUrl: localStorage.getItem('customApiUrl'),
