@@ -2446,9 +2446,433 @@ const DataClassification = () => {
     }
   };
 
+  const latestDates = React.useMemo(() => availableDates.slice(0, DATE_RANGE_DAYS), [availableDates]);
+
+  const manualSummary = latestDates.reduce(
+    (acc, date) => {
+      const stats = dateStats[date];
+      return {
+        total: acc.total + (stats?.total ?? 0),
+        classified: acc.classified + (stats?.classified ?? 0),
+      };
+    },
+    { total: 0, classified: 0 }
+  );
+
+  const autoSummary = latestDates.reduce(
+    (acc, date) => {
+      const stats = autoCollectedStats[date];
+      return {
+        total: acc.total + (stats?.total ?? 0),
+        classified: acc.classified + (stats?.classified ?? 0),
+      };
+    },
+    { total: 0, classified: 0 }
+  );
+
+  const totalVideos = manualSummary.total + autoSummary.total;
+  const classifiedVideos = manualSummary.classified + autoSummary.classified;
+  const unclassifiedVideos = Math.max(totalVideos - classifiedVideos, 0);
+  const classificationProgress = totalVideos > 0 ? Math.round((classifiedVideos / totalVideos) * 100) : 0;
+  const manualProgress = manualSummary.total > 0 ? Math.round((manualSummary.classified / manualSummary.total) * 100) : 0;
+  const autoProgress = autoSummary.total > 0 ? Math.round((autoSummary.classified / autoSummary.total) * 100) : 0;
+
+  const rangeStart = latestDates.length > 0 ? latestDates[latestDates.length - 1] : undefined;
+  const rangeEnd = latestDates.length > 0 ? latestDates[0] : undefined;
+
+  const formatDateLabel = (date: string) => {
+    if (!date) return '날짜 없음';
+    try {
+      const koreaDate = new Date(`${date}T00:00:00+09:00`);
+      return koreaDate.toLocaleDateString('ko-KR', {
+        month: 'short',
+        day: 'numeric',
+        weekday: 'short',
+      });
+    } catch {
+      return date;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <RefreshCw className="w-8 h-8 animate-spin mx-auto text-primary" />
+          <p className="text-sm text-muted-foreground">데이터를 로드하는 중입니다...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div>
-      {/* 기존 코드 유지 */}
+    <div className="min-h-screen bg-background">
+      <div className="border-b bg-background">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Database className="w-7 h-7 text-primary" />
+              <h1 className="text-2xl font-bold text-foreground">YouTubePulse</h1>
+            </div>
+            <div className="flex items-center space-x-3">
+              {isAdmin && (
+                <Button variant="outline" onClick={() => navigate('/user-management')}>
+                  <Users className="w-4 h-4 mr-2" />
+                  회원관리
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => navigate('/dashboard')}>
+                <Eye className="w-4 h-4 mr-2" />
+                국내
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/system')}>
+                <Settings className="w-4 h-4 mr-2" />
+                시스템
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>
+                <LogOut className="w-4 h-4 mr-2" />
+                로그아웃
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="container mx-auto px-4 py-8 space-y-8">
+        <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-bold text-foreground">{DATE_RANGE_DAYS}일 데이터 관리</h2>
+            <p className="text-sm text-muted-foreground mt-2">
+              최근 {latestDates.length}일간의 YouTube 데이터를 서버와 IndexedDB에서 동기화하여 분류합니다.
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              💡 세부카테고리는 <code className="bg-muted px-1 rounded">src/lib/subcategories.ts</code>에서 관리합니다.
+            </p>
+          </div>
+          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+            <Calendar className="w-4 h-4" />
+            <span>
+              기간:{' '}
+              {rangeStart && rangeEnd
+                ? `${rangeStart} ~ ${rangeEnd} (최근 ${latestDates.length}일)`
+                : '데이터 없음'}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <Card className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">전체 영상</p>
+                <p className="text-2xl font-bold mt-2">{totalVideos.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground mt-1">수동 + 자동</p>
+              </div>
+              <Database className="w-8 h-8 text-primary/60" />
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">분류 완료</p>
+                <p className="text-2xl font-bold text-green-600 mt-2">
+                  {classifiedVideos.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  진행률 {classificationProgress}%
+                </p>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-500/70" />
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">미분류</p>
+                <p className="text-2xl font-bold text-red-600 mt-2">
+                  {unclassifiedVideos.toLocaleString()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">수동 + 자동</p>
+              </div>
+              <XCircle className="w-8 h-8 text-red-500/70" />
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">수동 진행률</p>
+                <Badge variant="outline">{manualProgress}%</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">자동 진행률</p>
+                <Badge variant="outline">{autoProgress}%</Badge>
+              </div>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => handleFetchAutoCollected('merge')}
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                자동수집 동기화
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        <Card className="p-6 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="flex items-center space-x-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <h3 className="text-lg font-semibold text-foreground">일별 분류 진행</h3>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBulkSaveProgress}
+                disabled={!BULK_PROGRESS_ENABLED}
+              >
+                <SaveAll className="w-4 h-4 mr-2" />
+                진행률 일괄 저장
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleHybridSync}>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                서버 데이터 다운로드
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRemoveDuplicatesByDate}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                일자별 중복 제거
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    조회수 필터
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleDeleteByViewCount(50_000)}>
+                    조회수 5만 미만 삭제
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleDeleteByViewCount(100_000)}>
+                    조회수 10만 미만 삭제
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Download className="w-4 h-4 mr-2" />
+                    데이터 백업
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {rangeEnd && (
+                    <DropdownMenuItem onClick={() => handleDownloadBackup(rangeEnd)}>
+                      오늘 데이터 백업
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleDownloadAllBackup}>
+                    전체 백업 다운로드
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">수동수집</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+                {latestDates.map(date => {
+                  const stats = dateStats[date] || { total: 0, classified: 0, progress: 0 };
+                  const hasData = stats.total > 0;
+
+                  return (
+                    <div
+                      key={`manual-${date}`}
+                      className="border rounded-lg p-3 space-y-2 hover:border-primary transition cursor-pointer group"
+                      onClick={() => handleDateClick(date, 'manual')}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-primary">
+                          {formatDateLabel(date)}
+                        </span>
+                        <Badge variant={hasData ? 'secondary' : 'outline'}>
+                          {hasData ? `${stats.progress}%` : '데이터 없음'}
+                        </Badge>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            stats.progress >= 100
+                              ? 'bg-green-500'
+                              : stats.progress >= 50
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
+                          }`}
+                          style={{ width: `${stats.progress}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {stats.classified}/{stats.total} 완료
+                      </div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-xs text-primary">상세 보기</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={event => {
+                            event.stopPropagation();
+                            handleDownloadBackup(date);
+                          }}
+                          title={`${date} 데이터 백업 다운로드`}
+                        >
+                          <FileDown className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">자동수집</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+                {latestDates.map(date => {
+                  const stats = autoCollectedStats[date] || { total: 0, classified: 0 };
+                  const total = stats.total;
+                  const classified = stats.classified;
+                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
+                  const hasData = total > 0;
+
+                  return (
+                    <div
+                      key={`auto-${date}`}
+                      className="border rounded-lg p-3 space-y-2 hover:border-green-400 transition cursor-pointer"
+                      onClick={() => handleDateClick(date, 'auto')}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-green-600">
+                          {formatDateLabel(date)}
+                        </span>
+                        <Badge variant={hasData ? 'secondary' : 'outline'}>
+                          {hasData ? `${progress}%` : '데이터 없음'}
+                        </Badge>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            progress >= 100
+                              ? 'bg-green-500'
+                              : progress >= 50
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
+                          }`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {classified}/{total} 진행
+                      </div>
+                      <div className="text-xs text-green-600 pt-1">상세 보기</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-1">합계</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3">
+                {latestDates.map(date => {
+                  const manual = dateStats[date] || { total: 0, classified: 0 };
+                  const auto = autoCollectedStats[date] || { total: 0, classified: 0 };
+                  const total = manual.total + auto.total;
+                  const classified = manual.classified + auto.classified;
+                  const progress = total > 0 ? Math.round((classified / total) * 100) : 0;
+                  const hasData = total > 0;
+
+                  return (
+                    <div
+                      key={`total-${date}`}
+                      className="border rounded-lg p-3 space-y-2 hover:border-purple-400 transition cursor-pointer"
+                      onClick={() => handleDateClick(date, 'total')}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-purple-600">
+                          {formatDateLabel(date)}
+                        </span>
+                        <Badge variant={hasData ? 'secondary' : 'outline'}>
+                          {hasData ? `${progress}%` : '데이터 없음'}
+                        </Badge>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            progress >= 100
+                              ? 'bg-green-500'
+                              : progress >= 50
+                              ? 'bg-yellow-500'
+                              : 'bg-red-500'
+                          }`}
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {classified}/{total} 진행
+                      </div>
+                      <div className="text-xs text-purple-600 pt-1">상세 보기</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6 space-y-4">
+          <div className="flex items-center space-x-2">
+            <Settings className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">데이터 관리</h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">보관 기간</p>
+              <p className="text-sm text-muted-foreground">
+                서버와 클라이언트 모두 최근 {DATE_RANGE_DAYS}일 데이터를 유지합니다.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">자동 정리</p>
+              <p className="text-sm text-muted-foreground">
+                매일 새벽 1시(KST)에 로컬 IndexedDB와 서버에서 오래된 데이터가 정리됩니다.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">추가 작업</p>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleFetchAutoCollected('download')}>
+                  <Download className="w-4 h-4 mr-2" />
+                  자동수집 JSON
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleSyncData}>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  전체 동기화
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 };
