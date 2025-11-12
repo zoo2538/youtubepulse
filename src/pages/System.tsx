@@ -235,7 +235,7 @@ const System = () => {
 
   // API 설정 자동 저장
   useEffect(() => {
-    const saveApiConfig = () => {
+    const saveApiConfig = async () => {
       try {
         console.log('💾 API 설정 자동 저장 중:', {
           youtubeApiKeys: apiConfig.youtubeApiKeys.map((key, index) => ({
@@ -247,23 +247,40 @@ const System = () => {
           customApiUrl: apiConfig.customApiUrl
         });
         
-        localStorage.setItem('youtubeApiKeys', JSON.stringify(apiConfig.youtubeApiKeys));
-        localStorage.setItem('activeYoutubeApiKeyIndex', apiConfig.activeYoutubeApiKeyIndex.toString());
+        const trimmedYoutubeApiKeys = apiConfig.youtubeApiKeys.map(key => key.trim());
+        const persistedApiConfig: ApiConfig = {
+          ...apiConfig,
+          youtubeApiKeys: ensureAtLeastOneYoutubeKey(trimmedYoutubeApiKeys),
+          customApiUrl: apiConfig.customApiUrl || '',
+          customApiKey: apiConfig.customApiKey || ''
+        };
+        
+        localStorage.setItem('youtubeApiKeys', JSON.stringify(persistedApiConfig.youtubeApiKeys));
+        localStorage.setItem('activeYoutubeApiKeyIndex', persistedApiConfig.activeYoutubeApiKeyIndex.toString());
         localStorage.setItem('youtubeApiKey', activeYoutubeApiKey || '');
-        localStorage.setItem('customApiUrl', apiConfig.customApiUrl || '');
-        localStorage.setItem('customApiEnabled', apiConfig.customApiEnabled.toString());
-        localStorage.setItem('customApiKey', apiConfig.customApiKey || '');
-        localStorage.setItem('youtubeApiEnabled', apiConfig.youtubeApiEnabled.toString());
+        localStorage.setItem('customApiUrl', persistedApiConfig.customApiUrl || '');
+        localStorage.setItem('customApiEnabled', persistedApiConfig.customApiEnabled.toString());
+        localStorage.setItem('customApiKey', persistedApiConfig.customApiKey || '');
+        localStorage.setItem('youtubeApiEnabled', persistedApiConfig.youtubeApiEnabled.toString());
         localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
+        
+        try {
+          await indexedDBService.saveSystemConfig('apiConfig', persistedApiConfig);
+          await indexedDBService.saveSystemConfig('systemConfig', systemConfig);
+        } catch (dbError) {
+          console.warn('IndexedDB에 API 설정 저장 실패:', dbError);
+        }
         
         console.log('✅ API 설정 저장 완료');
       } catch (error) {
         console.error('설정 자동 저장 오류:', error);
       }
     };
-
+    
     // 설정이 변경될 때마다 자동 저장 (500ms 지연으로 과도한 저장 방지)
-    const timeoutId = setTimeout(saveApiConfig, 500);
+    const timeoutId = setTimeout(() => {
+      void saveApiConfig();
+    }, 500);
     
     return () => clearTimeout(timeoutId);
   }, [apiConfig, systemConfig, activeYoutubeApiKey]);
@@ -278,10 +295,112 @@ const System = () => {
   const [youtubeApiMessage, setYoutubeApiMessage] = useState('');
   const [lastTestedYoutubeKeyIndex, setLastTestedYoutubeKeyIndex] = useState<number | null>(null);
 
-  const ensureAtLeastOneYoutubeKey = (keys: string[]): string[] => {
+  function ensureAtLeastOneYoutubeKey(keys: string[]): string[] {
     if (keys.length === 0) return [''];
     return keys;
-  };
+  }
+
+  // IndexedDB에 저장된 API 설정 복원
+  useEffect(() => {
+    let isMounted = true;
+
+    const hydrateApiConfigFromIndexedDB = async () => {
+      try {
+        await indexedDBService.init();
+        const storedApiConfig = await indexedDBService.loadSystemConfig('apiConfig');
+        if (!isMounted || !storedApiConfig) {
+          return;
+        }
+
+        const storedKeys = Array.isArray(storedApiConfig.youtubeApiKeys)
+          ? storedApiConfig.youtubeApiKeys.filter((key: unknown): key is string => typeof key === 'string')
+          : [];
+
+        const normalizedKeys = ensureAtLeastOneYoutubeKey(
+          storedKeys.slice(0, MAX_YOUTUBE_API_KEYS)
+        );
+
+        const storedActiveIndex =
+          typeof storedApiConfig.activeYoutubeApiKeyIndex === 'number'
+            ? storedApiConfig.activeYoutubeApiKeyIndex
+            : 0;
+
+        let updatedConfig: ApiConfig | null = null;
+
+        setApiConfig(prev => {
+          const nextKeys = normalizedKeys.length ? normalizedKeys : prev.youtubeApiKeys;
+          const nextActiveIndex =
+            nextKeys.length > 0
+              ? Math.min(Math.max(storedActiveIndex, 0), nextKeys.length - 1)
+              : prev.activeYoutubeApiKeyIndex;
+
+          const nextConfig: ApiConfig = {
+            ...prev,
+            youtubeApiKeys: nextKeys,
+            activeYoutubeApiKeyIndex: nextActiveIndex,
+            youtubeApiEnabled:
+              typeof storedApiConfig.youtubeApiEnabled === 'boolean'
+                ? storedApiConfig.youtubeApiEnabled
+                : prev.youtubeApiEnabled || nextKeys.some(key => key.trim().length > 0),
+            customApiUrl:
+              typeof storedApiConfig.customApiUrl === 'string' && storedApiConfig.customApiUrl.trim()
+                ? storedApiConfig.customApiUrl
+                : prev.customApiUrl,
+            customApiEnabled:
+              typeof storedApiConfig.customApiEnabled === 'boolean'
+                ? storedApiConfig.customApiEnabled
+                : prev.customApiEnabled,
+            customApiKey:
+              typeof storedApiConfig.customApiKey === 'string'
+                ? storedApiConfig.customApiKey
+                : prev.customApiKey
+          };
+
+          const prevSnapshot = JSON.stringify({
+            youtubeApiKeys: prev.youtubeApiKeys,
+            activeYoutubeApiKeyIndex: prev.activeYoutubeApiKeyIndex,
+            youtubeApiEnabled: prev.youtubeApiEnabled,
+            customApiUrl: prev.customApiUrl,
+            customApiEnabled: prev.customApiEnabled,
+            customApiKey: prev.customApiKey
+          });
+
+          const nextSnapshot = JSON.stringify({
+            youtubeApiKeys: nextConfig.youtubeApiKeys,
+            activeYoutubeApiKeyIndex: nextConfig.activeYoutubeApiKeyIndex,
+            youtubeApiEnabled: nextConfig.youtubeApiEnabled,
+            customApiUrl: nextConfig.customApiUrl,
+            customApiEnabled: nextConfig.customApiEnabled,
+            customApiKey: nextConfig.customApiKey
+          });
+
+          if (prevSnapshot === nextSnapshot) {
+            return prev;
+          }
+
+          updatedConfig = nextConfig;
+          return nextConfig;
+        });
+
+        if (updatedConfig) {
+          localStorage.setItem('youtubeApiKeys', JSON.stringify(updatedConfig.youtubeApiKeys));
+          localStorage.setItem('activeYoutubeApiKeyIndex', updatedConfig.activeYoutubeApiKeyIndex.toString());
+          localStorage.setItem('youtubeApiEnabled', updatedConfig.youtubeApiEnabled.toString());
+          localStorage.setItem('customApiUrl', updatedConfig.customApiUrl || '');
+          localStorage.setItem('customApiEnabled', updatedConfig.customApiEnabled.toString());
+          localStorage.setItem('customApiKey', updatedConfig.customApiKey || '');
+        }
+      } catch (error) {
+        console.error('IndexedDB에서 API 설정을 불러오지 못했습니다:', error);
+      }
+    };
+
+    hydrateApiConfigFromIndexedDB();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleAddYoutubeApiKeyField = () => {
     if (apiConfig.youtubeApiKeys.length >= MAX_YOUTUBE_API_KEYS) {

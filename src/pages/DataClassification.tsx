@@ -757,6 +757,19 @@ const DataClassification = () => {
     }
   }, [ensureBackupDirectory]);
 
+  const clearBackupDirectorySelection = useCallback(async () => {
+    try {
+      await indexedDBService.clearBackupDirectoryHandle();
+      setBackupDirectoryHandle(null);
+      setBackupFolderName('');
+      setBackupFolderStatus(fsAccessSupported ? 'idle' : 'unsupported');
+      showToast('백업 폴더 설정을 삭제했습니다.', 'success');
+    } catch (error) {
+      console.error('📁 백업 폴더 초기화 실패:', error);
+      showToast('백업 폴더 초기화에 실패했습니다.', 'error');
+    }
+  }, [fsAccessSupported]);
+
   React.useEffect(() => {
     if (!fsAccessSupported) return;
 
@@ -2901,6 +2914,9 @@ const DataClassification = () => {
                   <DropdownMenuItem onClick={promptBackupDirectorySelection} disabled={!fsAccessSupported}>
                     백업 폴더 설정
                   </DropdownMenuItem>
+                <DropdownMenuItem onClick={clearBackupDirectorySelection}>
+                  백업 폴더 삭제
+                </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   {rangeEnd && (
                     <DropdownMenuItem onClick={() => handleDownloadBackup(rangeEnd)}>

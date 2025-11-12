@@ -1,5 +1,57 @@
 // IndexedDB 데이터 저장 서비스
 import { getKoreanDateString } from './utils';
+import { subCategories as defaultSubCategories } from './subcategories';
+const REMOVED_SUBCATEGORIES: Record<string, string[]> = {
+  '크리에이터': ['전문브랜드']
+};
+
+function sanitizeCategoriesMap(
+  categories: Record<string, string[]> | null | undefined
+): Record<string, string[]> | null {
+  if (!categories) {
+    return null;
+  }
+
+  const sanitized: Record<string, string[]> = {};
+
+  Object.keys(categories).forEach(category => {
+    const originalList = Array.isArray(categories[category]) ? categories[category] : [];
+    const removalList = REMOVED_SUBCATEGORIES[category] || [];
+
+    const filtered = originalList.filter(sub => !removalList.includes(sub));
+    sanitized[category] = filtered;
+  });
+
+  return sanitized;
+}
+
+function mergeWithDefaultCategories(
+  categories: Record<string, string[]> | null
+): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+
+  const source = categories || {};
+
+  Object.keys(defaultSubCategories).forEach(category => {
+    const baseList = defaultSubCategories[category] || [];
+    const savedList = Array.isArray(source[category]) ? source[category] : [];
+
+    const combined = [...new Set([...savedList, ...baseList])];
+    const removalList = REMOVED_SUBCATEGORIES[category] || [];
+    result[category] = combined.filter(sub => !removalList.includes(sub));
+  });
+
+  // Include categories only present in saved data but not defaults, without removals
+  Object.keys(source).forEach(category => {
+    if (!result[category]) {
+      const removalList = REMOVED_SUBCATEGORIES[category] || [];
+      const savedList = Array.isArray(source[category]) ? source[category] : [];
+      result[category] = savedList.filter(sub => !removalList.includes(sub));
+    }
+  });
+
+  return result;
+}
 
 const DATE_RANGE_DAYS = 14;
 
@@ -883,6 +935,8 @@ class IndexedDBService {
   async saveCategories(categories: Record<string, string[]>): Promise<void> {
     if (!this.db) await this.init();
     
+    const sanitizedCategories = sanitizeCategoriesMap(categories) || {};
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction(['subCategories'], 'readwrite');
       const store = transaction.objectStore('subCategories');
@@ -894,11 +948,11 @@ class IndexedDBService {
         const addRequest = store.put({ 
           id: 1, // 고정 ID 사용
           type: 'categories',
-          data: categories,
+          data: sanitizedCategories,
           timestamp: new Date().toISOString()
         });
         addRequest.onsuccess = () => {
-          console.log('✅ 카테고리 저장 완료:', categories);
+          console.log('✅ 카테고리 저장 완료:', sanitizedCategories);
           resolve();
         };
         addRequest.onerror = (error) => {
@@ -929,7 +983,27 @@ class IndexedDBService {
           .filter(item => item.type === 'categories')
           .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
         
-        resolve(categoriesData?.data || null);
+        const storedCategories = categoriesData?.data || null;
+        const sanitized = sanitizeCategoriesMap(storedCategories);
+        const merged = mergeWithDefaultCategories(sanitized);
+        
+        if (!storedCategories) {
+          resolve(merged);
+          return;
+        }
+
+        const originalString = JSON.stringify(storedCategories);
+        const mergedString = JSON.stringify(merged);
+
+        if (originalString !== mergedString) {
+          console.log('🔄 카테고리 데이터 갱신 감지 - 최신 기본값으로 동기화합니다.');
+          // 비동기적으로 최신 데이터 저장 (실패해도 무시)
+          this.saveCategories(merged).catch(error => {
+            console.warn('⚠️ 카테고리 동기화 중 오류:', error);
+          });
+        }
+        
+        resolve(merged);
       };
       request.onerror = () => reject(request.error);
     });

@@ -75,10 +75,23 @@ export class CacheCleanup {
   }> {
     console.log('🧹 전체 캐시 정리 시작...');
     
+    const keysToKeep = [
+      'userEmail',
+      'userRole',
+      'youtubeApiKey',
+      'youtubeApiKeys',
+      'activeYoutubeApiKeyIndex',
+      'youtubeApiEnabled',
+      'customApiUrl',
+      'customApiEnabled',
+      'customApiKey',
+      'systemConfig'
+    ];
+    
     const results = {
       serviceWorker: await this.unregisterServiceWorker(),
       cache: await this.clearBrowserCache(),
-      localStorage: this.clearLocalStorage(['userEmail', 'userRole', 'youtubeApiKey']) // 인증 정보 보존
+      localStorage: this.clearLocalStorage(keysToKeep) // 인증 정보 및 API 설정 보존
     };
     
     console.log('✅ 전체 정리 완료:', results);
