@@ -496,73 +496,6 @@ const System = () => {
   };
 
 
-  // API 설정 수동 불러오기 핸들러
-  const handleReloadApiConfig = () => {
-    try {
-      const savedApiKeysRaw = localStorage.getItem('youtubeApiKeys');
-      let savedApiKeys: string[] = [];
-      if (savedApiKeysRaw) {
-        try {
-          const parsed = JSON.parse(savedApiKeysRaw);
-          if (Array.isArray(parsed)) {
-            savedApiKeys = parsed.filter(key => typeof key === 'string').slice(0, MAX_YOUTUBE_API_KEYS);
-          }
-        } catch (error) {
-          console.warn('YouTube API 키 목록 파싱 실패:', error);
-        }
-      }
-
-      const legacyApiKey = localStorage.getItem('youtubeApiKey') || '';
-      if (legacyApiKey && !savedApiKeys.length) {
-        savedApiKeys = [legacyApiKey];
-      }
-
-      if (!savedApiKeys.length) {
-        savedApiKeys = [''];
-      }
-
-      const savedActiveIndexRaw = localStorage.getItem('activeYoutubeApiKeyIndex');
-      let savedActiveIndex = savedActiveIndexRaw ? parseInt(savedActiveIndexRaw, 10) : 0;
-      if (Number.isNaN(savedActiveIndex) || savedActiveIndex < 0 || savedActiveIndex >= savedApiKeys.length) {
-        savedActiveIndex = 0;
-      }
-
-      const savedCustomApiUrl = localStorage.getItem('customApiUrl') || defaultApiUrl;
-      const savedCustomApiEnabled = localStorage.getItem('customApiEnabled') === 'true';
-      const savedCustomApiKey = localStorage.getItem('customApiKey') || '';
-      const savedYoutubeApiEnabled = localStorage.getItem('youtubeApiEnabled') === 'true';
-      
-      // YouTube API 키가 있으면 자동으로 활성화
-      const youtubeApiEnabled = savedApiKeys.some(key => key) ? true : savedYoutubeApiEnabled;
-      
-      setApiConfig({
-        youtubeApiKeys: savedApiKeys,
-        activeYoutubeApiKeyIndex: savedActiveIndex,
-        youtubeApiEnabled: youtubeApiEnabled,
-        customApiUrl: savedCustomApiUrl,
-        customApiEnabled: savedCustomApiEnabled,
-        customApiKey: savedCustomApiKey
-      });
-      
-      console.log('🔄 API 설정 수동 불러오기 완료:', {
-        youtubeApiKeys: savedApiKeys.map((key, index) => ({
-          index,
-          status: key ? '설정됨' : '미설정'
-        })),
-        activeYoutubeApiKeyIndex: savedActiveIndex,
-        youtubeApiEnabled: youtubeApiEnabled,
-        customApiKey: savedCustomApiKey ? '설정됨' : '미설정',
-        customApiUrl: savedCustomApiUrl
-      });
-      
-      alert('API 설정을 불러왔습니다!');
-    } catch (error) {
-      console.error('API 설정 불러오기 오류:', error);
-      alert('API 설정 불러오기에 실패했습니다.');
-    }
-  };
-
-
   // 캐시 정리 핸들러
   const handleCacheCleanup = async () => {
     if (window.confirm('브라우저 캐시와 서비스워커를 정리하시겠습니까?\n\n이 작업은 페이지 새로고침을 유발할 수 있습니다.')) {
@@ -1627,14 +1560,6 @@ const System = () => {
                   데이터 분류 관리
                 </Button>
               </Link>
-              <Button 
-                variant="outline" 
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={handleReloadApiConfig}
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                API 설정 불러오기
-              </Button>
             </div>
           </div>
 
