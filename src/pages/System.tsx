@@ -1072,8 +1072,13 @@ const System = () => {
         }
       }
 
-      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 7일간, IndexedDB 전용)
+      // 3. 최근 분류된 데이터에서 카테고리 정보 가져오기 (최근 14일간)
       let existingClassifiedData: any[] = [];
+      // 14일 기준 날짜 계산 (한국 시간 기준)
+      const fourteenDaysAgo = new Date();
+      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+      const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
+      
       try {
         // API_BASE_URL이 없으면 IndexedDB 데이터만 사용
         if (!API_BASE_URL) {
@@ -1097,13 +1102,13 @@ const System = () => {
               existingClassifiedData = allServerData.filter((item: any) => {
                 const isClassified = item.status === 'classified';
                 const itemDate = item.dayKeyLocal || item.day_key_local || item.collectionDate || item.collection_date;
-                const isRecent = itemDate && itemDate >= sevenDaysAgoString;
+                const isRecent = itemDate && itemDate >= fourteenDaysAgoString;
                 return isClassified && isRecent;
               });
               
               console.log(`📊 서버에서 분류 데이터 로드 성공`);
-              console.log(`📊 분류 데이터 참조 범위: 최근 7일 (${sevenDaysAgoString} 이후)`);
-              console.log(`📊 최근 7일 분류 데이터: ${existingClassifiedData.length}개`);
+              console.log(`📊 분류 데이터 참조 범위: 최근 14일 (${fourteenDaysAgoString} 이후)`);
+              console.log(`📊 최근 14일 분류 데이터: ${existingClassifiedData.length}개`);
             }
           } else {
             console.warn('서버 조회 실패, IndexedDB에서 로드 시도');
@@ -1117,9 +1122,6 @@ const System = () => {
         console.log('📊 IndexedDB에서 분류 데이터 로드...');
         try {
           const allData = await hybridService.loadUnclassifiedData();
-          const fourteenDaysAgo = new Date();
-          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-          const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
           
           existingClassifiedData = allData.filter((item: any) => {
             const isClassified = item.status === 'classified';
@@ -1128,6 +1130,7 @@ const System = () => {
           });
           
           console.log(`📊 IndexedDB에서 분류 데이터 로드: ${existingClassifiedData.length}개`);
+          console.log(`📊 분류 데이터 참조 범위: 최근 14일 (${fourteenDaysAgoString} 이후)`);
         } catch (idbError) {
           console.log('기존 분류 데이터 로드 실패, 새로 시작합니다.');
           existingClassifiedData = [];
@@ -1159,8 +1162,8 @@ const System = () => {
       });
       
       console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
-      console.log(`📊 분류 참조 기간: 최근 7일간의 최신 분류 정보만 사용`);
-      console.log(`📊 기존 분류 시스템: 7일간 분류 이력 기반 분류 적용`);
+      console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
+      console.log(`📊 기존 분류 시스템: 14일간 분류 이력 기반 분류 적용`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       // utils 함수들은 이미 정적 import됨
@@ -1204,8 +1207,8 @@ const System = () => {
         }
         
         // 기존 분류 시스템만 사용
-        // - 7일 데이터에 있으면: 그 분류 사용 (classified)
-        // - 7일 데이터에 없으면: 수동 분류 대기 (unclassified)
+        // - 14일 데이터에 있으면: 그 분류 사용 (classified)
+        // - 14일 데이터에 없으면: 수동 분류 대기 (unclassified)
         
         return {
           id: Date.now() + index,
@@ -1219,14 +1222,14 @@ const System = () => {
           uploadDate: video.snippet.publishedAt.split('T')[0],
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
-          category: existingClassification?.category || '', // 7일 데이터만 사용, 없으면 빈값
+          category: existingClassification?.category || '', // 14일 데이터만 사용, 없으면 빈값
           collectionType: 'manual', // 수동 수집으로 명시
           collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
           keyword: sourceKeyword, // 키워드 정보 추가
           source: sourceType, // 수집 소스 추가 (trending or keyword)
-          subCategory: existingClassification?.subCategory || '', // 7일 데이터만 사용, 없으면 빈값
-          status: existingClassification ? "classified" as const : "unclassified" as const, // 7일 데이터 없으면 무조건 unclassified
+          subCategory: existingClassification?.subCategory || '', // 14일 데이터만 사용, 없으면 빈값
+          status: existingClassification ? "classified" as const : "unclassified" as const, // 14일 데이터 없으면 무조건 unclassified
           autoClassified: !!existingClassification // 기존 분류 데이터로 분류된 경우만 true
         };
       });
