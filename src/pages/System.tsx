@@ -484,9 +484,9 @@ const System = () => {
   };
 
   const handleCleanupOldData = async () => {
-    if (window.confirm('7일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
+    if (window.confirm('14일이 지난 오래된 데이터를 정리하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.')) {
       try {
-        const deletedCount = await indexedDBService.cleanupOldData(7);
+        const deletedCount = await indexedDBService.cleanupOldData(14);
         alert(`데이터 정리가 완료되었습니다!\n\n삭제된 데이터: ${deletedCount}개`);
       } catch (error) {
         console.error('데이터 정리 오류:', error);
