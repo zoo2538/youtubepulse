@@ -87,7 +87,7 @@ const ChannelTrend = () => {
   const channelIdParam = searchParams.get('channelId') || '';
   
   const [selectedChannelId, setSelectedChannelId] = useState<string>(channelIdParam);
-  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [period, setPeriod] = useState<'daily' | 'weekly'>('daily');
   const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString());
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
@@ -341,9 +341,6 @@ const ChannelTrend = () => {
             const monday = new Date(videoDateObj);
             monday.setDate(videoDateObj.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
             key = monday.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
-          } else {
-            // 월별
-            key = `${videoDateObj.getFullYear()}-${String(videoDateObj.getMonth() + 1).padStart(2, '0')}`;
           }
           
           const currentValue = chartDataMap.get(key) || 0;
@@ -492,14 +489,6 @@ const ChannelTrend = () => {
                     className={period === 'weekly' ? 'bg-red-600 hover:bg-red-700' : ''}
                   >
                     주별
-                  </Button>
-                  <Button
-                    variant={period === 'monthly' ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setPeriod('monthly')}
-                    className={period === 'monthly' ? 'bg-red-600 hover:bg-red-700' : ''}
-                  >
-                    월별
                   </Button>
                 </div>
 
@@ -749,14 +738,6 @@ const ChannelTrend = () => {
                         className={period === 'weekly' ? 'bg-red-600 hover:bg-red-700' : ''}
                       >
                         주별
-                      </Button>
-                      <Button
-                        variant={period === 'monthly' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setPeriod('monthly')}
-                        className={period === 'monthly' ? 'bg-red-600 hover:bg-red-700' : ''}
-                      >
-                        월별
                       </Button>
                     </div>
 

@@ -1961,10 +1961,61 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 - 키워드 검색만 사용하므로 비활성화
-    console.log('📺 1단계: 트렌드 영상 수집 건너뛰기 (키워드 검색만 사용)');
+    // 1단계: 트렌드 영상 수집 (상위 300개)
+    console.log('📺 1단계: 트렌드 영상 수집 중... (상위 300개)');
     let trendingVideos = [];
-    console.log('✅ 트렌드: 건너뜀 (키워드 검색으로 충분한 데이터 확보)');
+    let nextPageToken = '';
+    
+    try {
+      // 상위 300개 수집 (50개씩 6페이지)
+      for (let page = 0; page < 6; page++) {
+        const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
+        
+        const trendingResponse = await fetch(trendingUrl);
+        requestCount++;
+        
+        if (!trendingResponse.ok) {
+          const errorText = await trendingResponse.text();
+          console.error(`❌ 트렌드 영상 수집 실패 (페이지 ${page + 1}): ${trendingResponse.status} - ${errorText}`);
+          break;
+        }
+        
+        const trendingData = await trendingResponse.json();
+        
+        if (trendingData.error) {
+          console.error(`❌ 트렌드 영상 수집 오류:`, trendingData.error);
+          break;
+        }
+        
+        if (trendingData.items && trendingData.items.length > 0) {
+          // 한국어 필터링 적용
+          const filteredVideos = trendingData.items.filter(video => {
+            if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+              return false;
+            }
+            return true;
+          });
+          
+          const filteredCount = trendingData.items.length - filteredVideos.length;
+          if (filteredCount > 0) {
+            console.log(`  🇰🇷 트렌드 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+          }
+          
+          trendingVideos = [...trendingVideos, ...filteredVideos];
+          nextPageToken = trendingData.nextPageToken;
+          
+          if (!nextPageToken) break;
+        }
+        
+        // API 할당량 고려 대기
+        if (page < 5) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      console.log(`✅ 트렌드 영상 수집 완료: ${trendingVideos.length}개`);
+    } catch (error) {
+      console.error('❌ 트렌드 영상 수집 오류:', error);
+      console.log('⚠️ 키워드 수집만 진행합니다.');
+    }
 
     // 2단계: 키워드 기반 영상 수집 (전체 75개 키워드 × 50개 = 최대 3,750개)
     console.log('🔍 2단계: 키워드 영상 수집 중... (75개 키워드 × 50개)');
@@ -2193,11 +2244,11 @@ async function autoCollectData() {
     
     console.log(`✅ 채널: ${allChannels.length}개 수집`);
 
-    // 5단계: 7일 자동 분류 로직 조회 (실시간 최신 데이터)
+    // 5단계: 14일 자동 분류 로직 조회 (실시간 최신 데이터)
     console.log('🔄 자동 분류 참조 데이터 조회 중 (실시간)...');
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
     
     const client = await pool.connect();
     
@@ -2213,7 +2264,7 @@ async function autoCollectData() {
         AND sub_category != ''
         AND day_key_local >= $1
       ORDER BY channel_id, day_key_local DESC
-    `, [sevenDaysAgoString]);
+    `, [fourteenDaysAgoString]);
     
     let classifiedChannelMap = new Map();
     classifiedResult.rows.forEach(row => {
@@ -2224,7 +2275,7 @@ async function autoCollectData() {
       });
     });
     
-    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 7일)`);
+    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
     // 채널 정보를 채널 ID로 매핑
     const channelInfoMap = new Map();
