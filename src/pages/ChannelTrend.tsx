@@ -67,7 +67,7 @@ const ChannelTrend = () => {
   const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString());
   const [startDate, setStartDate] = useState<string>(() => {
     const date = new Date();
-    date.setDate(date.getDate() - 20);
+    date.setDate(date.getDate() - 7); // 일주일 전으로 변경 (20일 → 7일)
     return date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
   });
   const [endDate, setEndDate] = useState<string>(getKoreanDateString());
@@ -436,9 +436,9 @@ const ChannelTrend = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 왼쪽: 채널 랭킹 대시보드 */}
-          <div className="lg:col-span-1 space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+          {/* 왼쪽: 채널 랭킹 대시보드 (1.5배 확장: 3/7 = 약 43%) */}
+          <div className="lg:col-span-3 space-y-4">
             <Card className="p-4">
               <h2 className="text-lg font-semibold text-foreground mb-4">채널 랭킹 대시보드</h2>
               
@@ -618,8 +618,8 @@ const ChannelTrend = () => {
             </Card>
           </div>
 
-          {/* 오른쪽: 채널 상세 정보 및 차트 */}
-          <div className="lg:col-span-2 space-y-4">
+          {/* 오른쪽: 채널 상세 정보 및 차트 (4/7 = 약 57%) */}
+          <div className="lg:col-span-4 space-y-4">
             {selectedChannel ? (
               <>
                 {/* 채널 상세 정보 */}
