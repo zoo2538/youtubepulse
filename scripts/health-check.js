@@ -47,13 +47,32 @@ function logInfo(message) {
   log(`ℹ️  ${message}`, 'blue');
 }
 
+// 타임아웃이 있는 fetch 헬퍼 함수
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
+}
+
 async function checkHealthEndpoint() {
   logSection('데이터베이스 헬스 체크');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/health/db`, {
-      timeout: 10000
-    });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/db`, {}, 10000);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -99,9 +118,7 @@ async function checkAutoCollectionData() {
   logSection('자동수집 데이터 확인');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auto-collected`, {
-      timeout: 5000
-    });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 5000);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -155,9 +172,7 @@ async function checkClassifiedData() {
   logSection('분류 데이터 확인');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/classified`, {
-      timeout: 5000
-    });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 5000);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -214,16 +229,15 @@ async function testAutoCollectionTrigger() {
   try {
     logInfo('자동수집 API 호출 중...');
     
-    const response = await fetch(`${API_BASE_URL}/api/auto-collect`, {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collect`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         dateKey: new Date().toISOString().split('T')[0]
-      }),
-      timeout: 60000 // 1분 타임아웃 (자동수집은 시간이 걸림)
-    });
+      })
+    }, 60000); // 1분 타임아웃 (자동수집은 시간이 걸림)
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -240,7 +254,7 @@ async function testAutoCollectionTrigger() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // 자동수집 데이터 다시 확인
-      const checkResponse = await fetch(`${API_BASE_URL}/api/auto-collected`);
+      const checkResponse = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 5000);
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
         if (checkData.success && checkData.data) {
