@@ -76,10 +76,12 @@ const ChannelDetail = () => {
         const unclassifiedData = await indexedDBService.loadUnclassifiedData();
         const classifiedData = await indexedDBService.loadClassifiedData();
         
-        const classifiedUnclassifiedData = unclassifiedData.filter((item: any) => 
-          item.channelId === channelId && item.status === 'classified'
+        // unclassifiedData에서 해당 채널의 모든 데이터 찾기 (status와 무관)
+        const channelUnclassifiedData = unclassifiedData.filter((item: any) => 
+          item.channelId === channelId
         );
         
+        // classifiedData에서 해당 채널의 모든 데이터 찾기
         const classifiedChannelData = classifiedData.filter((item: any) => item.channelId === channelId);
         
         console.log(`📊 채널 상세 - IndexedDB에서 로드: unclassified ${unclassifiedData.length}개, classified ${classifiedData.length}개`);
@@ -92,13 +94,13 @@ const ChannelDetail = () => {
               hybridService.getClassifiedData()
             ]);
             
-            const serverClassifiedUnclassifiedData = serverUnclassified.filter((item: any) => 
-              item.channelId === channelId && item.status === 'classified'
+            const serverChannelUnclassifiedData = serverUnclassified.filter((item: any) => 
+              item.channelId === channelId
             );
             const serverClassifiedChannelData = serverClassified.filter((item: any) => item.channelId === channelId);
             
             // 서버에 더 많은 데이터가 있으면 업데이트
-            if (serverClassifiedUnclassifiedData.length > classifiedUnclassifiedData.length || 
+            if (serverChannelUnclassifiedData.length > channelUnclassifiedData.length || 
                 serverClassifiedChannelData.length > classifiedChannelData.length) {
               console.log(`🔄 백그라운드 동기화: 서버 데이터 더 많음`);
               // 채널 데이터 재계산 로직...
@@ -108,8 +110,8 @@ const ChannelDetail = () => {
           }
         }, 1000); // 1초 후 백그라운드 동기화
         
-        // 두 소스 병합 (unclassified_data 우선)
-        const allChannelData = [...classifiedUnclassifiedData, ...classifiedChannelData];
+        // 두 소스 병합 (unclassified_data와 classified_data 모두 포함)
+        const allChannelData = [...channelUnclassifiedData, ...classifiedChannelData];
         
         // 중복 제거 (videoId + dayKeyLocal 기준)
         const uniqueMap = new Map();
@@ -123,7 +125,7 @@ const ChannelDetail = () => {
         const channelVideos = Array.from(uniqueMap.values());
         
         console.log(`📊 채널 상세 - channelId: ${channelId}`);
-        console.log(`📊 unclassified_data에서 찾은 데이터: ${classifiedUnclassifiedData.length}개`);
+        console.log(`📊 unclassified_data에서 찾은 데이터: ${channelUnclassifiedData.length}개`);
         console.log(`📊 classification_data에서 찾은 데이터: ${classifiedChannelData.length}개`);
         console.log(`📊 중복 제거 후 최종 데이터: ${channelVideos.length}개`);
         
