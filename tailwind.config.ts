@@ -18,6 +18,18 @@ export default {
 			}
 		},
 		extend: {
+			fontSize: {
+				'xs': ['0.875rem', { lineHeight: '1.25rem' }],      // 14px (기존 sm)
+				'sm': ['1rem', { lineHeight: '1.5rem' }],            // 16px (기존 base)
+				'base': ['1.125rem', { lineHeight: '1.75rem' }],    // 18px (기존 lg)
+				'lg': ['1.25rem', { lineHeight: '1.75rem' }],       // 20px (기존 xl)
+				'xl': ['1.5rem', { lineHeight: '2rem' }],            // 24px (기존 2xl)
+				'2xl': ['1.875rem', { lineHeight: '2.25rem' }],      // 30px (기존 3xl)
+				'3xl': ['2.25rem', { lineHeight: '2.5rem' }],        // 36px (기존 4xl)
+				'4xl': ['3rem', { lineHeight: '1' }],               // 48px (기존 5xl)
+				'5xl': ['3.75rem', { lineHeight: '1' }],            // 60px (기존 6xl)
+				'6xl': ['4.5rem', { lineHeight: '1' }],             // 72px
+			},
 			colors: {
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',

@@ -119,6 +119,8 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-size: 1.125rem; /* 18px - 기본 폰트 크기 1단계 증가 */
+    line-height: 1.75rem;
   }
 }
 
