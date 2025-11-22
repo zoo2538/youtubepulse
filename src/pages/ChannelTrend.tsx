@@ -49,17 +49,30 @@ const isOfficialChannel = (channelName: string): boolean => {
   
   const officialPatterns = [
     // 방송사
-    /^MBC/i, /^KBS/i, /^SBS/i, /^JTBC/i, /^tvN/i, /^MBN/i, /^채널A/i, /^YTN/i,
+    /^MBC/i, /^KBS/i, /^kbs/i, /^SBS/i, /^JTBC/i, /^tvN/i, /^MBN/i, /^채널A/i, /^YTN/i, /^Mnet/i, /^tvchosun/i, /^TV조선/i,
     /MBC공식/i, /KBS공식/i, /SBS공식/i, /JTBC공식/i,
+    // OTT/스트리밍 서비스
+    /넷플릭스/i, /Netflix/i, /지니키즈/i, /Genie Kids/i,
     // 언론사
     /^조선일보/i, /^중앙일보/i, /^동아일보/i, /^한겨레/i, /^경향신문/i,
     /^매일경제/i, /^한국경제/i, /^서울신문/i,
     // 정부/공공기관
     /정부/i, /청와대/i, /국회/i, /행정안전부/i, /문화체육관광부/i,
+    // 대기업/기업 채널
+    /^롯데/i, /^Lotte/i, /^농심/i, /^Nongshim/i, /^삼성/i, /^Samsung/i, /^LG/i, /^현대/i, /^Hyundai/i,
+    /^SK/i, /^한화/i, /^Hanwha/i, /^CJ/i, /^GS/i, /^두산/i, /^Doosan/i, /^포스코/i, /^POSCO/i,
+    /^신세계/i, /^Shinsegae/i, /^이마트/i, /^Emart/i, /^하나/i, /^Hana/i, /^KB/i, /^신한/i, /^Shinhan/i,
+    /^기업/i, /^회사/i, /^Corporation/i, /^Corp/i, /^Company/i,
     // 기업 공식
     /공식채널/i, /Official/i, /공식/i,
     // YouTube 공식
     /^YouTube/i, /^YouTube Music/i, /^YouTube Kids/i,
+    // 브랜드 계정
+    /브랜드/i, /Brand/i,
+    // 어린이 계정
+    /어린이/i, /키즈/i, /Kids/i, /Children/i,
+    // 엔터테인먼트 계정
+    /엔터테인먼트/i, /Entertainment/i,
     // 기타
     /뉴스/i, /News/i, /방송/i
   ];
