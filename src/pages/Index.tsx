@@ -72,16 +72,6 @@ const Index = () => {
                 📊 데이터
               </Button>
             </Link>
-            <Link to="/trend" onClick={handleProtectedClick}>
-              <Button 
-                size="sm"
-                className={`${isLoggedIn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
-                disabled={!isLoggedIn}
-              >
-                <TrendingUp className="w-4 h-4 mr-2" />
-                트렌드
-              </Button>
-            </Link>
             <Link to="/system" onClick={handleProtectedClick}>
               <Button 
                 size="sm"
