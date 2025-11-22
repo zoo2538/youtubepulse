@@ -51,11 +51,13 @@ const isOfficialChannel = (channelName: string): boolean => {
     // 방송사 (채널명 어디에든 포함되면 공식 채널)
     /MBC/i, /KBS/i, /kbs/i, /SBS/i, /JTBC/i, /tvN/i, /MBN/i, /채널A/i, /YTN/i, /Mnet/i, /tvchosun/i, /TV조선/i,
     /MBC공식/i, /KBS공식/i, /SBS공식/i, /JTBC공식/i,
+    /스브스/i, /SUBUSU/i, // SBS 줄임말
+    /엠뚜루마뚜루/i, // MBC 공식 채널
     // OTT/스트리밍 서비스
-    /넷플릭스/i, /Netflix/i, /지니키즈/i, /Genie Kids/i,
+    /넷플릭스/i, /Netflix/i, /지니키즈/i, /Genie Kids/i, /Genikids/i,
     // 언론사 (채널명 어디에든 포함되면 공식 채널)
     /조선일보/i, /중앙일보/i, /동아일보/i, /한겨레/i, /경향신문/i,
-    /매일경제/i, /한국경제/i, /서울신문/i,
+    /매일경제/i, /한국경제/i, /서울신문/i, /연합뉴스/i,
     // 정부/공공기관
     /정부/i, /청와대/i, /국회/i, /행정안전부/i, /문화체육관광부/i,
     // 대기업/기업 채널 (이름이 포함된 모든 채널)
@@ -63,6 +65,12 @@ const isOfficialChannel = (channelName: string): boolean => {
     /SK/i, /한화/i, /Hanwha/i, /CJ/i, /GS/i, /두산/i, /Doosan/i, /포스코/i, /POSCO/i,
     /신세계/i, /Shinsegae/i, /이마트/i, /Emart/i, /하나/i, /Hana/i, /KB/i, /신한/i, /Shinhan/i,
     /기업/i, /회사/i, /Corporation/i, /Corp/i, /Company/i,
+    // 엔터테인먼트 회사 공식 채널
+    /SMTOWN/i, /SM ENT/i, /SM엔터/i, /HYBE/i, /JYP/i, /YG/i, /플레디스/i, /Pledis/i,
+    /큐브/i, /CUBE/i, /판타지오/i, /Fantagio/i, /스타쉽/i, /Starship/i,
+    // 아이돌 그룹 공식 채널
+    /BLACKPINK/i, /BTS/i, /BANGTAN/i, /SEVENTEEN/i, /TWICE/i, /Red Velvet/i, /aespa/i,
+    /NewJeans/i, /IVE/i, /LE SSERAFIM/i, /NCT/i, /EXO/i, /SUPER JUNIOR/i,
     // 기업 공식
     /공식채널/i, /Official/i, /공식/i,
     // YouTube 공식
@@ -72,10 +80,13 @@ const isOfficialChannel = (channelName: string): boolean => {
     // 어린이 계정/방송 (채널명 어디에든 포함되면 공식 채널)
     /어린이/i, /키즈/i, /Kids/i, /Children/i, /어린이방송/i, /키즈방송/i, /Kids TV/i, /Children TV/i,
     /EBS어린이/i, /EBS키즈/i, /KBS어린이/i, /KBS키즈/i, /MBC어린이/i, /SBS어린이/i,
+    /베이비버스/i, /BabyBus/i, /리틀엔젤/i, /Little Angel/i,
     // 엔터테인먼트 계정
     /엔터테인먼트/i, /Entertainment/i,
-    // 기타 (뉴스, 방송 등이 포함된 채널)
-    /뉴스/i, /News/i, /방송/i, /Broadcast/i
+    // 뮤직 레이블/음악 공식 채널
+    /1theK/i, /원더케이/i, /M2/i, /멜론/i, /Melon/i,
+    // 뉴스/방송 관련 (방송사 관련 채널만)
+    /뉴스/i, /News/i, /방송/i, /Broadcast/i, /esports/i
   ];
   
   return officialPatterns.some(pattern => pattern.test(channelName));
@@ -177,6 +188,8 @@ const ChannelTrend = () => {
           
           // 공식 채널 필터링
           if (excludeOfficial && isOfficialChannel(item.channelName)) {
+            // 디버깅: 공식 채널이 감지되었는지 확인
+            // console.log('공식 채널 제외:', item.channelName);
             return; // 공식 채널 제외
           }
           
