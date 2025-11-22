@@ -1,22 +1,67 @@
 
 import { Channel, DailyStats, Video, TrendingData } from './database-schema';
 import { loadCollectionConfig } from './data-collection-config';
+import { getCurrentApiKey, recordApiKeyUsage, getAvailableApiKey } from './youtube-api-key-manager';
 
-// YouTube API 설정 (사용자 입력 키 사용)
-const YOUTUBE_API_KEY = 'demo_key_for_development'; // 실제로는 사용되지 않음
+// YouTube API 설정
 const YOUTUBE_API_BASE_URL = 'https://www.googleapis.com/youtube/v3';
 
-// API 호출 함수
-const callYouTubeAPI = async (endpoint: string, params: Record<string, string>) => {
+// API 엔드포인트별 할당량 비용
+const API_QUOTA_COSTS: Record<string, number> = {
+  'search': 100, // search.list
+  'videos': 1,   // videos.list
+  'channels': 1  // channels.list
+};
+
+// API 호출 함수 (동적 키 사용 및 할당량 추적)
+const callYouTubeAPI = async (endpoint: string, params: Record<string, string>, retryCount: number = 0): Promise<any> => {
+  // 사용 가능한 API 키 가져오기
+  const apiKeyResult = getAvailableApiKey();
+  
+  if (!apiKeyResult) {
+    throw new Error('사용 가능한 YouTube API 키가 없습니다. 시스템 설정에서 API 키를 등록해주세요.');
+  }
+  
+  const { index: apiKeyIndex, key: apiKey } = apiKeyResult;
+  
   const queryString = new URLSearchParams(params).toString();
-  const url = `${YOUTUBE_API_BASE_URL}/${endpoint}?${queryString}&key=${YOUTUBE_API_KEY}`;
+  const url = `${YOUTUBE_API_BASE_URL}/${endpoint}?${queryString}&key=${apiKey}`;
   
   try {
     const response = await fetch(url);
+    
+    // 403 Forbidden (할당량 초과) 처리
+    if (response.status === 403) {
+      const errorData = await response.json().catch(() => ({}));
+      const errorMessage = errorData.error?.message || '';
+      
+      // 할당량 초과인 경우
+      if (errorMessage.includes('quota') || errorMessage.includes('exceeded')) {
+        // 현재 키의 할당량을 소진으로 표시
+        recordApiKeyUsage(apiKeyIndex, 10000); // 최대값으로 설정하여 소진 표시
+        
+        // 재시도 (다른 키 사용)
+        if (retryCount < 2) {
+          console.warn(`⚠️ API 키 #${apiKeyIndex + 1} 할당량 초과, 다른 키로 재시도...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
+          return callYouTubeAPI(endpoint, params, retryCount + 1);
+        } else {
+          throw new Error('모든 API 키의 할당량이 소진되었습니다.');
+        }
+      }
+    }
+    
     if (!response.ok) {
       throw new Error(`YouTube API Error: ${response.status}`);
     }
-    return await response.json();
+    
+    const data = await response.json();
+    
+    // 할당량 사용량 기록
+    const quotaCost = API_QUOTA_COSTS[endpoint] || 1;
+    recordApiKeyUsage(apiKeyIndex, quotaCost);
+    
+    return data;
   } catch (error) {
     console.error('YouTube API 호출 실패:', error);
     throw error;
@@ -342,7 +387,7 @@ export const searchChannels = async (query: string, maxResults: number = 50): Pr
 };
 
 // 데이터 변환 함수들
-export const transformTrendingVideo = (video: any): Partial<Video> => ({
+export const transformTrendingVideo = (video: any, channelInfo?: any): Partial<Video> => ({
   videoId: video.id,
   channelId: video.snippet.channelId,
   title: video.snippet.title,
@@ -353,7 +398,16 @@ export const transformTrendingVideo = (video: any): Partial<Video> => ({
   publishedAt: video.snippet.publishedAt,
   thumbnailUrl: video.snippet.thumbnails.high?.url || video.snippet.thumbnails.default?.url,
   duration: video.contentDetails?.duration || '',
-  createdAt: new Date().toISOString()
+  createdAt: new Date().toISOString(),
+  // 채널 상세 정보 추가
+  ...(channelInfo && {
+    subscriberCount: channelInfo.subscriberCount,
+    channelVideoCount: channelInfo.videoCount,
+    channelCreationDate: channelInfo.publishedAt,
+    channelName: channelInfo.channelName,
+    channelDescription: channelInfo.channelDescription,
+    channelThumbnail: channelInfo.channelThumbnail
+  })
 });
 
 export const transformChannel = (channel: any): Partial<Channel> => ({
@@ -448,6 +502,19 @@ export const collectDailyData = async (db: any, maxVideos: number = 10000) => {
     console.log('채널 상세정보 수집 중...');
     const channelDetails = await collectChannelDetails(uniqueChannelIds);
     
+    // 채널 정보를 채널 ID로 매핑 (비디오 변환 시 사용)
+    const channelInfoMap = new Map<string, any>();
+    channelDetails.forEach(channel => {
+      channelInfoMap.set(channel.id, {
+        subscriberCount: parseInt(channel.statistics?.subscriberCount) || 0,
+        videoCount: parseInt(channel.statistics?.videoCount) || 0,
+        publishedAt: channel.snippet?.publishedAt || channel.snippet?.publishedAt,
+        channelName: channel.snippet?.title || '',
+        channelDescription: channel.snippet?.description || '',
+        channelThumbnail: channel.snippet?.thumbnails?.high?.url || channel.snippet?.thumbnails?.default?.url
+      });
+    });
+    
     // 3. 각 채널의 조회수 높은 비디오 수집
     console.log('채널별 조회수 높은 비디오 수집 중...');
     for (const channel of channelDetails) {
@@ -477,6 +544,9 @@ export const collectDailyData = async (db: any, maxVideos: number = 10000) => {
       
       newDailyStats[transformedDailyStats.id] = transformedDailyStats as DailyStats;
       
+      // 채널 정보 가져오기
+      const channelInfo = channelInfoMap.get(channel.id);
+      
       // 비디오 데이터 저장 (최소 조회수 필터 적용)
       try {
         const cfgLocal = loadCollectionConfig();
@@ -485,13 +555,13 @@ export const collectDailyData = async (db: any, maxVideos: number = 10000) => {
           return typeof cfgLocal.minViewCount === 'number' ? vc >= cfgLocal.minViewCount : true;
         });
         filteredDetails.forEach(video => {
-          const transformedVideo = transformTrendingVideo(video);
+          const transformedVideo = transformTrendingVideo(video, channelInfo);
           newVideos[video.id] = transformedVideo as Video;
         });
       } catch {
         // 설정 로드 실패 시 필터 없이 저장
         videoDetails.forEach(video => {
-          const transformedVideo = transformTrendingVideo(video);
+          const transformedVideo = transformTrendingVideo(video, channelInfo);
           newVideos[video.id] = transformedVideo as Video;
         });
       }

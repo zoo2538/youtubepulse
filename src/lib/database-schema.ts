@@ -37,6 +37,13 @@ export interface Video {
   thumbnailUrl: string;
   duration: string;
   createdAt: string;
+  // 채널 상세 정보 (선택적)
+  subscriberCount?: number;
+  channelVideoCount?: number;
+  channelCreationDate?: string;
+  channelName?: string;
+  channelDescription?: string;
+  channelThumbnail?: string;
 }
 
 export interface TrendingData {

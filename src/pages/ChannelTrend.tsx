@@ -1,0 +1,781 @@
+import React, { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer 
+} from "recharts";
+import { 
+  ExternalLink, 
+  Calendar,
+  Settings,
+  Search,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpDown
+} from "lucide-react";
+import { indexedDBService } from "@/lib/indexeddb-service";
+import { hybridService } from "@/lib/hybrid-service";
+import { getKoreanDateString } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+interface ChannelRankingData {
+  rank: number;
+  channelId: string;
+  channelName: string;
+  thumbnail: string;
+  todayViews: number;
+  yesterdayViews: number;
+  rankChange: number;
+  changePercent: number;
+  description?: string;
+  totalSubscribers?: number;
+  channelCreationDate?: string;
+  videoCount?: number;
+}
+
+const ChannelTrend = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const channelIdParam = searchParams.get('channelId') || '';
+  
+  const [selectedChannelId, setSelectedChannelId] = useState<string>(channelIdParam);
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [selectedDate, setSelectedDate] = useState<string>(getKoreanDateString());
+  const [startDate, setStartDate] = useState<string>(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 20);
+    return date.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+  });
+  const [endDate, setEndDate] = useState<string>(getKoreanDateString());
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [country, setCountry] = useState<string>('대한민국');
+  const [showNewOnly, setShowNewOnly] = useState<boolean>(false);
+  const [reverseOrder, setReverseOrder] = useState<boolean>(false);
+  
+  const [channelRankings, setChannelRankings] = useState<ChannelRankingData[]>([]);
+  const [selectedChannel, setSelectedChannel] = useState<ChannelRankingData | null>(null);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingChart, setIsLoadingChart] = useState(false);
+
+  // 채널 랭킹 데이터 로드
+  useEffect(() => {
+    const loadChannelRankings = async () => {
+      try {
+        setIsLoading(true);
+        const classifiedData = await indexedDBService.loadClassifiedData();
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+        
+        // 선택된 날짜와 어제 날짜 계산
+        const targetDate = selectedDate || getKoreanDateString();
+        const yesterday = new Date(targetDate);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+        
+        // 오늘 데이터 (classified + unclassified)
+        const allTodayData = [...classifiedData, ...unclassifiedData.filter((item: any) => item.status === 'classified')];
+        const todayData = allTodayData.filter((item: any) => {
+          const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+          if (!itemDate) return false;
+          return itemDate.split('T')[0] === targetDate;
+        });
+        
+        // 어제 데이터
+        const allYesterdayData = [...classifiedData, ...unclassifiedData.filter((item: any) => item.status === 'classified')];
+        const yesterdayData = allYesterdayData.filter((item: any) => {
+          const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+          if (!itemDate) return false;
+          return itemDate.split('T')[0] === yesterdayStr;
+        });
+        
+        // 채널별 그룹화
+        const todayChannelGroups: any = {};
+        todayData.forEach((item: any) => {
+          if (!item.channelId || !item.channelName) return;
+          if (!todayChannelGroups[item.channelId]) {
+            todayChannelGroups[item.channelId] = {
+              channelId: item.channelId,
+              channelName: item.channelName,
+              thumbnail: item.thumbnailUrl || `https://via.placeholder.com/96x96?text=${item.channelName.charAt(0)}`,
+              todayViews: 0,
+              description: item.description || item.channelDescription,
+              videos: [],
+              // 채널 상세 정보 추출 (가능한 경우)
+              totalSubscribers: item.subscriberCount || item.totalSubscribers,
+              channelCreationDate: item.channelCreationDate || item.channelCreationDate || 
+                (item.publishedAt ? item.publishedAt.split('T')[0] : undefined),
+              videoCount: item.channelVideoCount || 0
+            };
+          }
+          todayChannelGroups[item.channelId].todayViews += item.viewCount || 0;
+          todayChannelGroups[item.channelId].videos.push(item);
+        });
+        
+        // 각 채널의 고유 비디오 개수 계산
+        Object.keys(todayChannelGroups).forEach(channelId => {
+          const channel = todayChannelGroups[channelId];
+          const uniqueVideos = new Set(channel.videos.map((v: any) => v.videoId || v.id));
+          channel.videoCount = uniqueVideos.size;
+        });
+        
+        const yesterdayChannelGroups: any = {};
+        yesterdayData.forEach((item: any) => {
+          if (!item.channelId) return;
+          if (!yesterdayChannelGroups[item.channelId]) {
+            yesterdayChannelGroups[item.channelId] = { totalViews: 0 };
+          }
+          yesterdayChannelGroups[item.channelId].totalViews += item.viewCount || 0;
+        });
+        
+        // 어제 랭킹 계산
+        const yesterdayRankings: any = {};
+        Object.entries(yesterdayChannelGroups)
+          .sort(([, a]: any, [, b]: any) => b.totalViews - a.totalViews)
+          .forEach(([channelId], index) => {
+            yesterdayRankings[channelId] = index + 1;
+          });
+        
+        // 랭킹 데이터 생성
+        const rankings: ChannelRankingData[] = Object.values(todayChannelGroups)
+          .map((channel: any) => {
+            const yesterdayViews = yesterdayChannelGroups[channel.channelId]?.totalViews || 0;
+            const yesterdayRank = yesterdayRankings[channel.channelId] || 999999;
+            const todayRank = 0; // 나중에 계산
+            
+            const changeAmount = channel.todayViews - yesterdayViews;
+            const changePercent = yesterdayViews > 0 ? (changeAmount / yesterdayViews) * 100 : 0;
+            
+            return {
+              rank: 0,
+              channelId: channel.channelId,
+              channelName: channel.channelName,
+              thumbnail: channel.thumbnail,
+              todayViews: channel.todayViews,
+              yesterdayViews,
+              rankChange: yesterdayRank - todayRank, // 양수면 상승
+              changePercent,
+              description: channel.description,
+              totalSubscribers: channel.totalSubscribers,
+              channelCreationDate: channel.channelCreationDate,
+              videoCount: channel.videoCount || channel.videos.length
+            };
+          })
+          .filter(channel => {
+            if (showNewOnly) {
+              // 신규진입: 어제 랭킹이 없었던 채널
+              return !yesterdayRankings[channel.channelId];
+            }
+            return true;
+          })
+          .sort((a, b) => {
+            if (reverseOrder) {
+              return a.todayViews - b.todayViews;
+            }
+            return b.todayViews - a.todayViews;
+          })
+          .map((channel, index) => {
+            const yesterdayRank = yesterdayRankings[channel.channelId] || 999999;
+            return {
+              ...channel,
+              rank: index + 1,
+              rankChange: yesterdayRank === 999999 ? 0 : yesterdayRank - (index + 1)
+            };
+          });
+        
+        setChannelRankings(rankings);
+        
+        // URL 파라미터로 채널이 지정된 경우 선택
+        if (channelIdParam && rankings.length > 0) {
+          const foundChannel = rankings.find(c => c.channelId === channelIdParam);
+          if (foundChannel) {
+            setSelectedChannel(foundChannel);
+            setSelectedChannelId(channelIdParam);
+          }
+        }
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('채널 랭킹 로드 실패:', error);
+        setIsLoading(false);
+      }
+    };
+    
+    loadChannelRankings();
+  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam]);
+
+  // 채널 선택 시 차트 데이터 로드
+  useEffect(() => {
+    if (!selectedChannelId) return;
+    
+    const loadChartData = async () => {
+      try {
+        setIsLoadingChart(true);
+        
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+        const classifiedData = await indexedDBService.loadClassifiedData();
+        
+        const classifiedUnclassifiedData = unclassifiedData.filter((item: any) => 
+          item.channelId === selectedChannelId && item.status === 'classified'
+        );
+        const classifiedChannelData = classifiedData.filter((item: any) => 
+          item.channelId === selectedChannelId
+        );
+        
+        const allChannelData = [...classifiedUnclassifiedData, ...classifiedChannelData];
+        
+        // 중복 제거 (videoId + dayKeyLocal 기준)
+        const uniqueMap = new Map();
+        allChannelData.forEach((item: any) => {
+          const key = `${item.videoId}-${item.dayKeyLocal || item.collectionDate}`;
+          if (!uniqueMap.has(key)) {
+            uniqueMap.set(key, item);
+          }
+        });
+        
+        const channelVideos = Array.from(uniqueMap.values());
+        
+        if (channelVideos.length === 0) {
+          setChartData([]);
+          setIsLoadingChart(false);
+          return;
+        }
+        
+        // 날짜 범위 내의 데이터 필터링
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        
+        // 기간별 데이터 집계
+        const chartDataMap = new Map<string, number>();
+        
+        channelVideos.forEach((video: any) => {
+          const videoDate = video.collectionDate || video.uploadDate || video.dayKeyLocal;
+          if (!videoDate) return;
+          
+          const dateStr = videoDate.split('T')[0];
+          const videoDateObj = new Date(dateStr);
+          
+          if (videoDateObj < start || videoDateObj > end) return;
+          
+          let key: string;
+          if (period === 'daily') {
+            key = dateStr;
+          } else if (period === 'weekly') {
+            // 주의 시작일 (월요일) 계산
+            const dayOfWeek = videoDateObj.getDay();
+            const monday = new Date(videoDateObj);
+            monday.setDate(videoDateObj.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+            key = monday.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
+          } else {
+            // 월별
+            key = `${videoDateObj.getFullYear()}-${String(videoDateObj.getMonth() + 1).padStart(2, '0')}`;
+          }
+          
+          const currentValue = chartDataMap.get(key) || 0;
+          chartDataMap.set(key, currentValue + (video.viewCount || 0));
+        });
+        
+        // 차트 데이터 생성 (날짜 순 정렬)
+        const sortedData = Array.from(chartDataMap.entries())
+          .map(([date, views]) => ({
+            date,
+            views
+          }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+        
+        setChartData(sortedData);
+        setIsLoadingChart(false);
+      } catch (error) {
+        console.error('차트 데이터 로드 실패:', error);
+        setIsLoadingChart(false);
+      }
+    };
+    
+    loadChartData();
+  }, [selectedChannelId, period, startDate, endDate]);
+
+  // 채널 선택 핸들러
+  const handleChannelSelect = (channel: ChannelRankingData) => {
+    setSelectedChannel(channel);
+    setSelectedChannelId(channel.channelId);
+    setSearchParams({ channelId: channel.channelId });
+  };
+
+  // 검색 필터링된 채널 목록
+  const filteredRankings = channelRankings.filter(channel =>
+    channel.channelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    channel.channelId.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const formatNumber = (num: number): string => {
+    if (num >= 1000000) {
+      return (num / 1000000).toFixed(1) + 'M';
+    } else if (num >= 1000) {
+      return (num / 1000).toFixed(1) + 'K';
+    }
+    return num.toString();
+  };
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
+          <p className="font-medium text-foreground">{label}</p>
+          <p className="text-muted-foreground">
+            조회수: {formatNumber(payload[0].value)}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="bg-background border-b border-border">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo */}
+            <Link to="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
+              <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">YT</span>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-white via-pink-300 to-red-600 bg-clip-text text-transparent">
+                  YouTube Pulse
+                </h1>
+                <p className="text-gray-300 text-sm">실시간 유튜브 트렌드 분석 플랫폼</p>
+              </div>
+            </Link>
+
+            {/* Navigation Buttons */}
+            <div className="flex items-center space-x-3">
+              <Link to="/dashboard">
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                >
+                  국내
+                </Button>
+              </Link>
+              <Link to="/trend">
+                <Button 
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
+                </Button>
+              </Link>
+              <Link to="/data">
+                <Button 
+                  size="sm"
+                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                >
+                  📊 데이터
+                </Button>
+              </Link>
+              <Link to="/system">
+                <Button 
+                  size="sm"
+                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  시스템
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* 왼쪽: 채널 랭킹 대시보드 */}
+          <div className="lg:col-span-1 space-y-4">
+            <Card className="p-4">
+              <h2 className="text-lg font-semibold text-foreground mb-4">채널 랭킹 대시보드</h2>
+              
+              {/* 필터 컨트롤 */}
+              <div className="space-y-3 mb-4">
+                {/* 기간 선택 */}
+                <div className="flex space-x-1">
+                  <Button
+                    variant={period === 'daily' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPeriod('daily')}
+                    className={period === 'daily' ? 'bg-red-600 hover:bg-red-700' : ''}
+                  >
+                    일별
+                  </Button>
+                  <Button
+                    variant={period === 'weekly' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPeriod('weekly')}
+                    className={period === 'weekly' ? 'bg-red-600 hover:bg-red-700' : ''}
+                  >
+                    주별
+                  </Button>
+                  <Button
+                    variant={period === 'monthly' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPeriod('monthly')}
+                    className={period === 'monthly' ? 'bg-red-600 hover:bg-red-700' : ''}
+                  >
+                    월별
+                  </Button>
+                </div>
+
+                {/* 국가 필터 */}
+                <Select value={country} onValueChange={setCountry}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="대한민국">대한민국</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* 날짜 선택 */}
+                <Input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
+
+                {/* 검색 */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    placeholder="채널명으로 검색..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* 액션 버튼 */}
+                <div className="flex space-x-2">
+                  <Button
+                    variant={showNewOnly ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setShowNewOnly(!showNewOnly)}
+                    className={showNewOnly ? 'bg-red-600 hover:bg-red-700' : ''}
+                  >
+                    신규진입
+                  </Button>
+                  <Button
+                    variant={reverseOrder ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReverseOrder(!reverseOrder)}
+                    className={reverseOrder ? 'bg-red-600 hover:bg-red-700' : ''}
+                  >
+                    <ArrowUpDown className="w-4 h-4 mr-1" />
+                    역순
+                  </Button>
+                </div>
+              </div>
+
+              {/* 채널 랭킹 테이블 */}
+              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                {isLoading ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
+                    <p className="mt-2 text-sm text-muted-foreground">로딩 중...</p>
+                  </div>
+                ) : filteredRankings.length === 0 ? (
+                  <p className="text-center text-muted-foreground py-8">채널을 찾을 수 없습니다</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">순위</TableHead>
+                        <TableHead>채널 정보</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRankings.map((channel) => (
+                        <TableRow
+                          key={channel.channelId}
+                          className={`cursor-pointer hover:bg-muted/50 ${
+                            selectedChannelId === channel.channelId ? 'bg-red-600/10' : ''
+                          }`}
+                          onClick={() => handleChannelSelect(channel)}
+                        >
+                          <TableCell>
+                            <div className="flex flex-col items-center">
+                              <span className="font-bold text-foreground">{channel.rank}</span>
+                              {channel.rankChange !== 0 && (
+                                <span className={`text-xs flex items-center ${
+                                  channel.rankChange > 0 ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                  {channel.rankChange > 0 ? (
+                                    <>
+                                      <TrendingUp className="w-3 h-3 mr-1" />
+                                      {channel.rankChange}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <TrendingDown className="w-3 h-3 mr-1" />
+                                      {Math.abs(channel.rankChange)}
+                                    </>
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <img
+                                src={channel.thumbnail}
+                                alt={channel.channelName}
+                                className="w-12 h-12 rounded"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-foreground truncate">
+                                  {channel.channelName}
+                                </p>
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {channel.channelId}
+                                </p>
+                                <div className="flex items-center space-x-2 mt-1">
+                                  <span className="text-sm font-semibold text-foreground">
+                                    {formatNumber(channel.todayViews)}
+                                  </span>
+                                  {channel.changePercent !== 0 && (
+                                    <span className={`text-xs flex items-center ${
+                                      channel.changePercent > 0 ? 'text-green-600' : 'text-red-600'
+                                    }`}>
+                                      {channel.changePercent > 0 ? (
+                                        <>
+                                          <TrendingUp className="w-3 h-3 mr-1" />
+                                          {channel.changePercent.toFixed(1)}%
+                                        </>
+                                      ) : (
+                                        <>
+                                          <TrendingDown className="w-3 h-3 mr-1" />
+                                          {channel.changePercent.toFixed(1)}%
+                                        </>
+                                      )}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* 오른쪽: 채널 상세 정보 및 차트 */}
+          <div className="lg:col-span-2 space-y-4">
+            {selectedChannel ? (
+              <>
+                {/* 채널 상세 정보 */}
+                <Card className="p-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-4">
+                      <img
+                        src={selectedChannel.thumbnail}
+                        alt={selectedChannel.channelName}
+                        className="w-16 h-16 rounded-full"
+                      />
+                      <div>
+                        <h3 className="text-xl font-semibold text-foreground">
+                          {selectedChannel.channelName}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">{selectedChannel.channelId}</p>
+                      </div>
+                    </div>
+                    <a
+                      href={`https://www.youtube.com/channel/${selectedChannel.channelId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button variant="outline" size="sm">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        유튜브에서 보기
+                      </Button>
+                    </a>
+                  </div>
+
+                  {/* 채널 통계 */}
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">총 조회수</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        {formatNumber(selectedChannel.todayViews)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">총 구독자 수</p>
+                      <p className="text-2xl font-bold text-foreground">
+                        {selectedChannel.totalSubscribers ? formatNumber(selectedChannel.totalSubscribers) : '데이터 없음'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">채널 생성일</p>
+                      <p className="text-lg font-semibold text-foreground">
+                        {selectedChannel.channelCreationDate ? 
+                          new Date(selectedChannel.channelCreationDate).toLocaleDateString('ko-KR') : 
+                          '데이터 없음'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">영상 개수</p>
+                      <p className="text-lg font-semibold text-foreground">
+                        {selectedChannel.videoCount || 0}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 채널 설명 */}
+                  {selectedChannel.description && (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold text-foreground mb-2">채널 설명</h4>
+                      <div className="bg-muted/50 p-4 rounded-lg max-h-32 overflow-y-auto">
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                          {selectedChannel.description}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 차트 필터 */}
+                  <div className="flex flex-wrap items-center gap-4 mb-4">
+                    <div className="flex space-x-1">
+                      <Button
+                        variant={period === 'daily' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPeriod('daily')}
+                        className={period === 'daily' ? 'bg-red-600 hover:bg-red-700' : ''}
+                      >
+                        일별
+                      </Button>
+                      <Button
+                        variant={period === 'weekly' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPeriod('weekly')}
+                        className={period === 'weekly' ? 'bg-red-600 hover:bg-red-700' : ''}
+                      >
+                        주별
+                      </Button>
+                      <Button
+                        variant={period === 'monthly' ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setPeriod('monthly')}
+                        className={period === 'monthly' ? 'bg-red-600 hover:bg-red-700' : ''}
+                      >
+                        월별
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="w-40"
+                      />
+                      <span className="text-muted-foreground">~</span>
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="w-40"
+                      />
+                      <Button
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => {
+                          // 차트 데이터 다시 로드
+                          setSelectedChannelId(selectedChannelId);
+                        }}
+                      >
+                        조회
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 조회수 성장 차트 */}
+                  <div>
+                    <h4 className="text-lg font-semibold text-foreground mb-4">조회수 성장 차트</h4>
+                    {isLoadingChart ? (
+                      <div className="flex items-center justify-center h-[400px]">
+                        <div className="text-center">
+                          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+                          <p className="mt-4 text-muted-foreground">차트 데이터를 불러오는 중...</p>
+                        </div>
+                      </div>
+                    ) : chartData.length === 0 ? (
+                      <div className="flex items-center justify-center h-[400px]">
+                        <p className="text-muted-foreground">선택한 기간에 데이터가 없습니다</p>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={400}>
+                        <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis 
+                            dataKey="date" 
+                            stroke="hsl(var(--muted-foreground))"
+                            fontSize={12}
+                            tick={{ fontSize: 10 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={60}
+                          />
+                          <YAxis 
+                            stroke="hsl(var(--muted-foreground))"
+                            fontSize={12}
+                            tickFormatter={(value) => formatNumber(value)}
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Line 
+                            type="monotone" 
+                            dataKey="views" 
+                            stroke="#F97316"
+                            strokeWidth={3}
+                            dot={{ fill: "#F97316", strokeWidth: 2, r: 4 }}
+                            activeDot={{ r: 6, stroke: "#F97316", strokeWidth: 2 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </Card>
+              </>
+            ) : (
+              <Card className="p-6">
+                <div className="flex items-center justify-center h-[600px]">
+                  <div className="text-center">
+                    <TrendingUp className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">왼쪽에서 채널을 선택하세요</p>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ChannelTrend;

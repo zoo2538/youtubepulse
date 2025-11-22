@@ -32,7 +32,8 @@ import {
   Play,
   Users,
   Trash2,
-  HardDrive
+  HardDrive,
+  TrendingUp
 } from "lucide-react";
 import DataCollectionManager from "@/components/DataCollectionManager";
 import { indexedDBService } from "@/lib/indexeddb-service";
@@ -44,6 +45,7 @@ import { getKoreanDateString, getKoreanDateTimeString } from "@/lib/utils";
 import { CacheCleanup } from "@/lib/cache-cleanup";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { getApiKeyStatuses, resetApiKeyUsage } from "@/lib/youtube-api-key-manager";
 import {
   Dialog,
   DialogContent,
@@ -180,6 +182,9 @@ const System = () => {
   // API 키 입력 다이얼로그
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [tempApiKey, setTempApiKey] = useState('');
+  
+  // API 키 할당량 상태
+  const [apiKeyStatuses, setApiKeyStatuses] = useState<ReturnType<typeof getApiKeyStatuses>>([]);
 
 
   // 관리자 권한 체크 (임시 비활성화 - 디버깅용)
@@ -223,6 +228,19 @@ const System = () => {
     // }
   }, [isLoggedIn, userRole, navigate]);
 
+  // API 키 할당량 상태 업데이트
+  React.useEffect(() => {
+    const updateApiKeyStatuses = () => {
+      const statuses = getApiKeyStatuses();
+      setApiKeyStatuses(statuses);
+    };
+    
+    updateApiKeyStatuses();
+    const interval = setInterval(updateApiKeyStatuses, 5000); // 5초마다 업데이트
+    
+    return () => clearInterval(interval);
+  }, [apiConfig.youtubeApiKeys, apiConfig.activeYoutubeApiKeyIndex]);
+  
   // 페이지 로드 시 설정 로드
   React.useEffect(() => {
     // 커스텀 API가 처음 사용되는 경우 기본값으로 설정
@@ -457,10 +475,14 @@ const System = () => {
   };
 
   const handleSetActiveYoutubeApiKey = (index: number) => {
-    setApiConfig(prev => ({
-      ...prev,
-      activeYoutubeApiKeyIndex: index
-    }));
+    setApiConfig(prev => {
+      const updated = {
+        ...prev,
+        activeYoutubeApiKeyIndex: index
+      };
+      localStorage.setItem('activeYoutubeApiKeyIndex', index.toString());
+      return updated;
+    });
   };
 
   const handleUpdateYoutubeApiKey = (index: number, value: string) => {
@@ -470,10 +492,16 @@ const System = () => {
         return prev;
       }
       keys[index] = value;
-      return {
+      const updatedConfig = {
         ...prev,
         youtubeApiKeys: ensureAtLeastOneYoutubeKey(keys)
       };
+      
+      // localStorage에 즉시 저장
+      localStorage.setItem('youtubeApiKeys', JSON.stringify(updatedConfig.youtubeApiKeys));
+      localStorage.setItem('activeYoutubeApiKeyIndex', updatedConfig.activeYoutubeApiKeyIndex.toString());
+      
+      return updatedConfig;
     });
 
     if (lastTestedYoutubeKeyIndex === index) {
@@ -653,12 +681,18 @@ const System = () => {
         }
       }
 
-      return {
+      const updated = {
         ...prev,
         youtubeApiKeys: ensureAtLeastOneYoutubeKey(nextKeys),
         activeYoutubeApiKeyIndex: nextActiveIndex,
         youtubeApiEnabled: true
       };
+      
+      // localStorage에 즉시 저장
+      localStorage.setItem('youtubeApiKeys', JSON.stringify(updated.youtubeApiKeys));
+      localStorage.setItem('activeYoutubeApiKeyIndex', updated.activeYoutubeApiKeyIndex.toString());
+      
+      return updated;
     });
 
     if (replacedOldest) {
@@ -1509,6 +1543,15 @@ const System = () => {
                   국내
                 </Button>
               </Link>
+              <Link to="/trend">
+                <Button 
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
+                </Button>
+              </Link>
               <Link to="/data">
                 <Button 
                   size="sm"
@@ -1598,14 +1641,24 @@ const System = () => {
                                 const isActive = apiConfig.activeYoutubeApiKeyIndex === index;
                                 const isTesting = youtubeApiStatus === 'testing' && lastTestedYoutubeKeyIndex === index;
                                 const showStatus = lastTestedYoutubeKeyIndex === index && youtubeApiStatus !== 'idle';
+                                const keyStatus = apiKeyStatuses.find(s => s.index === index);
+                                const usagePercent = keyStatus?.usagePercent || 0;
+                                const remainingQuota = keyStatus?.remainingQuota || 0;
+                                const isExhausted = keyStatus?.isExhausted || false;
+                                
                                 return (
                                   <div key={index} className="border border-muted rounded-lg p-3 space-y-2 bg-muted/30">
                                     <div className="flex flex-wrap items-start justify-between gap-2">
-                                      <div className="space-y-1">
+                                      <div className="space-y-1 flex-1">
                                         <div className="flex items-center space-x-2">
                                           <Badge variant={isActive ? 'default' : 'outline'}>
                                             {isActive ? '사용 중' : '대기'}
                                           </Badge>
+                                          {isExhausted && (
+                                            <Badge variant="destructive" className="text-xs">
+                                              할당량 소진
+                                            </Badge>
+                                          )}
                                           <span className="text-sm font-semibold text-foreground">
                                             API 키 {index + 1}
                                           </span>
@@ -1613,15 +1666,58 @@ const System = () => {
                                         <code className="block text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded break-all">
                                           {key || '(미입력)'}
                                         </code>
+                                        {keyStatus && key && (
+                                          <div className="mt-2 space-y-1">
+                                            <div className="flex items-center justify-between text-xs">
+                                              <span className="text-muted-foreground">할당량 사용률</span>
+                                              <span className={`font-semibold ${
+                                                usagePercent >= 95 ? 'text-red-600' :
+                                                usagePercent >= 80 ? 'text-orange-600' :
+                                                'text-green-600'
+                                              }`}>
+                                                {usagePercent.toFixed(1)}%
+                                              </span>
+                                            </div>
+                                            <div className="w-full bg-muted rounded-full h-2">
+                                              <div
+                                                className={`h-2 rounded-full transition-all ${
+                                                  usagePercent >= 95 ? 'bg-red-600' :
+                                                  usagePercent >= 80 ? 'bg-orange-600' :
+                                                  'bg-green-600'
+                                                }`}
+                                                style={{ width: `${Math.min(100, usagePercent)}%` }}
+                                              />
+                                            </div>
+                                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                              <span>사용: {keyStatus.usedQuota.toLocaleString()} / {keyStatus.dailyQuota.toLocaleString()}</span>
+                                              <span>남은 할당량: {remainingQuota.toLocaleString()}</span>
+                                            </div>
+                                          </div>
+                                        )}
                                       </div>
                                       <div className="flex items-center space-x-2">
                                         <Button
                                           variant={isActive ? 'secondary' : 'outline'}
                                           size="sm"
                                           onClick={() => handleSetActiveYoutubeApiKey(index)}
-                                          disabled={!key.trim() || isActive}
+                                          disabled={!key.trim() || isActive || isExhausted}
                                         >
                                           {isActive ? '현재 사용 중' : '이 키 사용'}
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => {
+                                            if (window.confirm(`API 키 ${index + 1}번의 할당량 사용량을 초기화하시겠습니까?`)) {
+                                              resetApiKeyUsage(index);
+                                              const statuses = getApiKeyStatuses();
+                                              setApiKeyStatuses(statuses);
+                                            }
+                                          }}
+                                          title="할당량 초기화"
+                                          className="text-xs"
+                                        >
+                                          초기화
                                         </Button>
                                         {apiConfig.youtubeApiKeys.length > 1 && (
                                           <Button

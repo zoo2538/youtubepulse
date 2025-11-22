@@ -4,7 +4,7 @@ import { ChannelTrendingTable } from "@/components/dashboard/channel-trending-ta
 import { TrendingVideosGrid } from "@/components/dashboard/trending-videos-grid";
 import { PerformanceVideosList } from "@/components/dashboard/performance-videos-list";
 import { Button } from "@/components/ui/button";
-import { Settings, Users, LogOut } from "lucide-react";
+import { Settings, Users, LogOut, TrendingUp } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/ui/logo";
@@ -61,6 +61,15 @@ const Dashboard = () => {
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   국내
+                </Button>
+              </Link>
+              <Link to="/trend">
+                <Button 
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
                 </Button>
               </Link>
               <Link to="/data">

@@ -332,6 +332,10 @@ const TrendingChannelsDetail: React.FC = () => {
                 <Eye className="w-4 h-4 mr-2" />
                 국내
               </Button>
+              <Button variant="outline" onClick={() => navigate("/trend")}>
+                <TrendingUp className="w-4 h-4 mr-2" />
+                트렌드
+              </Button>
               <Button variant="outline" onClick={() => navigate("/data")}>
                 📊 데이터
               </Button>

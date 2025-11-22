@@ -25,7 +25,8 @@ import {
   X,
   Download,
   Upload,
-  Trash2
+  Trash2,
+  TrendingUp
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -1002,6 +1003,10 @@ const DateClassificationDetail = () => {
               <Button variant="outline" onClick={() => navigate('/dashboard')}>
                 <Eye className="w-4 h-4 mr-2" />
                 국내
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/trend')}>
+                <TrendingUp className="w-4 h-4 mr-2" />
+                트렌드
               </Button>
               <Button variant="outline" onClick={() => navigate('/data')}>
                 📊 데이터

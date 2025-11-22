@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Settings, Globe, Home, LogIn } from "lucide-react";
+import { Settings, Globe, Home, LogIn, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -53,6 +53,16 @@ const Index = () => {
                 국내
               </Button>
             </Link>
+            <Link to="/trend" onClick={handleProtectedClick}>
+              <Button 
+                size="sm"
+                className={`${isLoggedIn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                disabled={!isLoggedIn}
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                트렌드
+              </Button>
+            </Link>
             <Link to="/data" onClick={handleProtectedClick}>
               <Button 
                 size="sm"
@@ -60,6 +70,16 @@ const Index = () => {
                 disabled={!isLoggedIn}
               >
                 📊 데이터
+              </Button>
+            </Link>
+            <Link to="/trend" onClick={handleProtectedClick}>
+              <Button 
+                size="sm"
+                className={`${isLoggedIn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                disabled={!isLoggedIn}
+              >
+                <TrendingUp className="w-4 h-4 mr-2" />
+                트렌드
               </Button>
             </Link>
             <Link to="/system" onClick={handleProtectedClick}>

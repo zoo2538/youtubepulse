@@ -23,6 +23,7 @@ import TrendingVideosDetail from "@/pages/TrendingVideosDetail";
 import SubcategorySettings from "@/pages/SubcategorySettings";
 import TrendingChannelsDetail from "@/pages/TrendingChannelsDetail";
 import PerformanceVideosDetail from "@/pages/PerformanceVideosDetail";
+import ChannelTrend from "./pages/ChannelTrend";
 import NotFound from "./pages/NotFound";
 
 const App = () => {
@@ -68,6 +69,7 @@ const App = () => {
           <Route path="/subcategory-settings" element={<SubcategorySettings />} />
           <Route path="/trending-channels" element={<TrendingChannelsDetail />} />
           <Route path="/performance-videos" element={<PerformanceVideosDetail />} />
+          <Route path="/trend" element={<ChannelTrend />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, ExternalLink, Settings, Filter } from "lucide-react";
+import { ArrowLeft, ExternalLink, Settings, Filter, TrendingUp } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { subCategories, categoryColors } from "@/lib/subcategories";
@@ -278,6 +278,15 @@ const CategoryChannelRanking = () => {
                   className="bg-red-600 hover:bg-red-700 text-white"
                 >
                   국내
+                </Button>
+              </Link>
+              <Link to="/trend">
+                <Button 
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
                 </Button>
               </Link>
               <Link to="/data">

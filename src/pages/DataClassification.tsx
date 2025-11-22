@@ -42,7 +42,8 @@ import {
   Archive,
   FileDown,
   BarChart3,
-  Save
+  Save,
+  TrendingUp
   } from "lucide-react";
 import { postgresqlService } from "@/lib/postgresql-service";
 import { redisService } from "@/lib/redis-service";
@@ -2737,6 +2738,10 @@ const DataClassification = () => {
               <Button variant="outline" onClick={() => navigate('/dashboard')}>
                 <Eye className="w-4 h-4 mr-2" />
                 국내
+              </Button>
+              <Button variant="outline" onClick={() => navigate('/trend')}>
+                <TrendingUp className="w-4 h-4 mr-2" />
+                트렌드
               </Button>
               <Button variant="outline" onClick={() => navigate('/system')}>
                 <Settings className="w-4 h-4 mr-2" />

@@ -5,6 +5,40 @@
 
 const { withRetry, processBatches, saveToDeadLetterQueue } = require('../lib/withRetry');
 
+// 한국어 텍스트 확인 함수
+function isKoreanText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const koreanRegex = /[가-힣]/;
+  return koreanRegex.test(text);
+}
+
+// 한국어 영상 필터링 함수
+function isKoreanVideo(video, filterLevel = 'moderate') {
+  if (!video?.snippet) return false;
+  
+  const { title, description, channelTitle } = video.snippet;
+  
+  // 제목, 설명, 채널명에서 한국어 텍스트 확인
+  const titleKorean = isKoreanText(title);
+  const descriptionKorean = isKoreanText(description);
+  const channelKorean = isKoreanText(channelTitle);
+  
+  // 언어 필터링 강도별 판정
+  switch (filterLevel) {
+    case 'strict':
+      // 엄격: 제목과 설명 모두 한국어여야 함
+      return titleKorean && descriptionKorean;
+    case 'moderate':
+      // 보통: 제목이 한국어이거나 채널명이 한국어여야 함
+      return titleKorean || channelKorean;
+    case 'loose':
+      // 느슨: 제목, 설명, 채널명 중 하나라도 한국어면 포함
+      return titleKorean || descriptionKorean || channelKorean;
+    default:
+      return titleKorean || channelKorean;
+  }
+}
+
 class AutoCollector {
   constructor(pool) {
     this.pool = pool;
@@ -133,7 +167,15 @@ class AutoCollector {
         }
         
         if (data.items && data.items.length > 0) {
-          allVideos = [...allVideos, ...data.items];
+          // 한국어 필터링 적용 (moderate 모드)
+          const filteredVideos = data.items.filter(video => isKoreanVideo(video, 'moderate'));
+          const filteredCount = data.items.length - filteredVideos.length;
+          
+          if (filteredCount > 0) {
+            console.log(`  🇰🇷 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+          }
+          
+          allVideos = [...allVideos, ...filteredVideos];
           nextPageToken = data.nextPageToken;
           
           if (!nextPageToken) break;
@@ -198,7 +240,15 @@ class AutoCollector {
             const videosData = await videosResponse.json();
             
             if (videosData.items) {
-              allVideos = [...allVideos, ...videosData.items];
+              // 한국어 필터링 적용 (moderate 모드)
+              const filteredVideos = videosData.items.filter(video => isKoreanVideo(video, 'moderate'));
+              const filteredCount = videosData.items.length - filteredVideos.length;
+              
+              if (filteredCount > 0) {
+                console.log(`  🇰🇷 키워드 "${keyword}" 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+              }
+              
+              allVideos = [...allVideos, ...filteredVideos];
             }
           }
         }

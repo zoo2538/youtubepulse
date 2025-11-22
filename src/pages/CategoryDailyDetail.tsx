@@ -160,6 +160,15 @@ const CategoryDailyDetail = () => {
                   국내
                 </Button>
               </Link>
+              <Link to="/trend">
+                <Button 
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
+                </Button>
+              </Link>
               <Link to="/data">
                 <Button 
                   size="sm"
