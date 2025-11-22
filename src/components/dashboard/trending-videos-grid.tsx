@@ -42,24 +42,30 @@ export function TrendingVideosGrid() {
   // 분류된 데이터에서 트렌딩 비디오 데이터 생성
   const loadTrendingVideosData = async () => {
       try {
-        // IndexedDB에서 분류된 데이터 로드
+        // IndexedDB에서 분류된 데이터와 미분류 데이터 모두 로드
         const classifiedData = await indexedDBService.loadClassifiedData();
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+        
+        // 모든 데이터 합치기
+        const allData = [...classifiedData, ...unclassifiedData];
         
         console.log(`📊 트렌딩 비디오 - 전체 분류된 데이터: ${classifiedData.length}개`);
-        console.log(`📊 트렌딩 비디오 - 데이터 날짜 분포:`, classifiedData.reduce((acc: any, item: any) => {
-          const date = (item.collectionDate || item.uploadDate)?.split('T')[0];
+        console.log(`📊 트렌딩 비디오 - 전체 미분류 데이터: ${unclassifiedData.length}개`);
+        console.log(`📊 트렌딩 비디오 - 전체 데이터: ${allData.length}개`);
+        console.log(`📊 트렌딩 비디오 - 데이터 날짜 분포:`, allData.reduce((acc: any, item: any) => {
+          const date = (item.collectionDate || item.uploadDate || item.dayKeyLocal)?.split('T')[0];
           if (date) acc[date] = (acc[date] || 0) + 1;
           return acc;
         }, {}));
         
-        if (classifiedData && classifiedData.length > 0) {
+        if (allData && allData.length > 0) {
           // 오늘 날짜 기준으로만 데이터 필터링하고 조회수 기준 정렬 (한국 시간 기준)
           const today = getKoreanDateString();
-          const filteredData = classifiedData
-            .filter((item: any) => 
-              (item.collectionDate || item.uploadDate)?.split('T')[0] === today &&
-              item.category && item.videoTitle
-            )
+          const filteredData = allData
+            .filter((item: any) => {
+              const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+              return itemDate && itemDate.split('T')[0] === today && item.videoTitle;
+            })
             .sort((a: any, b: any) => (b.viewCount || 0) - (a.viewCount || 0)) // 조회수 기준 내림차순
             .slice(0, 30); // 상위 30개만 표시
 
@@ -90,7 +96,7 @@ export function TrendingVideosGrid() {
               channelName: item.channelName || '채널명 없음',
               views: item.viewCount || 0,
               timeAgo: timeAgo,
-              category: item.category || '기타'
+              category: item.category || '미분류'
             };
           });
 

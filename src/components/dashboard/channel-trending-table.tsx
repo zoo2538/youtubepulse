@@ -75,21 +75,27 @@ export function ChannelTrendingTable() {
   useEffect(() => {
     const loadChannelTrendingData = async () => {
       try {
-        // IndexedDB에서 분류된 데이터 로드
+        // IndexedDB에서 분류된 데이터와 미분류 데이터 모두 로드
         const classifiedData = await indexedDBService.loadClassifiedData();
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+        
+        // 모든 데이터 합치기
+        const allData = [...classifiedData, ...unclassifiedData];
         
         console.log(`📊 채널 트렌딩 - 전체 분류된 데이터: ${classifiedData.length}개`);
-        console.log(`📊 채널 트렌딩 - 데이터 날짜 분포:`, classifiedData.reduce((acc: any, item: any) => {
-          const date = (item.collectionDate || item.uploadDate)?.split('T')[0];
+        console.log(`📊 채널 트렌딩 - 전체 미분류 데이터: ${unclassifiedData.length}개`);
+        console.log(`📊 채널 트렌딩 - 전체 데이터: ${allData.length}개`);
+        console.log(`📊 채널 트렌딩 - 데이터 날짜 분포:`, allData.reduce((acc: any, item: any) => {
+          const date = (item.collectionDate || item.uploadDate || item.dayKeyLocal)?.split('T')[0];
           if (date) acc[date] = (acc[date] || 0) + 1;
           return acc;
         }, {}));
         
-        if (classifiedData && classifiedData.length > 0) {
+        if (allData && allData.length > 0) {
           // 선택된 날짜의 수집일 기준 데이터 필터링 (한국 시간 기준)
       const targetDate = selectedDate || getKoreanDateString();
-          const filteredData = classifiedData.filter((item: any) => {
-            const itemDate = item.collectionDate || item.uploadDate;
+          const filteredData = allData.filter((item: any) => {
+            const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
             return itemDate && itemDate.split('T')[0] === targetDate;
           });
           console.log(`📊 채널 트렌딩 - ${targetDate} 날짜 데이터: ${filteredData.length}개`);
@@ -98,13 +104,13 @@ export function ChannelTrendingTable() {
           // 채널별로 그룹화하여 조회수 합계 계산
           const channelGroups: any = {};
           filteredData.forEach((item: any) => {
-            if (!item.channelId || !item.category) return;
+            if (!item.channelId) return;
             
             if (!channelGroups[item.channelId]) {
               channelGroups[item.channelId] = {
                 channelId: item.channelId,
                 channelName: item.channelName,
-                category: item.category,
+                category: item.category || '미분류',
                 subCategory: item.subCategory || '',
                 thumbnail: item.thumbnailUrl || `https://via.placeholder.com/40x40?text=${item.channelName?.substring(0, 2) || 'CH'}`,
                 todayViews: 0,
@@ -119,9 +125,10 @@ export function ChannelTrendingTable() {
           // 어제 데이터와 비교하여 변화율 계산
           const yesterdayStr = new Date(new Date(targetDate).getTime() - 24 * 60 * 60 * 1000)
             .toISOString().split('T')[0];
-          const yesterdayData = classifiedData.filter((item: any) => 
-            (item.collectionDate || item.uploadDate)?.split('T')[0] === yesterdayStr
-          );
+          const yesterdayData = allData.filter((item: any) => {
+            const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+            return itemDate && itemDate.split('T')[0] === yesterdayStr;
+          });
 
           const yesterdayChannelGroups: any = {};
           yesterdayData.forEach((item: any) => {

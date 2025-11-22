@@ -183,30 +183,36 @@ export function PerformanceVideosList() {
   useEffect(() => {
     const loadPerformanceVideosData = async () => {
       try {
-        // IndexedDB에서 분류된 데이터 로드
+        // IndexedDB에서 분류된 데이터와 미분류 데이터 모두 로드
         const classifiedData = await indexedDBService.loadClassifiedData();
+        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+        
+        // 모든 데이터 합치기
+        const allData = [...classifiedData, ...unclassifiedData];
         
         console.log(`📊 성과 우수 비디오 - 전체 분류된 데이터: ${classifiedData.length}개`);
-        console.log(`📊 성과 우수 비디오 - 데이터 날짜 분포:`, classifiedData.reduce((acc: any, item: any) => {
-          const date = (item.collectionDate || item.uploadDate)?.split('T')[0];
+        console.log(`📊 성과 우수 비디오 - 전체 미분류 데이터: ${unclassifiedData.length}개`);
+        console.log(`📊 성과 우수 비디오 - 전체 데이터: ${allData.length}개`);
+        console.log(`📊 성과 우수 비디오 - 데이터 날짜 분포:`, allData.reduce((acc: any, item: any) => {
+          const date = (item.collectionDate || item.uploadDate || item.dayKeyLocal)?.split('T')[0];
           if (date) acc[date] = (acc[date] || 0) + 1;
           return acc;
         }, {}));
         
-        if (classifiedData && classifiedData.length > 0) {
+        if (allData && allData.length > 0) {
           // 선택된 날짜 또는 오늘 데이터 필터링 (한국 시간 기준)
           const targetDate = selectedDate || getKoreanDateString();
-          const filteredData = classifiedData.filter((item: any) => 
-            (item.collectionDate || item.uploadDate)?.split('T')[0] === targetDate &&
-            item.category && item.videoTitle
-          );
+          const filteredData = allData.filter((item: any) => {
+            const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+            return itemDate && itemDate.split('T')[0] === targetDate && item.videoTitle;
+          });
 
           console.log(`📊 성과 우수 비디오 - ${targetDate} 날짜 데이터: ${filteredData.length}개`);
           console.log(`📊 성과 우수 비디오 - ${targetDate} 날짜 데이터 샘플:`, filteredData.slice(0, 3));
 
           // 채널별 평균 조회수 계산
           const channelAverages: any = {};
-          classifiedData.forEach((item: any) => {
+          allData.forEach((item: any) => {
             if (!item.channelId || !item.viewCount) return;
             
             if (!channelAverages[item.channelId]) {
@@ -235,7 +241,7 @@ export function PerformanceVideosList() {
                 views: item.viewCount || 0,
                 averageViews: averageViews,
                 performanceRatio: performanceRatio,
-                category: item.category || '기타',
+                category: item.category || '미분류',
                 duration: '0:00' // 실제 데이터에는 duration이 없으므로 기본값
               };
             })
