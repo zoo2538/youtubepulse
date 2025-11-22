@@ -114,28 +114,34 @@ const TrendingVideosDetail = () => {
     try {
       setLoading(true);
       
-      // IndexedDB 우선 로드 (빠른 응답)
-      let classifiedData = await indexedDBService.loadClassifiedData();
-      console.log(`📊 조회수 급등 동영상 상세 - IndexedDB에서 로드: ${classifiedData.length}개`);
+      // IndexedDB 우선 로드 (빠른 응답) - 분류된 데이터와 미분류 데이터 모두 로드
+      const classifiedData = await indexedDBService.loadClassifiedData();
+      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+      const allData = [...classifiedData, ...unclassifiedData];
+      
+      console.log(`📊 조회수 급등 동영상 상세 - IndexedDB에서 분류: ${classifiedData.length}개, 미분류: ${unclassifiedData.length}개, 전체: ${allData.length}개`);
       
       // 백그라운드에서 서버 동기화 (비동기, UI 블로킹 없음)
       setTimeout(async () => {
         try {
-          const serverData = await hybridService.getClassifiedData();
-          if (serverData.length > classifiedData.length) {
-            console.log(`🔄 백그라운드 동기화: 서버 데이터 ${serverData.length}개 > 로컬 ${classifiedData.length}개`);
+          const [serverClassified, serverUnclassified] = await Promise.all([
+            hybridService.getClassifiedData(),
+            hybridService.loadUnclassifiedData()
+          ]);
+          const serverAllData = [...serverClassified, ...serverUnclassified];
+          
+          if (serverAllData.length > allData.length) {
+            console.log(`🔄 백그라운드 동기화: 서버 데이터 ${serverAllData.length}개 > 로컬 ${allData.length}개`);
             // 서버에 더 많은 데이터가 있으면 업데이트
-            classifiedData = serverData;
             // 비디오 데이터 재계산
-            if (classifiedData && classifiedData.length > 0) {
+            if (serverAllData && serverAllData.length > 0) {
               // 선택된 날짜 또는 오늘 날짜 기준으로 데이터 필터링
               const targetDate = selectedDate || getKoreanDateString();
-              const filteredData = classifiedData
+              const filteredData = serverAllData
                 .filter((item: any) => {
                   const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
                   const dateStr = itemDate ? itemDate.split('T')[0] : '';
-                  return dateStr === targetDate && 
-                         item.category && item.videoTitle;
+                  return dateStr === targetDate && item.videoTitle;
                 })
                 .sort((a: any, b: any) => (b.viewCount || 0) - (a.viewCount || 0))
                 .slice(0, 100);
@@ -147,8 +153,8 @@ const TrendingVideosDetail = () => {
                 channelName: item.channelName || '채널명 없음',
                 views: item.viewCount || 0,
                 timeAgo: formatTimeAgo(item.uploadDate || item.collectionDate),
-                category: item.category || '기타',
-                subCategory: item.subCategory || '미분류',
+                category: item.category || '미분류',
+                subCategory: item.subCategory || '',
                 uploadDate: item.uploadDate || item.collectionDate,
                 description: item.videoDescription || item.description || ''
               }));
@@ -162,16 +168,14 @@ const TrendingVideosDetail = () => {
         }
       }, 1000); // 1초 후 백그라운드 동기화
       
-      console.log(`📊 조회수 급등 동영상 상세 - 전체 분류된 데이터: ${classifiedData.length}개`);
-      
-      if (classifiedData && classifiedData.length > 0) {
+      if (allData && allData.length > 0) {
         // 선택된 날짜 또는 오늘 날짜 기준으로 데이터 필터링 (한국 시간 기준)
         const targetDate = selectedDate || getKoreanDateString();
-        const filteredData = classifiedData
+        const filteredData = allData
           .filter((item: any) => {
-            const itemDate = item.collectionDate || item.uploadDate;
-            return itemDate && itemDate.split('T')[0] === targetDate &&
-                   item.category && item.videoTitle;
+            const itemDate = item.dayKeyLocal || item.collectionDate || item.uploadDate;
+            const dateStr = itemDate ? itemDate.split('T')[0] : '';
+            return dateStr === targetDate && item.videoTitle;
           })
           .sort((a: any, b: any) => (b.viewCount || 0) - (a.viewCount || 0)) // 조회수 기준 내림차순
           .slice(0, 100); // 상위 100개 표시
@@ -189,8 +193,8 @@ const TrendingVideosDetail = () => {
             channelName: item.channelName || '채널명 없음',
             views: item.viewCount || 0,
             timeAgo: formatTimeAgo(item.uploadDate || item.collectionDate),
-            category: item.category || '기타',
-            subCategory: item.subCategory || '미분류',
+            category: item.category || '미분류',
+            subCategory: item.subCategory || '',
             uploadDate: item.uploadDate || item.collectionDate,
             description: item.videoDescription || item.description || ''
           };

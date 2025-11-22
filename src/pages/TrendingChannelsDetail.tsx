@@ -123,25 +123,27 @@ const TrendingChannelsDetail: React.FC = () => {
   );
 
   const generateChannelStats = useCallback(
-    (classifiedData: any[]) => {
-    if (!classifiedData || classifiedData.length === 0) {
+    (allData: any[]) => {
+    if (!allData || allData.length === 0) {
       setChannelData([]);
       setFilteredChannelData([]);
       return;
     }
 
     const targetDate = selectedDate || getKoreanDateString();
-    const todayData = classifiedData.filter((item: any) => {
-      const itemDate = item.collectionDate || item.uploadDate;
+    const todayData = allData.filter((item: any) => {
+      const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
       return itemDate && itemDate.split("T")[0] === targetDate && item.channelId;
     });
 
     const yesterday = new Date(new Date(targetDate).getTime() - 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
-    const yesterdayData = classifiedData.filter(
-      (item: any) =>
-        (item.collectionDate || item.uploadDate)?.split("T")[0] === yesterday && item.channelId
+    const yesterdayData = allData.filter(
+      (item: any) => {
+        const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+        return itemDate && itemDate.split("T")[0] === yesterday && item.channelId;
+      }
     );
 
     console.log(`📊 급등 채널 상세 - ${targetDate} 데이터 ${todayData.length}개`);
@@ -213,8 +215,8 @@ const TrendingChannelsDetail: React.FC = () => {
       return {
         id: channel.channelId,
         channelName: channel.channelName,
-        category: channel.category,
-        subCategory: channel.subCategory,
+        category: channel.category || '미분류',
+        subCategory: channel.subCategory || '',
         thumbnail: channelThumbnail,
         todayViews: channel.totalViews,
         yesterdayViews,
@@ -236,26 +238,34 @@ const TrendingChannelsDetail: React.FC = () => {
   const loadChannelData = useCallback(async () => {
     setLoading(true);
     try {
-      let classifiedData = await indexedDBService.loadClassifiedData();
-      console.log(`📊 급등 채널 상세 - IndexedDB에서 ${classifiedData.length}개 로드`);
+      // 분류된 데이터와 미분류 데이터 모두 로드
+      const classifiedData = await indexedDBService.loadClassifiedData();
+      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+      const allData = [...classifiedData, ...unclassifiedData];
+      
+      console.log(`📊 급등 채널 상세 - IndexedDB에서 분류: ${classifiedData.length}개, 미분류: ${unclassifiedData.length}개, 전체: ${allData.length}개`);
 
       // 백그라운드 서버 동기화 (UI 블로킹 없음)
       setTimeout(async () => {
         try {
-          const serverData = await hybridService.getClassifiedData();
-          if (serverData.length > classifiedData.length) {
+          const [serverClassified, serverUnclassified] = await Promise.all([
+            hybridService.getClassifiedData(),
+            hybridService.loadUnclassifiedData()
+          ]);
+          const serverAllData = [...serverClassified, ...serverUnclassified];
+          
+          if (serverAllData.length > allData.length) {
             console.log(
-              `🔄 급등 채널 상세 - 서버 데이터 ${serverData.length}개 > 로컬 ${classifiedData.length}개`
+              `🔄 급등 채널 상세 - 서버 데이터 ${serverAllData.length}개 > 로컬 ${allData.length}개`
             );
-            classifiedData = serverData;
-            generateChannelStats(serverData);
+            generateChannelStats(serverAllData);
           }
         } catch (error) {
           console.warn("⚠️ 급등 채널 상세 - 백그라운드 동기화 실패 (무시)", error);
         }
       }, 1000);
 
-      generateChannelStats(classifiedData);
+      generateChannelStats(allData);
     } catch (error) {
       console.error("❌ 급등 채널 데이터 로드 실패:", error);
       setChannelData([]);

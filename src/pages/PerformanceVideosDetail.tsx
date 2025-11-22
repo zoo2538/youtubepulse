@@ -89,23 +89,23 @@ const PerformanceVideosDetail: React.FC = () => {
   }, []);
 
   const buildPerformanceData = useCallback(
-    (classifiedData: any[]) => {
-      if (!classifiedData || classifiedData.length === 0) {
+    (allData: any[]) => {
+      if (!allData || allData.length === 0) {
         setVideos([]);
         setFilteredVideos([]);
         return;
       }
 
       const targetDate = selectedDate || getKoreanDateString();
-      const todayData = classifiedData.filter((item: any) => {
-        const itemDate = item.collectionDate || item.uploadDate;
-        return itemDate && itemDate.split("T")[0] === targetDate && item.category && item.videoTitle;
+      const todayData = allData.filter((item: any) => {
+        const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+        return itemDate && itemDate.split("T")[0] === targetDate && item.videoTitle;
       });
 
       console.log(`📊 평균 대비 고성과 동영상 - ${targetDate} 데이터 ${todayData.length}개`);
 
       const channelStats: Record<string, { totalViews: number; count: number }> = {};
-      classifiedData.forEach((item: any) => {
+      allData.forEach((item: any) => {
         if (!item.channelId || !item.viewCount) return;
         if (!channelStats[item.channelId]) {
           channelStats[item.channelId] = { totalViews: 0, count: 0 };
@@ -129,8 +129,8 @@ const PerformanceVideosDetail: React.FC = () => {
               `https://via.placeholder.com/320x180?text=${item.videoTitle?.substring(0, 2) || "YT"}`,
             title: item.videoTitle || "제목 없음",
             channelName: item.channelName || "채널명 없음",
-            category: item.category || "기타",
-            subCategory: item.subCategory || "미분류",
+            category: item.category || "미분류",
+            subCategory: item.subCategory || "",
             views: item.viewCount || 0,
             averageViews,
             performanceRatio,
@@ -156,19 +156,28 @@ const PerformanceVideosDetail: React.FC = () => {
   const loadPerformanceData = useCallback(async () => {
     setLoading(true);
     try {
+      // 분류된 데이터와 미분류 데이터 모두 로드
       const classifiedData = await indexedDBService.loadClassifiedData();
-      console.log(`📊 평균 대비 고성과 동영상 - IndexedDB에서 ${classifiedData.length}개 로드`);
+      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+      const allData = [...classifiedData, ...unclassifiedData];
+      
+      console.log(`📊 평균 대비 고성과 동영상 - IndexedDB에서 분류: ${classifiedData.length}개, 미분류: ${unclassifiedData.length}개, 전체: ${allData.length}개`);
 
-      buildPerformanceData(classifiedData);
+      buildPerformanceData(allData);
 
       setTimeout(async () => {
         try {
-          const serverData = await hybridService.getClassifiedData();
-          if (serverData.length > classifiedData.length) {
+          const [serverClassified, serverUnclassified] = await Promise.all([
+            hybridService.getClassifiedData(),
+            hybridService.loadUnclassifiedData()
+          ]);
+          const serverAllData = [...serverClassified, ...serverUnclassified];
+          
+          if (serverAllData.length > allData.length) {
             console.log(
-              `🔄 평균 대비 고성과 동영상 - 서버 데이터 ${serverData.length}개 > 로컬 ${classifiedData.length}개`
+              `🔄 평균 대비 고성과 동영상 - 서버 데이터 ${serverAllData.length}개 > 로컬 ${allData.length}개`
             );
-            buildPerformanceData(serverData);
+            buildPerformanceData(serverAllData);
           }
         } catch (error) {
           console.warn("⚠️ 평균 대비 고성과 동영상 - 백그라운드 동기화 실패 (무시)", error);

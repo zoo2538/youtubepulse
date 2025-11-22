@@ -210,7 +210,7 @@ export function ChannelTrendingTable() {
   return (
     <Card className="p-6">
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground">[카테고리] 신규 조회수 급등 채널</h3>
+        <h3 className="text-lg font-semibold text-foreground">조회수 급등 채널</h3>
         
         <div className="max-h-96 overflow-auto">
           <Table>
