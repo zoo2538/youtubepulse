@@ -28,6 +28,21 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+// 한국어 텍스트 감지 함수
+const isKoreanText = (text: string): boolean => {
+  if (!text || typeof text !== 'string') return false;
+  const koreanRegex = /[가-힣]/;
+  return koreanRegex.test(text);
+};
+
+// 한국 채널 필터링 함수
+const isKoreanChannel = (item: any): boolean => {
+  // 채널명 또는 비디오 제목에 한국어가 포함되어 있으면 한국 채널로 간주
+  const channelNameKorean = isKoreanText(item.channelName || '');
+  const videoTitleKorean = isKoreanText(item.videoTitle || item.title || '');
+  return channelNameKorean || videoTitleKorean;
+};
+
 interface ChannelRankingData {
   rank: number;
   channelId: string;
@@ -83,19 +98,37 @@ const ChannelTrend = () => {
         
         // 오늘 데이터 (모든 데이터 포함 - 분류 여부와 무관)
         // 트렌드 페이지는 채널 랭킹이므로 분류 여부와 상관없이 모든 채널 데이터를 포함해야 함
+        // 단, 대한민국 채널만 표시
         const allTodayData = [...classifiedData, ...unclassifiedData];
         const todayData = allTodayData.filter((item: any) => {
+          // 날짜 필터링
           const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
           if (!itemDate) return false;
-          return itemDate.split('T')[0] === targetDate;
+          const dateMatch = itemDate.split('T')[0] === targetDate;
+          
+          // 대한민국 채널 필터링
+          if (country === '대한민국') {
+            return dateMatch && isKoreanChannel(item);
+          }
+          
+          return dateMatch;
         });
         
         // 어제 데이터 (모든 데이터 포함 - 분류 여부와 무관)
+        // 대한민국 채널만 표시
         const allYesterdayData = [...classifiedData, ...unclassifiedData];
         const yesterdayData = allYesterdayData.filter((item: any) => {
+          // 날짜 필터링
           const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
           if (!itemDate) return false;
-          return itemDate.split('T')[0] === yesterdayStr;
+          const dateMatch = itemDate.split('T')[0] === yesterdayStr;
+          
+          // 대한민국 채널 필터링
+          if (country === '대한민국') {
+            return dateMatch && isKoreanChannel(item);
+          }
+          
+          return dateMatch;
         });
         
         // 채널별 그룹화
@@ -211,7 +244,7 @@ const ChannelTrend = () => {
     };
     
     loadChannelRankings();
-  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam]);
+  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country]);
 
   // 채널 선택 시 차트 데이터 로드
   useEffect(() => {
