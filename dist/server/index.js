@@ -291,6 +291,13 @@ async function createTables() {
         day_key_local VARCHAR(10),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        keyword VARCHAR(255),
+        -- 채널 상세 정보 컬럼 추가
+        subscriber_count BIGINT,
+        channel_video_count INTEGER,
+        channel_creation_date DATE,
+        channel_description TEXT,
+        channel_thumbnail_url VARCHAR(500),
         UNIQUE(video_id, day_key_local)
       )
     `);
@@ -1173,7 +1180,8 @@ app.get('/api/unclassified', async (req, res) => {
           id, video_id, channel_id, channel_name, video_title, 
           video_description, view_count, like_count, comment_count,
           upload_date, collection_date, thumbnail_url, 
-          category, sub_category, status, collection_type, day_key_local
+          category, sub_category, status, collection_type, day_key_local,
+          subscriber_count, channel_video_count, channel_creation_date, channel_description, channel_thumbnail_url
         FROM unclassified_data 
         WHERE day_key_local >= $1
         ORDER BY collection_date DESC, view_count DESC
@@ -1186,7 +1194,8 @@ app.get('/api/unclassified', async (req, res) => {
           id, video_id, channel_id, channel_name, video_title, 
           video_description, view_count, like_count, comment_count,
           upload_date, collection_date, thumbnail_url, 
-          category, sub_category, status, collection_type, day_key_local
+          category, sub_category, status, collection_type, day_key_local,
+          subscriber_count, channel_video_count, channel_creation_date, channel_description, channel_thumbnail_url
         FROM unclassified_data 
         ORDER BY collection_date DESC, view_count DESC
       `;
@@ -1218,6 +1227,12 @@ app.get('/api/unclassified', async (req, res) => {
         commentCount: row.comment_count,
         uploadDate: row.upload_date,
         collectionDate: row.collection_date,
+        // 채널 상세 정보 추가
+        subscriberCount: row.subscriber_count,
+        channelVideoCount: row.channel_video_count,
+        channelCreationDate: row.channel_creation_date,
+        channelDescription: row.channel_description,
+        channelThumbnail: row.channel_thumbnail_url,
         dayKeyLocal: dayKeyLocal, // KST 기준 일자 키 추가
         thumbnailUrl: row.thumbnail_url,
         category: row.category || '',
@@ -1862,6 +1877,40 @@ function safeCron(fn) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 자동 데이터 수집 함수
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 한국어 텍스트 확인 함수
+function isKoreanText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const koreanRegex = /[가-힣]/;
+  return koreanRegex.test(text);
+}
+
+// 한국어 영상 필터링 함수 (클라이언트와 동일한 로직)
+function isKoreanVideo(video, filterLevel = 'moderate') {
+  if (!video?.snippet) return false;
+  
+  const { title, description, channelTitle } = video.snippet;
+  
+  // 제목, 설명, 채널명에서 한국어 텍스트 확인
+  const titleKorean = isKoreanText(title);
+  const descriptionKorean = isKoreanText(description);
+  const channelKorean = isKoreanText(channelTitle);
+  
+  // 언어 필터링 강도별 판정
+  switch (filterLevel) {
+    case 'strict':
+      // 엄격: 제목과 설명 모두 한국어여야 함
+      return titleKorean && descriptionKorean;
+    case 'moderate':
+      // 보통: 제목이 한국어이거나 채널명이 한국어여야 함
+      return titleKorean || channelKorean;
+    case 'loose':
+      // 느슨: 제목, 설명, 채널명 중 하나라도 한국어면 포함
+      return titleKorean || descriptionKorean || channelKorean;
+    default:
+      return titleKorean || channelKorean;
+  }
+}
+
 async function autoCollectData() {
   // TDZ 방지: 실행 날짜 상수를 함수 최상단에서 초기화
   const runDateISO = new Date().toISOString().split('T')[0];
@@ -1871,6 +1920,11 @@ async function autoCollectData() {
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('📅 실행 날짜 (Asia/Seoul):', runDateISO);
+  
+  // 한국어 필터링 설정 (기본값: moderate 모드)
+  const koreanOnly = true;
+  const languageFilterLevel = 'moderate';
+  console.log(`🇰🇷 한국어 필터링 적용: ${koreanOnly ? `${languageFilterLevel} 모드` : '비활성화'}`);
   
   // 디버깅: 환경 변수 확인
   console.log('🔍 디버깅: 환경 변수 확인');
@@ -2021,8 +2075,21 @@ async function autoCollectData() {
             
             requestCount++;
             if (videosData.items) {
+              // 한국어 필터링 적용
+              const filteredVideos = videosData.items.filter(video => {
+                if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+                  return false;
+                }
+                return true;
+              });
+              
+              const filteredCount = videosData.items.length - filteredVideos.length;
+              if (filteredCount > 0) {
+                console.log(`  🇰🇷 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+              }
+              
               // 키워드 정보를 함께 저장
-              const videosWithKeyword = videosData.items.map(item => ({
+              const videosWithKeyword = filteredVideos.map(item => ({
                 ...item,
                 searchKeyword: keyword // 어떤 키워드로 수집되었는지 기록
               }));
@@ -2159,6 +2226,18 @@ async function autoCollectData() {
     
     console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 7일)`);
 
+    // 채널 정보를 채널 ID로 매핑
+    const channelInfoMap = new Map();
+    allChannels.forEach(channel => {
+      channelInfoMap.set(channel.id, {
+        subscriberCount: parseInt(channel.statistics?.subscriberCount) || 0,
+        videoCount: parseInt(channel.statistics?.videoCount) || 0,
+        publishedAt: channel.snippet?.publishedAt || '',
+        channelDescription: channel.snippet?.description || '',
+        channelThumbnail: channel.snippet?.thumbnails?.high?.url || channel.snippet?.thumbnails?.default?.url || ''
+      });
+    });
+    
     // 6단계: 데이터 변환 및 저장
     // KST 기준으로 오늘 날짜 생성 (오전 9시 실행되므로 당일로 저장)
     const now = new Date();
@@ -2168,6 +2247,7 @@ async function autoCollectData() {
     console.log(`📅 수집 날짜 설정: ${today} (당일 데이터로 저장)`);
     const newData = uniqueVideos.map((video, index) => {
       const channel = allChannels.find(ch => ch.id === video.channelId);
+      const channelInfo = channelInfoMap.get(video.channelId);
       const existingClassification = classifiedChannelMap.get(video.channelId);
       
       return {
@@ -2194,7 +2274,13 @@ async function autoCollectData() {
         source: video.source, // 수집 소스 정보 추가
         collectionType: 'manual', // UI 호환성을 위해 기본값 유지
         collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
-        collectionSource: 'auto_collect_api' // 수집 소스 기록
+        collectionSource: 'auto_collect_api', // 수집 소스 기록
+        // 채널 상세 정보 추가
+        subscriberCount: channelInfo?.subscriberCount,
+        channelVideoCount: channelInfo?.videoCount,
+        channelCreationDate: channelInfo?.publishedAt ? channelInfo.publishedAt.split('T')[0] : undefined,
+        channelDescription: channelInfo?.channelDescription,
+        channelThumbnail: channelInfo?.channelThumbnail
       };
     });
 
@@ -2236,8 +2322,9 @@ async function autoCollectData() {
               video_id, channel_id, channel_name, video_title, 
               video_description, view_count, like_count, comment_count,
               upload_date, collection_date, thumbnail_url, 
-              category, sub_category, status, day_key_local, collection_type, keyword
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+              category, sub_category, status, day_key_local, collection_type, keyword,
+              subscriber_count, channel_video_count, channel_creation_date, channel_description, channel_thumbnail_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             ON CONFLICT (video_id, day_key_local) 
             DO UPDATE SET
               channel_id = EXCLUDED.channel_id,
@@ -2253,6 +2340,11 @@ async function autoCollectData() {
               status = COALESCE(unclassified_data.status, EXCLUDED.status),
               collection_type = EXCLUDED.collection_type,
               keyword = COALESCE(unclassified_data.keyword, EXCLUDED.keyword),
+              subscriber_count = COALESCE(unclassified_data.subscriber_count, EXCLUDED.subscriber_count),
+              channel_video_count = COALESCE(unclassified_data.channel_video_count, EXCLUDED.channel_video_count),
+              channel_creation_date = COALESCE(unclassified_data.channel_creation_date, EXCLUDED.channel_creation_date),
+              channel_description = COALESCE(unclassified_data.channel_description, EXCLUDED.channel_description),
+              channel_thumbnail_url = COALESCE(unclassified_data.channel_thumbnail_url, EXCLUDED.channel_thumbnail_url),
               updated_at = NOW()
             RETURNING (xmax = 0) AS inserted
           `, [
@@ -2272,7 +2364,12 @@ async function autoCollectData() {
             item.status || 'unclassified',
             today,
             'auto',
-            item.keyword || ''
+            item.keyword || '',
+            item.subscriberCount || null,
+            item.channelVideoCount || null,
+            item.channelCreationDate || null,
+            item.channelDescription || null,
+            item.channelThumbnail || null
           ]);
           
           if (result.rows[0].inserted) {
