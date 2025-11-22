@@ -81,16 +81,17 @@ const ChannelTrend = () => {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
         
-        // 오늘 데이터 (classified + unclassified)
-        const allTodayData = [...classifiedData, ...unclassifiedData.filter((item: any) => item.status === 'classified')];
+        // 오늘 데이터 (모든 데이터 포함 - 분류 여부와 무관)
+        // 트렌드 페이지는 채널 랭킹이므로 분류 여부와 상관없이 모든 채널 데이터를 포함해야 함
+        const allTodayData = [...classifiedData, ...unclassifiedData];
         const todayData = allTodayData.filter((item: any) => {
           const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
           if (!itemDate) return false;
           return itemDate.split('T')[0] === targetDate;
         });
         
-        // 어제 데이터
-        const allYesterdayData = [...classifiedData, ...unclassifiedData.filter((item: any) => item.status === 'classified')];
+        // 어제 데이터 (모든 데이터 포함 - 분류 여부와 무관)
+        const allYesterdayData = [...classifiedData, ...unclassifiedData];
         const yesterdayData = allYesterdayData.filter((item: any) => {
           const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
           if (!itemDate) return false;
@@ -223,14 +224,15 @@ const ChannelTrend = () => {
         const unclassifiedData = await indexedDBService.loadUnclassifiedData();
         const classifiedData = await indexedDBService.loadClassifiedData();
         
-        const classifiedUnclassifiedData = unclassifiedData.filter((item: any) => 
-          item.channelId === selectedChannelId && item.status === 'classified'
+        // 트렌드 페이지는 채널 랭킹이므로 분류 여부와 상관없이 모든 데이터 포함
+        const unclassifiedChannelData = unclassifiedData.filter((item: any) => 
+          item.channelId === selectedChannelId
         );
         const classifiedChannelData = classifiedData.filter((item: any) => 
           item.channelId === selectedChannelId
         );
         
-        const allChannelData = [...classifiedUnclassifiedData, ...classifiedChannelData];
+        const allChannelData = [...unclassifiedChannelData, ...classifiedChannelData];
         
         // 중복 제거 (videoId + dayKeyLocal 기준)
         const uniqueMap = new Map();
