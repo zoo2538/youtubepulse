@@ -114,7 +114,22 @@ const PerformanceVideosDetail: React.FC = () => {
         channelStats[item.channelId].count += 1;
       });
 
-      const performanceVideos = todayData
+      // videoId 기준으로 중복 제거 (같은 비디오가 여러 날짜에 수집된 경우 최신 조회수 사용)
+      const videoMap = new Map<string, any>();
+      todayData.forEach((item: any) => {
+        const videoId = item.videoId || item.id;
+        if (!videoId) return;
+        
+        const existing = videoMap.get(videoId);
+        if (!existing || (item.viewCount || 0) > (existing.viewCount || 0)) {
+          // 기존 항목이 없거나 현재 항목의 조회수가 더 높으면 업데이트
+          videoMap.set(videoId, item);
+        }
+      });
+      
+      const uniqueVideos = Array.from(videoMap.values());
+
+      const performanceVideos = uniqueVideos
         .map((item: any) => {
           const stats = channelStats[item.channelId];
           const averageViews =
