@@ -140,7 +140,7 @@ export function getAvailableApiKey(): { index: number; key: string } | null {
   
   const usage = resetDailyQuotaIfNeeded(loadApiKeyUsage());
   const savedActiveIndexRaw = localStorage.getItem('activeYoutubeApiKeyIndex');
-  let currentIndex = savedActiveIndexRaw ? parseInt(savedActiveIndexRaw, 10) : 0;
+  const currentIndex = savedActiveIndexRaw ? parseInt(savedActiveIndexRaw, 10) : 0;
   
   // 현재 키부터 시작하여 사용 가능한 키 찾기
   for (let i = 0; i < savedApiKeys.length; i++) {

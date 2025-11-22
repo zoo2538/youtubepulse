@@ -72,12 +72,33 @@ function recordTest(testName, passed, message) {
   testResults.details.push({ testName, passed, message });
 }
 
+// 타임아웃이 있는 fetch 헬퍼 함수
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
+}
+
 // 1. 서버 헬스 체크 테스트
 async function testServerHealth() {
   logSection('1. 서버 헬스 체크 테스트');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/health/db`, { timeout: 10000 });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/db`, {}, 10000);
     const data = await response.json();
     
     const isHealthy = response.ok && data.status === 'UP';
@@ -108,7 +129,7 @@ async function testAutoCollectionData() {
   logSection('2. 자동수집 데이터 확인 테스트');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/auto-collected`, { timeout: 15000 });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 15000);
     const data = await response.json();
     
     const hasData = response.ok && data.success && data.data && data.data.length > 0;
@@ -149,7 +170,7 @@ async function testClassifiedData() {
   logSection('3. 분류 데이터 확인 테스트');
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/classified`, { timeout: 15000 });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 15000);
     const data = await response.json();
     
     const hasData = response.ok && data.success && data.data && data.data.length > 0;
@@ -217,16 +238,15 @@ async function testManualCollectionBranch() {
     
     // PATCH API 테스트 (수정)
     logTest('PATCH API 테스트 중...');
-    const patchResponse = await fetch(`${API_BASE_URL}/api/videos/${testData.videoId}`, {
+    const patchResponse = await fetchWithTimeout(`${API_BASE_URL}/api/videos/${testData.videoId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         category: '테스트_수정',
         subCategory: 'E2E_수정',
         status: 'classified'
-      }),
-      timeout: 10000
-    });
+      })
+    }, 10000);
     
     const patchData = await patchResponse.json();
     const patchSuccess = patchResponse.ok && patchData.success;
@@ -238,10 +258,9 @@ async function testManualCollectionBranch() {
     
     // DELETE API 테스트 (삭제)
     logTest('DELETE API 테스트 중...');
-    const deleteResponse = await fetch(`${API_BASE_URL}/api/videos/${testData.videoId}`, {
-      method: 'DELETE',
-      timeout: 10000
-    });
+    const deleteResponse = await fetchWithTimeout(`${API_BASE_URL}/api/videos/${testData.videoId}`, {
+      method: 'DELETE'
+    }, 10000);
     
     const deleteData = await deleteResponse.json();
     const deleteSuccess = deleteResponse.ok && deleteData.success;
@@ -265,14 +284,13 @@ async function testAutoCollectionBranch() {
   try {
     // 자동수집 트리거 테스트
     logTest('자동수집 트리거 테스트 중...');
-    const triggerResponse = await fetch(`${API_BASE_URL}/api/auto-collect`, {
+    const triggerResponse = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         dateKey: new Date().toISOString().split('T')[0]
-      }),
-      timeout: 60000 // 1분 타임아웃
-    });
+      })
+    }, 60000); // 1분 타임아웃
     
     const triggerData = await triggerResponse.json();
     const triggerSuccess = triggerResponse.ok && triggerData.success;
@@ -288,7 +306,7 @@ async function testAutoCollectionBranch() {
       await new Promise(resolve => setTimeout(resolve, 5000));
       
       // 자동수집 데이터 다시 확인
-      const checkResponse = await fetch(`${API_BASE_URL}/api/auto-collected`);
+      const checkResponse = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 15000);
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
         if (checkData.success && checkData.data) {
@@ -314,7 +332,7 @@ async function testFrontendAccessibility() {
   
   try {
     // 메인 페이지 접근 테스트
-    const response = await fetch(FRONTEND_URL, { timeout: 10000 });
+    const response = await fetchWithTimeout(FRONTEND_URL, {}, 10000);
     const isAccessible = response.ok;
     recordTest(
       '프론트엔드 접근',
@@ -355,14 +373,14 @@ async function testHybridSync() {
   
   try {
     // 서버 데이터와 클라이언트 데이터 일치성 확인
-    const serverResponse = await fetch(`${API_BASE_URL}/api/classified`);
+    const serverResponse = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 15000);
     const serverData = await serverResponse.json();
     
     if (serverResponse.ok && serverData.success && serverData.data) {
       const serverCount = serverData.data.length;
       
       // 클라이언트에서도 동일한 데이터를 받을 수 있는지 확인
-      const clientResponse = await fetch(`${API_BASE_URL}/api/classified`);
+      const clientResponse = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 15000);
       const clientData = await clientResponse.json();
       
       if (clientResponse.ok && clientData.success && clientData.data) {
@@ -399,12 +417,11 @@ async function testOfflineOutbox() {
     logTest('아웃박스 기능은 브라우저 환경에서 테스트 필요');
     
     // 대신 서버의 오류 처리 능력 확인
-    const invalidResponse = await fetch(`${API_BASE_URL}/api/videos/invalid-id`, {
+    const invalidResponse = await fetchWithTimeout(`${API_BASE_URL}/api/videos/invalid-id`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category: 'test' }),
-      timeout: 5000
-    });
+      body: JSON.stringify({ category: 'test' })
+    }, 5000);
     
     const invalidData = await invalidResponse.json();
     const properErrorHandling = !invalidResponse.ok && invalidData.error;

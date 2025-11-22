@@ -769,7 +769,8 @@ const DataClassification = () => {
       console.error('📁 백업 폴더 초기화 실패:', error);
       showToast('백업 폴더 초기화에 실패했습니다.', 'error');
     }
-  }, [fsAccessSupported]);
+    // fsAccessSupported는 컴포넌트 외부 상수이므로 의존성 배열에서 제외
+  }, []);
 
   React.useEffect(() => {
     if (!fsAccessSupported) return;

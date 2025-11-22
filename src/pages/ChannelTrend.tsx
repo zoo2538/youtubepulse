@@ -43,6 +43,30 @@ const isKoreanChannel = (item: any): boolean => {
   return channelNameKorean || videoTitleKorean;
 };
 
+// 공식 오피셜 채널 감지 함수
+const isOfficialChannel = (channelName: string): boolean => {
+  if (!channelName || typeof channelName !== 'string') return false;
+  
+  const officialPatterns = [
+    // 방송사
+    /^MBC/i, /^KBS/i, /^SBS/i, /^JTBC/i, /^tvN/i, /^MBN/i, /^채널A/i, /^YTN/i,
+    /MBC공식/i, /KBS공식/i, /SBS공식/i, /JTBC공식/i,
+    // 언론사
+    /^조선일보/i, /^중앙일보/i, /^동아일보/i, /^한겨레/i, /^경향신문/i,
+    /^매일경제/i, /^한국경제/i, /^서울신문/i,
+    // 정부/공공기관
+    /정부/i, /청와대/i, /국회/i, /행정안전부/i, /문화체육관광부/i,
+    // 기업 공식
+    /공식채널/i, /Official/i, /공식/i,
+    // YouTube 공식
+    /^YouTube/i, /^YouTube Music/i, /^YouTube Kids/i,
+    // 기타
+    /뉴스/i, /News/i, /방송/i
+  ];
+  
+  return officialPatterns.some(pattern => pattern.test(channelName));
+};
+
 interface ChannelRankingData {
   rank: number;
   channelId: string;
@@ -75,6 +99,7 @@ const ChannelTrend = () => {
   const [country, setCountry] = useState<string>('대한민국');
   const [showNewOnly, setShowNewOnly] = useState<boolean>(false);
   const [reverseOrder, setReverseOrder] = useState<boolean>(false);
+  const [excludeOfficial, setExcludeOfficial] = useState<boolean>(true); // 공식 채널 제외 (기본값: true)
   
   const [channelRankings, setChannelRankings] = useState<ChannelRankingData[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<ChannelRankingData | null>(null);
@@ -135,6 +160,12 @@ const ChannelTrend = () => {
         const todayChannelGroups: any = {};
         todayData.forEach((item: any) => {
           if (!item.channelId || !item.channelName) return;
+          
+          // 공식 채널 필터링
+          if (excludeOfficial && isOfficialChannel(item.channelName)) {
+            return; // 공식 채널 제외
+          }
+          
           if (!todayChannelGroups[item.channelId]) {
             todayChannelGroups[item.channelId] = {
               channelId: item.channelId,
@@ -244,7 +275,7 @@ const ChannelTrend = () => {
     };
     
     loadChannelRankings();
-  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country]);
+  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial]);
 
   // 채널 선택 시 차트 데이터 로드
   useEffect(() => {
@@ -501,7 +532,7 @@ const ChannelTrend = () => {
                 </div>
 
                 {/* 액션 버튼 */}
-                <div className="flex space-x-2">
+                <div className="flex space-x-2 flex-wrap gap-2">
                   <Button
                     variant={showNewOnly ? 'default' : 'outline'}
                     size="sm"
@@ -518,6 +549,14 @@ const ChannelTrend = () => {
                   >
                     <ArrowUpDown className="w-4 h-4 mr-1" />
                     역순
+                  </Button>
+                  <Button
+                    variant={excludeOfficial ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setExcludeOfficial(!excludeOfficial)}
+                    className={excludeOfficial ? 'bg-red-600 hover:bg-red-700' : ''}
+                  >
+                    공식채널 제외
                   </Button>
                 </div>
               </div>
