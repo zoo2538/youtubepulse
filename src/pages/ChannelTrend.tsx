@@ -47,6 +47,17 @@ const isKoreanChannel = (item: any): boolean => {
 const isOfficialChannel = (channelName: string): boolean => {
   if (!channelName || typeof channelName !== 'string') return false;
   
+  // 예외 처리: 공식 채널이 아닌 개인/크리에이터 채널
+  const exceptionPatterns = [
+    /미유.*MIUU.*AI/i,
+    /MIUU.*AI/i
+  ];
+  
+  // 예외 패턴에 매칭되면 공식 채널이 아님
+  if (exceptionPatterns.some(pattern => pattern.test(channelName))) {
+    return false;
+  }
+  
   const officialPatterns = [
     // 방송사 (채널명 어디에든 포함되면 공식 채널)
     /MBC/i, /KBS/i, /kbs/i, /SBS/i, /JTBC/i, /tvN/i, /MBN/i, /채널A/i, /YTN/i, /Mnet/i, /tvchosun/i, /TV조선/i,
@@ -69,7 +80,7 @@ const isOfficialChannel = (channelName: string): boolean => {
     /SMTOWN/i, /SM ENT/i, /SM엔터/i, /HYBE/i, /JYP/i, /YG/i, /플레디스/i, /Pledis/i,
     /큐브/i, /CUBE/i, /판타지오/i, /Fantagio/i, /스타쉽/i, /Starship/i,
     // 아이돌 그룹 공식 채널
-    /BLACKPINK/i, /BTS/i, /BANGTAN/i, /SEVENTEEN/i, /TWICE/i, /Red Velvet/i, /aespa/i,
+    /BLACKPINK/i, /BTS/i, /BANGTAN/i, /BANGTANTV/i, /SEVENTEEN/i, /TWICE/i, /Red Velvet/i, /aespa/i,
     /NewJeans/i, /IVE/i, /LE SSERAFIM/i, /NCT/i, /EXO/i, /SUPER JUNIOR/i,
     // 기업 공식
     /공식채널/i, /Official/i, /공식/i,
@@ -83,12 +94,16 @@ const isOfficialChannel = (channelName: string): boolean => {
     /베이비버스/i, /BabyBus/i, /리틀엔젤/i, /Little Angel/i,
     /토이몽/i, /Toymong/i, /브레드 이발소/i, /Bread Barber/i,
     /캐릭온/i, /Characteron/i, /핑크퐁/i, /Pinkfong/i, /어린이 프로/i,
+    /마샤와 곰/i, /Masha/i, /Masha and the Bear/i,
+    /토닥토닥 꼬모/i, /꼬모/i, /Kkomo/i,
     // YouTube Topic 채널
     /Topic/i, /topic/i, (/- Topic$/i),
     // 엔터테인먼트 계정
     /엔터테인먼트/i, /Entertainment/i,
     // 뮤직 레이블/음악 공식 채널
     /1theK/i, /원더케이/i, /M2/i, /멜론/i, /Melon/i,
+    /미스.*미스터.*트롯/i, /미스&미스터트롯/i,
+    /ootb STUDIO/i, /OOTB/i,
     // 뉴스/방송 관련 (방송사 관련 채널만)
     /뉴스/i, /News/i, /방송/i, /Broadcast/i, /esports/i
   ];
