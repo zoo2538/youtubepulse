@@ -84,7 +84,7 @@ const isOfficialChannel = (channelName: string): boolean => {
     /토이몽/i, /Toymong/i, /브레드 이발소/i, /Bread Barber/i,
     /캐릭온/i, /Characteron/i, /핑크퐁/i, /Pinkfong/i, /어린이 프로/i,
     // YouTube Topic 채널
-    /Topic/i, /topic/i, /- Topic$/i
+    /Topic/i, /topic/i, (/- Topic$/i),
     // 엔터테인먼트 계정
     /엔터테인먼트/i, /Entertainment/i,
     // 뮤직 레이블/음악 공식 채널
