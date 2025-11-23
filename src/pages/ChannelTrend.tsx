@@ -125,6 +125,7 @@ const ChannelTrend = () => {
   const [showNewOnly, setShowNewOnly] = useState<boolean>(false);
   const [reverseOrder, setReverseOrder] = useState<boolean>(false);
   const [excludeOfficial, setExcludeOfficial] = useState<boolean>(true); // 공식 채널 제외 (기본값: true)
+  const [showOnlyOfficial, setShowOnlyOfficial] = useState<boolean>(false); // 공식 채널만 표시 (기본값: false)
   
   const [channelRankings, setChannelRankings] = useState<ChannelRankingData[]>([]);
   const [selectedChannel, setSelectedChannel] = useState<ChannelRankingData | null>(null);
@@ -187,7 +188,15 @@ const ChannelTrend = () => {
           if (!item.channelId || !item.channelName) return;
           
           // 공식 채널 필터링
-          if (excludeOfficial && isOfficialChannel(item.channelName)) {
+          const isOfficial = isOfficialChannel(item.channelName);
+          
+          // 공식 채널만 표시 모드
+          if (showOnlyOfficial && !isOfficial) {
+            return; // 공식 채널이 아니면 제외
+          }
+          
+          // 공식 채널 제외 모드
+          if (excludeOfficial && !showOnlyOfficial && isOfficial) {
             // 디버깅: 공식 채널이 감지되었는지 확인
             // console.log('공식 채널 제외:', item.channelName);
             return; // 공식 채널 제외
@@ -302,7 +311,7 @@ const ChannelTrend = () => {
     };
     
     loadChannelRankings();
-  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial]);
+  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial, showOnlyOfficial]);
 
   // 채널 선택 시 차트 데이터 로드
   useEffect(() => {
@@ -567,12 +576,26 @@ const ChannelTrend = () => {
                     역순
                   </Button>
                   <Button
-                    variant={excludeOfficial ? 'default' : 'outline'}
+                    variant={showOnlyOfficial ? 'default' : excludeOfficial ? 'default' : 'outline'}
                     size="sm"
-                    onClick={() => setExcludeOfficial(!excludeOfficial)}
-                    className={excludeOfficial ? 'bg-red-600 hover:bg-red-700' : ''}
+                    onClick={() => {
+                      if (showOnlyOfficial) {
+                        // 공식 채널만 표시 모드에서 클릭하면 전체 표시로
+                        setShowOnlyOfficial(false);
+                        setExcludeOfficial(true);
+                      } else if (excludeOfficial) {
+                        // 공식 채널 제외 모드에서 클릭하면 공식 채널만 표시로
+                        setShowOnlyOfficial(true);
+                        setExcludeOfficial(false);
+                      } else {
+                        // 전체 표시 모드에서 클릭하면 공식 채널 제외로
+                        setExcludeOfficial(true);
+                        setShowOnlyOfficial(false);
+                      }
+                    }}
+                    className={showOnlyOfficial ? 'bg-blue-600 hover:bg-blue-700' : excludeOfficial ? 'bg-red-600 hover:bg-red-700' : ''}
                   >
-                    공식채널 제외
+                    {showOnlyOfficial ? '공식채널만' : excludeOfficial ? '공식채널 제외' : '전체 표시'}
                   </Button>
                 </div>
               </div>
