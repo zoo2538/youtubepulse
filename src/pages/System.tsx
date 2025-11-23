@@ -266,9 +266,32 @@ const System = () => {
         });
         
         const trimmedYoutubeApiKeys = apiConfig.youtubeApiKeys.map(key => key.trim());
+        
+        // 현재 localStorage에 실제 키가 있는지 확인
+        const currentKeysRaw = localStorage.getItem('youtubeApiKeys');
+        let currentRealKeys: string[] = [];
+        if (currentKeysRaw) {
+          try {
+            const currentKeys = JSON.parse(currentKeysRaw);
+            if (Array.isArray(currentKeys)) {
+              currentRealKeys = currentKeys.filter((key: string) => key && key.trim().length > 0);
+            }
+          } catch (error) {
+            // 파싱 실패 시 무시
+          }
+        }
+        
+        // 저장할 키에 실제 값이 있는지 확인
+        const hasRealKeysToSave = trimmedYoutubeApiKeys.some(key => key && key.trim().length > 0);
+        
+        // 저장할 키에 실제 값이 없고, 현재 localStorage에 실제 키가 있으면 현재 키 유지
+        const finalKeys = (hasRealKeysToSave || currentRealKeys.length === 0)
+          ? ensureAtLeastOneYoutubeKey(trimmedYoutubeApiKeys)
+          : currentRealKeys;
+        
         const persistedApiConfig: ApiConfig = {
           ...apiConfig,
-          youtubeApiKeys: ensureAtLeastOneYoutubeKey(trimmedYoutubeApiKeys),
+          youtubeApiKeys: finalKeys,
           customApiUrl: apiConfig.customApiUrl || '',
           customApiKey: apiConfig.customApiKey || ''
         };
@@ -324,6 +347,21 @@ const System = () => {
 
     const hydrateApiConfigFromIndexedDB = async () => {
       try {
+        // localStorage에 실제 API 키가 있는지 먼저 확인
+        const savedApiKeysRaw = localStorage.getItem('youtubeApiKeys');
+        let hasRealKeysInLocalStorage = false;
+        if (savedApiKeysRaw) {
+          try {
+            const parsed = JSON.parse(savedApiKeysRaw);
+            if (Array.isArray(parsed)) {
+              // 실제 키(빈 문자열이 아닌)가 있는지 확인
+              hasRealKeysInLocalStorage = parsed.some((key: string) => key && key.trim().length > 0);
+            }
+          } catch (error) {
+            // 파싱 실패 시 무시
+          }
+        }
+
         await indexedDBService.init();
         const storedApiConfig = await indexedDBService.loadSystemConfig('apiConfig');
         if (!isMounted || !storedApiConfig) {
@@ -333,6 +371,15 @@ const System = () => {
         const storedKeys = Array.isArray(storedApiConfig.youtubeApiKeys)
           ? storedApiConfig.youtubeApiKeys.filter((key: unknown): key is string => typeof key === 'string')
           : [];
+
+        // IndexedDB의 키에 실제 값이 있는지 확인
+        const hasRealKeysInIndexedDB = storedKeys.some(key => key && key.trim().length > 0);
+
+        // localStorage에 실제 키가 있으면 IndexedDB 복원을 건너뛰고 localStorage 우선
+        if (hasRealKeysInLocalStorage && !hasRealKeysInIndexedDB) {
+          console.log('🔒 localStorage에 실제 API 키가 있으므로 IndexedDB 복원을 건너뜁니다.');
+          return;
+        }
 
         const normalizedKeys = ensureAtLeastOneYoutubeKey(
           storedKeys.slice(0, MAX_YOUTUBE_API_KEYS)
@@ -346,7 +393,12 @@ const System = () => {
         let updatedConfig: ApiConfig | null = null;
 
         setApiConfig(prev => {
-          const nextKeys = normalizedKeys.length ? normalizedKeys : prev.youtubeApiKeys;
+          // localStorage에 실제 키가 있으면 IndexedDB보다 우선시
+          const prevHasRealKeys = prev.youtubeApiKeys.some(key => key && key.trim().length > 0);
+          const nextKeys = (prevHasRealKeys && !hasRealKeysInIndexedDB) 
+            ? prev.youtubeApiKeys 
+            : (normalizedKeys.some(key => key && key.trim().length > 0) ? normalizedKeys : prev.youtubeApiKeys);
+          
           const nextActiveIndex =
             nextKeys.length > 0
               ? Math.min(Math.max(storedActiveIndex, 0), nextKeys.length - 1)
@@ -401,7 +453,29 @@ const System = () => {
         });
 
         if (updatedConfig) {
-          localStorage.setItem('youtubeApiKeys', JSON.stringify(updatedConfig.youtubeApiKeys));
+          // localStorage에 실제 키가 있으면 덮어쓰지 않음
+          const currentKeysRaw = localStorage.getItem('youtubeApiKeys');
+          let shouldUpdateKeys = true;
+          if (currentKeysRaw) {
+            try {
+              const currentKeys = JSON.parse(currentKeysRaw);
+              if (Array.isArray(currentKeys)) {
+                const hasCurrentRealKeys = currentKeys.some((key: string) => key && key.trim().length > 0);
+                const hasUpdatedRealKeys = updatedConfig.youtubeApiKeys.some(key => key && key.trim().length > 0);
+                // 현재 localStorage에 실제 키가 있고, 업데이트할 키에 실제 키가 없으면 덮어쓰지 않음
+                if (hasCurrentRealKeys && !hasUpdatedRealKeys) {
+                  shouldUpdateKeys = false;
+                  console.log('🔒 localStorage의 실제 API 키를 보존합니다.');
+                }
+              }
+            } catch (error) {
+              // 파싱 실패 시 업데이트 진행
+            }
+          }
+
+          if (shouldUpdateKeys) {
+            localStorage.setItem('youtubeApiKeys', JSON.stringify(updatedConfig.youtubeApiKeys));
+          }
           localStorage.setItem('activeYoutubeApiKeyIndex', updatedConfig.activeYoutubeApiKeyIndex.toString());
           localStorage.setItem('youtubeApiEnabled', updatedConfig.youtubeApiEnabled.toString());
           localStorage.setItem('customApiUrl', updatedConfig.customApiUrl || '');
