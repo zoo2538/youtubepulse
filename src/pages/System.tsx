@@ -1981,11 +1981,31 @@ const System = () => {
                         <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                           <h4 className="text-sm font-medium text-blue-900 mb-2">💡 핵심 기능</h4>
                           <p className="text-xs text-blue-700">
-                            • 기존 분류 이력 기반 분류 적용<br/>
-                            • 7일간 분류 이력 우선 적용<br/>
-                            • IndexedDB 저장 (로컬 전용)
+                            • 기존 분류 이력 기반 자동 분류 적용<br/>
+                            • 최근 14일간 분류 이력 우선 적용<br/>
+                            • IndexedDB 저장 (로컬 전용)<br/>
+                            • API 키 자동 보존 (삭제 방지)
                           </p>
-                          </div>
+                        </div>
+                        
+                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                          <h4 className="text-sm font-medium text-purple-900 mb-2">📊 데이터 수집</h4>
+                          <p className="text-xs text-purple-700">
+                            • 트렌드 영상: 상위 300개 (YouTube 공식)<br/>
+                            • 키워드 영상: {EXPANDED_KEYWORDS.length}개 키워드 × 50개<br/>
+                            • 자동 수집: 매일 09:00 KST (서버 cron)<br/>
+                            • 수동 수집: 시스템 페이지에서 즉시 실행
+                          </p>
+                        </div>
+                        
+                        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                          <h4 className="text-sm font-medium text-green-900 mb-2">🔐 보안 및 저장</h4>
+                          <p className="text-xs text-green-700">
+                            • API 키: localStorage + IndexedDB 이중 저장<br/>
+                            • 실제 키 우선 보존 (빈 키로 덮어쓰기 방지)<br/>
+                            • 데이터: IndexedDB 로컬 저장 (서버 동기화 옵션)
+                          </p>
+                        </div>
                       </div>
                     </Card>
 
