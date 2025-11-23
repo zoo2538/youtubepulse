@@ -1738,7 +1738,10 @@ const System = () => {
                                           </span>
                                         </div>
                                         <code className="block text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded break-all">
-                                          {key || '(미입력)'}
+                                          {key ? (key.length > 12
+                                            ? `${key.substring(0, 8)}${'*'.repeat(key.length - 12)}${key.substring(key.length - 4)}`
+                                            : '****'
+                                          ) : '(미입력)'}
                                         </code>
                                         {keyStatus && key && (
                                           <div className="mt-2 space-y-1">
@@ -1809,7 +1812,7 @@ const System = () => {
                                     <div className="flex space-x-2">
                                       <Input
                                         id={`youtube-api-key-${index}`}
-                                        type="text"
+                                        type="password"
                                         autoComplete="off"
                                         placeholder="YouTube Data API 키를 입력하세요"
                                         value={key}
@@ -2002,6 +2005,7 @@ const System = () => {
                           <h4 className="text-sm font-medium text-green-900 mb-2">🔐 보안 및 저장</h4>
                           <p className="text-xs text-green-700">
                             • API 키: localStorage + IndexedDB 이중 저장<br/>
+                            • API 키 마스킹 표시 (보안 강화)<br/>
                             • 실제 키 우선 보존 (빈 키로 덮어쓰기 방지)<br/>
                             • 데이터: IndexedDB 로컬 저장 (서버 동기화 옵션)
                           </p>
