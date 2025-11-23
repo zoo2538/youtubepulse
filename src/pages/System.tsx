@@ -186,9 +186,6 @@ const System = () => {
   // API 키 할당량 상태
   const [apiKeyStatuses, setApiKeyStatuses] = useState<ReturnType<typeof getApiKeyStatuses>>([]);
   
-  // 키워드별 수집 현황
-  const [keywordStats, setKeywordStats] = useState<Record<string, number>>({});
-  const [isLoadingKeywordStats, setIsLoadingKeywordStats] = useState(false);
 
 
   // 관리자 권한 체크 (임시 비활성화 - 디버깅용)
@@ -245,51 +242,6 @@ const System = () => {
     return () => clearInterval(interval);
   }, [apiConfig.youtubeApiKeys, apiConfig.activeYoutubeApiKeyIndex]);
 
-  // 키워드별 수집 현황 조회
-  const loadKeywordStats = async () => {
-    try {
-      setIsLoadingKeywordStats(true);
-      const classifiedData = await indexedDBService.loadClassifiedData();
-      const unclassifiedData = await indexedDBService.loadUnclassifiedData();
-      
-      const allData = [...classifiedData, ...unclassifiedData];
-      
-      // 조회할 키워드 목록
-      const targetKeywords = [
-        '생활 정보',
-        '건강관리',
-        '사이다 반전',
-        '지혜',
-        '인생 사연',
-        '감동 사연',
-        '고부 갈등',
-        '플리',
-        '플레이 리스트'
-      ];
-      
-      const stats: Record<string, number> = {};
-      
-      // 각 키워드별로 데이터 개수 계산
-      targetKeywords.forEach(keyword => {
-        const count = allData.filter((item: any) => {
-          const itemKeyword = item.keyword || item.searchKeyword || '';
-          return itemKeyword === keyword;
-        }).length;
-        stats[keyword] = count;
-      });
-      
-      setKeywordStats(stats);
-      setIsLoadingKeywordStats(false);
-    } catch (error) {
-      console.error('키워드별 수집 현황 조회 실패:', error);
-      setIsLoadingKeywordStats(false);
-    }
-  };
-
-  // 컴포넌트 마운트 시 키워드 통계 로드
-  React.useEffect(() => {
-    loadKeywordStats();
-  }, []);
   
   // 페이지 로드 시 설정 로드
   React.useEffect(() => {
@@ -2291,65 +2243,6 @@ const System = () => {
                       })()}
                     </Card>
 
-                    {/* 키워드별 수집 현황 */}
-                    <Card className="p-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center space-x-2">
-                          <Filter className="w-5 h-5 text-indigo-600" />
-                          <h2 className="text-xl font-semibold text-foreground">키워드별 수집 현황</h2>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={loadKeywordStats}
-                          disabled={isLoadingKeywordStats}
-                        >
-                          <RefreshCw className={`w-4 h-4 mr-2 ${isLoadingKeywordStats ? 'animate-spin' : ''}`} />
-                          새로고침
-                        </Button>
-                      </div>
-                      
-                      <div className="space-y-3">
-                        {isLoadingKeywordStats ? (
-                          <div className="text-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
-                            <p className="mt-2 text-sm text-muted-foreground">조회 중...</p>
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {[
-                              '생활 정보',
-                              '건강관리',
-                              '사이다 반전',
-                              '지혜',
-                              '인생 사연',
-                              '감동 사연',
-                              '고부 갈등',
-                              '플리',
-                              '플레이 리스트'
-                            ].map((keyword) => (
-                              <div
-                                key={keyword}
-                                className="p-3 bg-muted/50 rounded-lg border border-muted"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="text-sm font-medium text-foreground">{keyword}</span>
-                                  <Badge variant="secondary" className="text-sm font-bold">
-                                    {keywordStats[keyword] || 0}개
-                                  </Badge>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        
-                        <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-xs text-blue-700">
-                            💡 키워드별 수집된 영상 개수를 표시합니다. (분류/미분류 모두 포함)
-                          </p>
-                        </div>
-                      </div>
-                    </Card>
                   </div>
        </div>
     </div>
