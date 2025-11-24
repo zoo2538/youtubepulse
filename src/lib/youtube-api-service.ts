@@ -177,8 +177,12 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
   }
   
   try {
-    while (totalCollected < maxResults) {
-      const currentBatchSize = Math.min(50, maxResults - totalCollected); // YouTube API는 한 번에 최대 50개
+    let totalRequested = 0; // 실제 요청한 비디오 개수 추적
+    const maxRequestAttempts = Math.ceil(maxResults / 50) * 2; // 필터링을 고려하여 여유있게 설정
+    let requestCount = 0;
+    
+    while (totalCollected < maxResults && requestCount < maxRequestAttempts) {
+      const currentBatchSize = 50; // YouTube API는 한 번에 최대 50개
       
       const params: any = {
         part: 'snippet,statistics',
@@ -193,6 +197,8 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
       }
 
       const data = await callYouTubeAPI('videos', params);
+      requestCount++;
+      totalRequested += data.items?.length || 0;
       
       if (data.items && data.items.length > 0) {
         // 조회수 및 한국어 필터링 적용
@@ -227,7 +233,7 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
           const languageFiltered = koreanOnly ? 
             data.items.filter((video: any) => !isKoreanVideo(video, languageFilterLevel)).length : 0;
           
-          console.log(`조회수 순 수집 진행: ${totalCollected}/${maxResults}개 (${filteredCount}개 필터링됨)`);
+          console.log(`조회수 순 수집 진행: ${totalCollected}/${maxResults}개 (요청: ${totalRequested}개, 필터링: ${filteredCount}개)`);
           if (viewFiltered > 0) console.log(`  - 조회수 미달: ${viewFiltered}개`);
           if (languageFiltered > 0) console.log(`  - 한국어 아님: ${languageFiltered}개`);
         } else {
@@ -245,6 +251,10 @@ export const collectTrendingVideos = async (maxResults: number = 10000): Promise
       
       // API 호출 제한을 고려한 지연
       await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    if (totalCollected < maxResults && requestCount >= maxRequestAttempts) {
+      console.log(`⚠️ 최대 요청 횟수(${maxRequestAttempts})에 도달했습니다. 수집된 영상: ${totalCollected}개`);
     }
     
     console.log(`✅ 조회수 순 수집 완료: ${allVideos.length}개 영상 (조회수 ${minViewCount?.toLocaleString()}회 이상)`);
