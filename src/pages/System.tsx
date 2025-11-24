@@ -253,74 +253,7 @@ const System = () => {
     }
   }, [defaultApiUrl]);
 
-  // API 설정 자동 저장
-  useEffect(() => {
-    const saveApiConfig = async () => {
-      try {
-        console.log('💾 API 설정 자동 저장 중:', {
-          youtubeApiKeys: apiConfig.youtubeApiKeys.map((key, index) => ({
-            index,
-            status: key ? '설정됨' : '미설정'
-          })),
-          activeYoutubeApiKeyIndex: apiConfig.activeYoutubeApiKeyIndex,
-          customApiKey: apiConfig.customApiKey ? '설정됨' : '미설정',
-          customApiUrl: apiConfig.customApiUrl
-        });
-        
-        const trimmedYoutubeApiKeys = apiConfig.youtubeApiKeys.map(key => key.trim());
-        
-        // 현재 localStorage에 실제 키가 있는지 확인
-        const currentKeysRaw = localStorage.getItem('youtubeApiKeys');
-        let currentRealKeys: string[] = [];
-        if (currentKeysRaw) {
-          try {
-            const currentKeys = JSON.parse(currentKeysRaw);
-            if (Array.isArray(currentKeys)) {
-              currentRealKeys = currentKeys.filter((key: string) => key && key.trim().length > 0);
-            }
-          } catch (error) {
-            // 파싱 실패 시 무시
-          }
-        }
-        
-        // 저장할 키에 실제 값이 있는지 확인
-        const hasRealKeysToSave = trimmedYoutubeApiKeys.some(key => key && key.trim().length > 0);
-        
-        // 저장할 키에 실제 값이 없고, 현재 localStorage에 실제 키가 있으면 현재 키 유지
-        const finalKeys = (hasRealKeysToSave || currentRealKeys.length === 0)
-          ? ensureAtLeastOneYoutubeKey(trimmedYoutubeApiKeys)
-          : currentRealKeys;
-        
-        const persistedApiConfig: ApiConfig = {
-          ...apiConfig,
-          youtubeApiKeys: finalKeys,
-          customApiUrl: apiConfig.customApiUrl || '',
-          customApiKey: apiConfig.customApiKey || ''
-        };
-        
-        localStorage.setItem('youtubeApiKeys', JSON.stringify(persistedApiConfig.youtubeApiKeys));
-        localStorage.setItem('activeYoutubeApiKeyIndex', persistedApiConfig.activeYoutubeApiKeyIndex.toString());
-        localStorage.setItem('youtubeApiKey', activeYoutubeApiKey || '');
-        localStorage.setItem('customApiUrl', persistedApiConfig.customApiUrl || '');
-        localStorage.setItem('customApiEnabled', persistedApiConfig.customApiEnabled.toString());
-        localStorage.setItem('customApiKey', persistedApiConfig.customApiKey || '');
-        localStorage.setItem('youtubeApiEnabled', persistedApiConfig.youtubeApiEnabled.toString());
-        localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
-        
-        // IndexedDB에는 저장하지 않음 (localStorage만 사용)
-        console.log('✅ API 설정 저장 완료 (localStorage만 사용)');
-      } catch (error) {
-        console.error('설정 자동 저장 오류:', error);
-      }
-    };
-    
-    // 설정이 변경될 때마다 자동 저장 (500ms 지연으로 과도한 저장 방지)
-    const timeoutId = setTimeout(() => {
-      void saveApiConfig();
-    }, 500);
-    
-    return () => clearTimeout(timeoutId);
-  }, [apiConfig, systemConfig, activeYoutubeApiKey]);
+  // API 설정 자동 저장 제거 - 저장하지 않음
 
   // 마이그레이션 상태 로드
 
@@ -395,12 +328,10 @@ const System = () => {
 
   const handleSetActiveYoutubeApiKey = (index: number) => {
     setApiConfig(prev => {
-      const updated = {
+      return {
         ...prev,
         activeYoutubeApiKeyIndex: index
       };
-      localStorage.setItem('activeYoutubeApiKeyIndex', index.toString());
-      return updated;
     });
   };
 
@@ -416,10 +347,7 @@ const System = () => {
         youtubeApiKeys: ensureAtLeastOneYoutubeKey(keys)
       };
       
-      // localStorage에 즉시 저장
-      localStorage.setItem('youtubeApiKeys', JSON.stringify(updatedConfig.youtubeApiKeys));
-      localStorage.setItem('activeYoutubeApiKeyIndex', updatedConfig.activeYoutubeApiKeyIndex.toString());
-      
+      // 저장하지 않음
       return updatedConfig;
     });
 
@@ -607,10 +535,7 @@ const System = () => {
         youtubeApiEnabled: true
       };
       
-      // localStorage에 즉시 저장
-      localStorage.setItem('youtubeApiKeys', JSON.stringify(updated.youtubeApiKeys));
-      localStorage.setItem('activeYoutubeApiKeyIndex', updated.activeYoutubeApiKeyIndex.toString());
-      
+      // 저장하지 않음
       return updated;
     });
 
