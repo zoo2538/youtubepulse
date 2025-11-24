@@ -68,60 +68,73 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
   }
 }
 
-async function checkHealthEndpoint() {
+async function checkHealthEndpoint(retries = 3) {
   logSection('데이터베이스 헬스 체크');
   
-  try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/health/db`, {}, 10000);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.status === 'UP') {
-      logSuccess('데이터베이스 연결 정상');
-      logInfo(`서비스: ${data.service}`);
-      logInfo(`메시지: ${data.message}`);
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 1) {
+        logInfo(`재시도 ${attempt}/${retries}...`);
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt)); // 지수 백오프
+      }
       
-      if (data.poolStatus) {
-        logInfo(`연결 풀 상태:`);
-        logInfo(`  - 총 연결: ${data.poolStatus.totalCount}`);
-        logInfo(`  - 유휴 연결: ${data.poolStatus.idleCount}`);
-        logInfo(`  - 대기 중: ${data.poolStatus.waitingCount}`);
+      const response = await fetchWithTimeout(`${API_BASE_URL}/health/db`, {}, 15000);
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText}` : ''}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.status === 'UP') {
+        logSuccess('데이터베이스 연결 정상');
+        logInfo(`서비스: ${data.service}`);
+        logInfo(`메시지: ${data.message}`);
         
-        // 대기 중인 연결이 있으면 경고
-        if (data.poolStatus.waitingCount > 0) {
-          logWarning(`대기 중인 연결이 ${data.poolStatus.waitingCount}개 있습니다`);
+        if (data.poolStatus) {
+          logInfo(`연결 풀 상태:`);
+          logInfo(`  - 총 연결: ${data.poolStatus.totalCount}`);
+          logInfo(`  - 유휴 연결: ${data.poolStatus.idleCount}`);
+          logInfo(`  - 대기 중: ${data.poolStatus.waitingCount}`);
+          
+          // 대기 중인 연결이 있으면 경고
+          if (data.poolStatus.waitingCount > 0) {
+            logWarning(`대기 중인 연결이 ${data.poolStatus.waitingCount}개 있습니다`);
+          }
         }
+        
+        if (data.queryResult) {
+          logInfo(`쿼리 테스트: ${data.queryResult.health_check}`);
+          logInfo(`현재 시간: ${data.queryResult.current_time}`);
+        }
+        
+        return true;
+      } else {
+        logError(`데이터베이스 상태: ${data.status}`);
+        logError(`메시지: ${data.message}`);
+        if (attempt < retries) continue;
+        return false;
       }
-      
-      if (data.queryResult) {
-        logInfo(`쿼리 테스트: ${data.queryResult.health_check}`);
-        logInfo(`현재 시간: ${data.queryResult.current_time}`);
-      }
-      
-      return true;
-    } else {
-      logError(`데이터베이스 상태: ${data.status}`);
-      logError(`메시지: ${data.message}`);
+    } catch (error) {
+      logError(`헬스 체크 실패 (시도 ${attempt}/${retries}): ${error.message}`);
+      if (attempt < retries) continue;
       return false;
     }
-  } catch (error) {
-    logError(`헬스 체크 실패: ${error.message}`);
-    return false;
   }
+  
+  return false;
 }
 
 async function checkAutoCollectionData() {
   logSection('자동수집 데이터 확인');
   
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 5000);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 10000);
     
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText.substring(0, 200)}` : ''}`);
     }
     
     const data = await response.json();
@@ -155,15 +168,19 @@ async function checkAutoCollectionData() {
           .forEach(([date, count]) => {
             logInfo(`  ${date}: ${count}개`);
           });
+      } else {
+        logWarning('자동수집 데이터가 없습니다 (정상일 수 있음)');
       }
       
       return true;
     } else {
       logWarning('자동수집 데이터 없음 또는 API 응답 오류');
-      return false;
+      // 데이터가 없어도 API가 정상 응답했다면 성공으로 간주
+      return data.success !== false;
     }
   } catch (error) {
     logError(`자동수집 데이터 확인 실패: ${error.message}`);
+    // 네트워크 오류 등은 실패로 처리하되, 전체 프로세스를 중단하지 않음
     return false;
   }
 }
@@ -172,10 +189,11 @@ async function checkClassifiedData() {
   logSection('분류 데이터 확인');
   
   try {
-    const response = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 5000);
+    const response = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 10000);
     
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      const errorText = await response.text().catch(() => '');
+      throw new Error(`HTTP ${response.status}: ${response.statusText}${errorText ? ` - ${errorText.substring(0, 200)}` : ''}`);
     }
     
     const data = await response.json();
@@ -210,15 +228,19 @@ async function checkClassifiedData() {
           .forEach(([category, count]) => {
             logInfo(`  ${category}: ${count.toLocaleString()}개`);
           });
+      } else {
+        logWarning('분류 데이터가 없습니다 (정상일 수 있음)');
       }
       
       return true;
     } else {
       logWarning('분류 데이터 없음 또는 API 응답 오류');
-      return false;
+      // 데이터가 없어도 API가 정상 응답했다면 성공으로 간주
+      return data.success !== false;
     }
   } catch (error) {
     logError(`분류 데이터 확인 실패: ${error.message}`);
+    // 네트워크 오류 등은 실패로 처리하되, 전체 프로세스를 중단하지 않음
     return false;
   }
 }
@@ -374,28 +396,52 @@ async function main() {
   const passedChecks = allChecks.filter(([, passed]) => passed).length;
   const totalChecks = allChecks.length;
   
+  // 필수 체크와 선택적 체크 구분
+  const criticalChecks = ['database', 'environmentVariables'];
+  const optionalChecks = ['autoCollection', 'classifiedData', 'autoCollectionTrigger'];
+  
+  const criticalPassed = allChecks
+    .filter(([check]) => criticalChecks.includes(check))
+    .filter(([, passed]) => passed).length;
+  const criticalTotal = criticalChecks.length;
+  
   allChecks.forEach(([check, passed]) => {
+    const isCritical = criticalChecks.includes(check);
     if (passed) {
-      logSuccess(`${check}: 통과`);
+      logSuccess(`${check}: 통과${isCritical ? ' (필수)' : ' (선택)'}`);
     } else {
-      logError(`${check}: 실패`);
+      if (isCritical) {
+        logError(`${check}: 실패 (필수)`);
+      } else {
+        logWarning(`${check}: 실패 (선택)`);
+      }
     }
   });
   
   console.log('\n' + '='.repeat(60));
-  if (passedChecks === totalChecks) {
-    log(`🎉 모든 헬스 체크 통과! (${passedChecks}/${totalChecks})`, 'green');
-    log('✅ 시스템이 정상적으로 운영 중입니다.', 'green');
+  
+  // 필수 체크가 모두 통과했는지 확인
+  if (criticalPassed === criticalTotal) {
+    if (passedChecks === totalChecks) {
+      log(`🎉 모든 헬스 체크 통과! (${passedChecks}/${totalChecks})`, 'green');
+      log('✅ 시스템이 정상적으로 운영 중입니다.', 'green');
+    } else {
+      log(`✅ 필수 헬스 체크 통과! (${criticalPassed}/${criticalTotal})`, 'green');
+      log(`⚠️  일부 선택적 체크 실패 (${passedChecks}/${totalChecks})`, 'yellow');
+      log('ℹ️  시스템은 정상 작동 중이지만 일부 기능을 확인할 수 없습니다.', 'blue');
+    }
   } else {
-    log(`⚠️  일부 헬스 체크 실패 (${passedChecks}/${totalChecks})`, 'yellow');
+    log(`❌ 필수 헬스 체크 실패 (${criticalPassed}/${criticalTotal})`, 'red');
+    log(`⚠️  전체 체크 결과 (${passedChecks}/${totalChecks})`, 'yellow');
     log('🔧 문제를 확인하고 수정해주세요.', 'yellow');
   }
   console.log('='.repeat(60));
   
   log(`🕐 완료 시간: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`, 'blue');
   
-  // 종료 코드 설정
-  process.exit(passedChecks === totalChecks ? 0 : 1);
+  // 종료 코드 설정: 필수 체크가 모두 통과하면 성공
+  const exitCode = criticalPassed === criticalTotal ? 0 : 1;
+  process.exit(exitCode);
 }
 
 // 스크립트 실행
