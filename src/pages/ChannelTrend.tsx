@@ -672,7 +672,7 @@ const ChannelTrend = () => {
                               <img
                                 src={channel.thumbnail}
                                 alt={channel.channelName}
-                                className="w-12 h-12 rounded"
+                                className="w-24 h-24 rounded"
                               />
                               <div className="flex-1 min-w-0">
                                 <p className="font-medium text-foreground truncate">
