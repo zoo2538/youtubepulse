@@ -303,6 +303,50 @@ async function createTables() {
     `);
     
     console.log('✅ PostgreSQL 테이블 생성 완료');
+    
+    // 기존 테이블에 누락된 컬럼 추가 (마이그레이션)
+    console.log('🔧 데이터베이스 마이그레이션 시작...');
+    
+    // subscriber_count 및 채널 정보 컬럼 추가
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS subscriber_count BIGINT
+    `);
+    console.log('✅ subscriber_count 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_video_count INTEGER
+    `);
+    console.log('✅ channel_video_count 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_creation_date DATE
+    `);
+    console.log('✅ channel_creation_date 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_description TEXT
+    `);
+    console.log('✅ channel_description 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_thumbnail_url VARCHAR(500)
+    `);
+    console.log('✅ channel_thumbnail_url 컬럼 추가 완료');
+    
+    // collection_type 컬럼 추가 (없을 경우)
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
+    `);
+    console.log('✅ collection_type 컬럼 확인 완료');
+    
+    console.log('✅ 데이터베이스 마이그레이션 완료');
+    
     client.release();
   } catch (error) {
     console.error('❌ PostgreSQL 테이블 생성 실패:', error);
@@ -2722,7 +2766,7 @@ function addCronHistory(status, message, error = null) {
   }
 }
 
-// 데이터베이스 스키마 수정 API (keyword 컬럼 추가)
+// 데이터베이스 스키마 수정 API (keyword 컬럼 및 채널 정보 컬럼 추가)
 app.post('/api/database/fix-schema', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });
@@ -2730,6 +2774,7 @@ app.post('/api/database/fix-schema', async (req, res) => {
 
   try {
     console.log('🔧 데이터베이스 스키마 수정 시작...');
+    const changes = [];
     
     // 1. keyword 컬럼 추가
     await pool.query(`
@@ -2737,6 +2782,7 @@ app.post('/api/database/fix-schema', async (req, res) => {
       ADD COLUMN IF NOT EXISTS keyword VARCHAR(255)
     `);
     console.log('✅ keyword 컬럼 추가 완료');
+    changes.push('Added keyword column to unclassified_data table');
 
     // 2. keyword 컬럼 인덱스 추가
     await pool.query(`
@@ -2744,23 +2790,65 @@ app.post('/api/database/fix-schema', async (req, res) => {
       ON unclassified_data(keyword)
     `);
     console.log('✅ keyword 컬럼 인덱스 추가 완료');
+    changes.push('Added index on keyword column');
 
-    // 3. 기존 데이터의 keyword 컬럼 초기화
+    // 3. subscriber_count 및 채널 정보 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS subscriber_count BIGINT
+    `);
+    console.log('✅ subscriber_count 컬럼 추가 완료');
+    changes.push('Added subscriber_count column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_video_count INTEGER
+    `);
+    console.log('✅ channel_video_count 컬럼 추가 완료');
+    changes.push('Added channel_video_count column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_creation_date DATE
+    `);
+    console.log('✅ channel_creation_date 컬럼 추가 완료');
+    changes.push('Added channel_creation_date column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_description TEXT
+    `);
+    console.log('✅ channel_description 컬럼 추가 완료');
+    changes.push('Added channel_description column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_thumbnail_url VARCHAR(500)
+    `);
+    console.log('✅ channel_thumbnail_url 컬럼 추가 완료');
+    changes.push('Added channel_thumbnail_url column');
+
+    // 4. collection_type 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
+    `);
+    console.log('✅ collection_type 컬럼 추가 완료');
+    changes.push('Added collection_type column');
+
+    // 5. 기존 데이터의 keyword 컬럼 초기화
     await pool.query(`
       UPDATE unclassified_data 
       SET keyword = '' 
       WHERE keyword IS NULL
     `);
     console.log('✅ 기존 데이터 keyword 컬럼 초기화 완료');
+    changes.push('Initialized existing data keyword field');
 
     res.json({
       success: true,
       message: 'Database schema fixed successfully',
-      changes: [
-        'Added keyword column to unclassified_data table',
-        'Added index on keyword column',
-        'Initialized existing data keyword field'
-      ]
+      changes
     });
 
   } catch (error) {
