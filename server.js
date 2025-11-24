@@ -2005,17 +2005,14 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 (상위 300개)
-    console.log('📺 1단계: 트렌드 영상 수집 중... (상위 300개)');
+    // 1단계: 트렌드 영상 수집 (상위 200개)
+    console.log('📺 1단계: 트렌드 영상 수집 중... (상위 200개)');
     let trendingVideos = [];
     let nextPageToken = '';
-    const targetCount = 300;
-    let page = 0;
-    const maxPages = 20; // 필터링을 고려하여 충분한 페이지 수 설정
     
     try {
-      // 필터링 후에도 300개가 될 때까지 수집
-      while (trendingVideos.length < targetCount && page < maxPages) {
+      // 상위 200개 수집 (50개씩 4페이지)
+      for (let page = 0; page < 4; page++) {
         const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
         
         const trendingResponse = await fetch(trendingUrl);
@@ -2051,23 +2048,11 @@ async function autoCollectData() {
           trendingVideos = [...trendingVideos, ...filteredVideos];
           nextPageToken = trendingData.nextPageToken;
           
-          console.log(`  📊 트렌드 수집 진행: ${trendingVideos.length}/${targetCount}개`);
-          
-          if (!nextPageToken) {
-            console.log('  ⚠️ 더 이상 수집할 데이터가 없습니다.');
-            break;
-          }
+          if (!nextPageToken) break;
         }
         
-        page++;
-        
         // API 할당량 고려 대기
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
-      // 목표 개수에 도달하지 못한 경우 경고
-      if (trendingVideos.length < targetCount) {
-        console.log(`⚠️ 목표 개수(${targetCount}개)에 도달하지 못했습니다. 수집된 영상: ${trendingVideos.length}개`);
+        if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
       }
       
       console.log(`✅ 트렌드 영상 수집 완료: ${trendingVideos.length}개`);

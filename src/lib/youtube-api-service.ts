@@ -623,9 +623,9 @@ export const startDataCollection = async () => {
   try {
     console.log('🔄 데이터 수집 시작...');
     
-    // 트렌딩 영상 수집 (300개)
+    // 트렌딩 영상 수집 (200개)
     console.log('📊 트렌딩 영상 수집 중...');
-    const trendingVideos = await collectTrendingVideos(300);
+    const trendingVideos = await collectTrendingVideos(200);
     console.log(`✅ 트렌딩 영상 수집 완료: ${trendingVideos.length}개`);
     
     // 고유 채널 ID 추출
