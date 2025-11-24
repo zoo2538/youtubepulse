@@ -307,14 +307,8 @@ const System = () => {
         localStorage.setItem('youtubeApiEnabled', persistedApiConfig.youtubeApiEnabled.toString());
         localStorage.setItem('systemConfig', JSON.stringify(systemConfig));
         
-        try {
-          await indexedDBService.saveSystemConfig('apiConfig', persistedApiConfig);
-          await indexedDBService.saveSystemConfig('systemConfig', systemConfig);
-        } catch (dbError) {
-          console.warn('IndexedDB에 API 설정 저장 실패:', dbError);
-        }
-        
-        console.log('✅ API 설정 저장 완료');
+        // IndexedDB에는 저장하지 않음 (localStorage만 사용)
+        console.log('✅ API 설정 저장 완료 (localStorage만 사용)');
       } catch (error) {
         console.error('설정 자동 저장 오류:', error);
       }
@@ -343,158 +337,7 @@ const System = () => {
     return keys;
   }
 
-  // IndexedDB에 저장된 API 설정 복원
-  useEffect(() => {
-    let isMounted = true;
-
-    const hydrateApiConfigFromIndexedDB = async () => {
-      try {
-        // localStorage에 실제 API 키가 있는지 먼저 확인
-        const savedApiKeysRaw = localStorage.getItem('youtubeApiKeys');
-        let hasRealKeysInLocalStorage = false;
-        if (savedApiKeysRaw) {
-          try {
-            const parsed = JSON.parse(savedApiKeysRaw);
-            if (Array.isArray(parsed)) {
-              // 실제 키(빈 문자열이 아닌)가 있는지 확인
-              hasRealKeysInLocalStorage = parsed.some((key: string) => key && key.trim().length > 0);
-            }
-          } catch (error) {
-            // 파싱 실패 시 무시
-          }
-        }
-
-        await indexedDBService.init();
-        const storedApiConfig = await indexedDBService.loadSystemConfig('apiConfig');
-        if (!isMounted || !storedApiConfig) {
-          return;
-        }
-
-        const storedKeys = Array.isArray(storedApiConfig.youtubeApiKeys)
-          ? storedApiConfig.youtubeApiKeys.filter((key: unknown): key is string => typeof key === 'string')
-          : [];
-
-        // IndexedDB의 키에 실제 값이 있는지 확인
-        const hasRealKeysInIndexedDB = storedKeys.some(key => key && key.trim().length > 0);
-
-        // localStorage에 실제 키가 있으면 IndexedDB 복원을 건너뛰고 localStorage 우선
-        if (hasRealKeysInLocalStorage && !hasRealKeysInIndexedDB) {
-          console.log('🔒 localStorage에 실제 API 키가 있으므로 IndexedDB 복원을 건너뜁니다.');
-          return;
-        }
-
-        const normalizedKeys = ensureAtLeastOneYoutubeKey(
-          storedKeys.slice(0, MAX_YOUTUBE_API_KEYS)
-        );
-
-        const storedActiveIndex =
-          typeof storedApiConfig.activeYoutubeApiKeyIndex === 'number'
-            ? storedApiConfig.activeYoutubeApiKeyIndex
-            : 0;
-
-        let updatedConfig: ApiConfig | null = null;
-
-        setApiConfig(prev => {
-          // localStorage에 실제 키가 있으면 IndexedDB보다 우선시
-          const prevHasRealKeys = prev.youtubeApiKeys.some(key => key && key.trim().length > 0);
-          const nextKeys = (prevHasRealKeys && !hasRealKeysInIndexedDB) 
-            ? prev.youtubeApiKeys 
-            : (normalizedKeys.some(key => key && key.trim().length > 0) ? normalizedKeys : prev.youtubeApiKeys);
-          
-          const nextActiveIndex =
-            nextKeys.length > 0
-              ? Math.min(Math.max(storedActiveIndex, 0), nextKeys.length - 1)
-              : prev.activeYoutubeApiKeyIndex;
-
-          const nextConfig: ApiConfig = {
-            ...prev,
-            youtubeApiKeys: nextKeys,
-            activeYoutubeApiKeyIndex: nextActiveIndex,
-            youtubeApiEnabled:
-              typeof storedApiConfig.youtubeApiEnabled === 'boolean'
-                ? storedApiConfig.youtubeApiEnabled
-                : prev.youtubeApiEnabled || nextKeys.some(key => key.trim().length > 0),
-            customApiUrl:
-              typeof storedApiConfig.customApiUrl === 'string' && storedApiConfig.customApiUrl.trim()
-                ? storedApiConfig.customApiUrl
-                : prev.customApiUrl,
-            customApiEnabled:
-              typeof storedApiConfig.customApiEnabled === 'boolean'
-                ? storedApiConfig.customApiEnabled
-                : prev.customApiEnabled,
-            customApiKey:
-              typeof storedApiConfig.customApiKey === 'string'
-                ? storedApiConfig.customApiKey
-                : prev.customApiKey
-          };
-
-          const prevSnapshot = JSON.stringify({
-            youtubeApiKeys: prev.youtubeApiKeys,
-            activeYoutubeApiKeyIndex: prev.activeYoutubeApiKeyIndex,
-            youtubeApiEnabled: prev.youtubeApiEnabled,
-            customApiUrl: prev.customApiUrl,
-            customApiEnabled: prev.customApiEnabled,
-            customApiKey: prev.customApiKey
-          });
-
-          const nextSnapshot = JSON.stringify({
-            youtubeApiKeys: nextConfig.youtubeApiKeys,
-            activeYoutubeApiKeyIndex: nextConfig.activeYoutubeApiKeyIndex,
-            youtubeApiEnabled: nextConfig.youtubeApiEnabled,
-            customApiUrl: nextConfig.customApiUrl,
-            customApiEnabled: nextConfig.customApiEnabled,
-            customApiKey: nextConfig.customApiKey
-          });
-
-          if (prevSnapshot === nextSnapshot) {
-            return prev;
-          }
-
-          updatedConfig = nextConfig;
-          return nextConfig;
-        });
-
-        if (updatedConfig) {
-          // localStorage에 실제 키가 있으면 덮어쓰지 않음
-          const currentKeysRaw = localStorage.getItem('youtubeApiKeys');
-          let shouldUpdateKeys = true;
-          if (currentKeysRaw) {
-            try {
-              const currentKeys = JSON.parse(currentKeysRaw);
-              if (Array.isArray(currentKeys)) {
-                const hasCurrentRealKeys = currentKeys.some((key: string) => key && key.trim().length > 0);
-                const hasUpdatedRealKeys = updatedConfig.youtubeApiKeys.some(key => key && key.trim().length > 0);
-                // 현재 localStorage에 실제 키가 있고, 업데이트할 키에 실제 키가 없으면 덮어쓰지 않음
-                if (hasCurrentRealKeys && !hasUpdatedRealKeys) {
-                  shouldUpdateKeys = false;
-                  console.log('🔒 localStorage의 실제 API 키를 보존합니다.');
-                }
-              }
-            } catch (error) {
-              // 파싱 실패 시 업데이트 진행
-            }
-          }
-
-          if (shouldUpdateKeys) {
-            localStorage.setItem('youtubeApiKeys', JSON.stringify(updatedConfig.youtubeApiKeys));
-          }
-          localStorage.setItem('activeYoutubeApiKeyIndex', updatedConfig.activeYoutubeApiKeyIndex.toString());
-          localStorage.setItem('youtubeApiEnabled', updatedConfig.youtubeApiEnabled.toString());
-          localStorage.setItem('customApiUrl', updatedConfig.customApiUrl || '');
-          localStorage.setItem('customApiEnabled', updatedConfig.customApiEnabled.toString());
-          localStorage.setItem('customApiKey', updatedConfig.customApiKey || '');
-        }
-      } catch (error) {
-        console.error('IndexedDB에서 API 설정을 불러오지 못했습니다:', error);
-      }
-    };
-
-    hydrateApiConfigFromIndexedDB();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  // IndexedDB 복원 로직 제거 - localStorage만 사용
 
   const handleAddYoutubeApiKeyField = () => {
     if (apiConfig.youtubeApiKeys.length >= MAX_YOUTUBE_API_KEYS) {
@@ -1697,7 +1540,7 @@ const System = () => {
                         {/* YouTube API */}
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
-                            <Label className="text-sm font-medium">YouTube Data API</Label>
+                            <Label className="text-sm font-medium">YouTube Data API 활성화</Label>
                             <Switch
                               checked={apiConfig.youtubeApiEnabled}
                               onCheckedChange={(checked) =>
@@ -1711,8 +1554,11 @@ const System = () => {
                               }
                             />
                           </div>
-                          {apiConfig.youtubeApiEnabled && (
-                            <div className="space-y-3">
+                          {/* API 키 입력 필드는 항상 표시 */}
+                          <div className="space-y-3 border-t pt-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label className="text-sm font-medium text-blue-700">📝 YouTube API 키</Label>
+                            </div>
                               {apiConfig.youtubeApiKeys.map((key, index) => {
                                 const isActive = apiConfig.activeYoutubeApiKeyIndex === index;
                                 const isTesting = youtubeApiStatus === 'testing' && lastTestedYoutubeKeyIndex === index;
@@ -1883,8 +1729,7 @@ const System = () => {
                                   </ol>
                                 </div>
                               </div>
-                            </div>
-                          )}
+                          </div>
                         </div>
 
                         {/* 커스텀 API - IndexedDB 전용 모드에서는 비활성화 */}
