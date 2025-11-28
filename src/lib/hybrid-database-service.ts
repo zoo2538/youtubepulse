@@ -267,38 +267,80 @@ class HybridDatabaseService {
 
   // PostgreSQL에서 IndexedDB로 데이터 동기화
   async syncFromPostgreSQL(): Promise<void> {
-    if (!this.config.syncEnabled) return;
+    if (!this.config.syncEnabled) {
+      console.log('⚠️ 동기화가 비활성화되어 있습니다.');
+      return;
+    }
 
     console.log('🔄 API 게이트웨이를 통한 동기화 시작...');
     
-    // 1. 마지막 동기화 시간 가져오기 (증분 동기화 준비)
-    const lastSyncTime = localStorage.getItem('last_sync_time') || '1970-01-01T00:00:00.000Z';
+    try {
+      // 1. 마지막 동기화 시간 가져오기 (증분 동기화 준비)
+      const lastSyncTime = localStorage.getItem('last_sync_time') || '1970-01-01T00:00:00.000Z';
+      console.log('📅 마지막 동기화 시간:', lastSyncTime);
 
-    // 2. 서버의 동기화 게이트웨이 API에 요청
-    const response = await fetch('/api/sync/download', {
-      method: 'POST', // POST를 사용해 body에 데이터 전달
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lastSyncTime }), // 마지막 동기화 시간 전달
-    });
+      // 2. 서버의 동기화 게이트웨이 API에 요청
+      const response = await fetch('/api/sync/download', {
+        method: 'POST', // POST를 사용해 body에 데이터 전달
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastSyncTime }), // 마지막 동기화 시간 전달
+      });
 
-    if (!response.ok) {
-      throw new Error('API를 통한 동기화 실패');
+      console.log('📡 서버 응답 상태:', response.status, response.statusText);
+
+      if (!response.ok) {
+        // 더 자세한 에러 정보 수집
+        let errorMessage = `API를 통한 동기화 실패 (${response.status} ${response.statusText})`;
+        try {
+          const errorData = await response.json();
+          errorMessage += `: ${errorData.error || errorData.message || JSON.stringify(errorData)}`;
+          console.error('❌ 서버 에러 응답:', errorData);
+        } catch (e) {
+          const errorText = await response.text();
+          errorMessage += `: ${errorText || '알 수 없는 오류'}`;
+          console.error('❌ 서버 에러 텍스트:', errorText);
+        }
+        throw new Error(errorMessage);
+      }
+
+      // 3. 서버에서 받은 최신 데이터를 IndexedDB에 저장
+      const data = await response.json();
+      console.log('📥 서버에서 받은 데이터:', {
+        channels: data.channels?.length || 0,
+        videos: data.videos?.length || 0,
+        classificationData: data.classificationData?.length || 0,
+        unclassifiedData: data.unclassifiedData?.length || 0,
+      });
+
+      if (data.channels?.length > 0 || data.videos?.length > 0 || data.classificationData?.length > 0 || data.unclassifiedData?.length > 0) {
+        if (data.channels?.length > 0) {
+          await indexedDBService.saveChannels(data.channels || []);
+        }
+        if (data.videos?.length > 0) {
+          await indexedDBService.saveVideos(data.videos || []);
+        }
+        if (data.classificationData?.length > 0) {
+          await indexedDBService.saveClassificationData(data.classificationData || []);
+        }
+        if (data.unclassifiedData?.length > 0) {
+          await indexedDBService.saveUnclassifiedData(data.unclassifiedData || []);
+        }
+        console.log(`✅ 최신 데이터 동기화 완료: 채널 ${data.channels?.length || 0}개, 영상 ${data.videos?.length || 0}개, 분류 ${data.classificationData?.length || 0}개, 미분류 ${data.unclassifiedData?.length || 0}개`);
+      } else {
+        console.log('✨ 이미 최신 상태입니다. (서버 응답)');
+      }
+
+      // 4. 동기화 시간 갱신 (증분 동기화를 위해)
+      localStorage.setItem('last_sync_time', new Date().toISOString());
+      console.log('✅ 동기화 완료 및 시간 갱신');
+    } catch (error) {
+      console.error('❌ 동기화 중 오류 발생:', error);
+      // 네트워크 오류인 경우 더 자세한 정보 제공
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('네트워크 오류: 서버에 연결할 수 없습니다. 인터넷 연결을 확인해주세요.');
+      }
+      throw error;
     }
-
-    // 3. 서버에서 받은 최신 데이터를 IndexedDB에 저장
-    const data = await response.json();
-
-    if (data.channels?.length > 0 || data.videos?.length > 0 || data.classificationData?.length > 0) {
-      await indexedDBService.saveChannels(data.channels || []);
-      await indexedDBService.saveVideos(data.videos || []);
-      await indexedDBService.saveClassificationData(data.classificationData || []);
-      console.log(`✅ 최신 ${data.videos?.length || 0}개 영상 동기화 완료`);
-    } else {
-      console.log('✨ 이미 최신 상태입니다. (서버 응답)');
-    }
-
-    // 4. 동기화 시간 갱신 (증분 동기화를 위해)
-    localStorage.setItem('last_sync_time', new Date().toISOString());
   }
 
   // 설정 업데이트
