@@ -643,6 +643,7 @@ const ChannelTrend = () => {
                           className={`cursor-pointer hover:bg-muted/50 ${
                             selectedChannelId === channel.channelId ? 'bg-red-600/10' : ''
                           }`}
+                          onMouseEnter={() => handleChannelSelect(channel)}
                           onClick={() => handleChannelSelect(channel)}
                         >
                           <TableCell>
