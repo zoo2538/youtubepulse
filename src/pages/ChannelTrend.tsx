@@ -319,6 +319,19 @@ const ChannelTrend = () => {
             setSelectedChannel(foundChannel);
             setSelectedChannelId(channelIdParam);
           }
+        } else if (selectedChannelId && rankings.length > 0) {
+          // 날짜 변경 시 선택된 채널이 새로운 랭킹에 있는지 확인
+          const foundChannel = rankings.find(c => c.channelId === selectedChannelId);
+          if (foundChannel) {
+            // 같은 채널이면 선택 상태만 업데이트 (selectedChannelId는 변경하지 않아 차트는 다시 로드하지 않음)
+            setSelectedChannel(foundChannel);
+            // selectedChannelId는 변경하지 않음 - 차트는 다시 로드되지 않음
+          } else {
+            // 선택된 채널이 새 랭킹에 없으면 선택 해제
+            setSelectedChannel(null);
+            setSelectedChannelId('');
+            setSearchParams({});
+          }
         }
         
         setIsLoading(false);
@@ -333,11 +346,17 @@ const ChannelTrend = () => {
 
   // 채널 선택 시 차트 데이터 로드
   useEffect(() => {
-    if (!selectedChannelId) return;
+    if (!selectedChannelId) {
+      setChartData([]);
+      setIsLoadingChart(false);
+      return;
+    }
     
     const loadChartData = async () => {
       try {
         setIsLoadingChart(true);
+        const startTime = performance.now();
+        console.log(`📊 차트 데이터 로드 시작: 채널 ${selectedChannelId}`);
         
         const unclassifiedData = await indexedDBService.loadUnclassifiedData();
         const classifiedData = await indexedDBService.loadClassifiedData();
@@ -410,6 +429,8 @@ const ChannelTrend = () => {
           .sort((a, b) => a.date.localeCompare(b.date));
         
         setChartData(sortedData);
+        const loadTime = performance.now() - startTime;
+        console.log(`✅ 차트 데이터 로드 완료: ${sortedData.length}개 데이터 포인트 (${loadTime.toFixed(0)}ms)`);
         setIsLoadingChart(false);
       } catch (error) {
         console.error('차트 데이터 로드 실패:', error);
