@@ -4,8 +4,15 @@ import { ChannelTrendingTable } from "@/components/dashboard/channel-trending-ta
 import { TrendingVideosGrid } from "@/components/dashboard/trending-videos-grid";
 import { PerformanceVideosList } from "@/components/dashboard/performance-videos-list";
 import { Button } from "@/components/ui/button";
-import { Settings, Users, LogOut, TrendingUp } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Settings, Users, LogOut, TrendingUp, User } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/ui/logo";
 import { useEffect } from "react";
@@ -14,6 +21,7 @@ import { hybridDatabaseService } from '@/lib/hybrid-database-service'; // ✅ �
 const Dashboard = () => {
   const { userEmail, userRole, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isAdmin = userRole === 'admin';
 
   // 임시 비밀번호 기능은 현재 비활성화 상태
@@ -74,69 +82,104 @@ const Dashboard = () => {
 
             {/* Navigation Buttons */}
             <div className="flex items-center space-x-3">
-              <Link to="/change-password">
-                <Button 
-                  size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  비밀번호 변경
-                </Button>
-              </Link>
-              <Link to="/dashboard">
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
+              {location.pathname === '/dashboard' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4">
                   국내
-                </Button>
-              </Link>
-              <Link to="/trend">
-                <Button 
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  트렌드
-                </Button>
-              </Link>
-              <Link to="/data">
-                <Button 
-                  size="sm"
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                >
-                  📊 데이터
-                </Button>
-              </Link>
-              <Link to="/system">
-                <Button 
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  시스템
-                </Button>
-              </Link>
-              {isAdmin && (
-                <Link to="/user-management">
+                </span>
+              ) : (
+                <Link to="/dashboard">
                   <Button 
+                    variant="ghost" 
                     size="sm"
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   >
-                    <Users className="w-4 h-4 mr-2" />
-                    회원관리
+                    국내
                   </Button>
                 </Link>
               )}
-              <Button 
-                onClick={handleLogout}
-                variant="outline"
-                size="sm"
-                className="bg-transparent border-white/30 text-white hover:bg-white/10"
-              >
-                <LogOut className="w-4 h-4 mr-2" />
-                로그아웃
-              </Button>
+              {location.pathname === '/trend' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
+                </span>
+              ) : (
+                <Link to="/trend">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    트렌드
+                  </Button>
+                </Link>
+              )}
+              {location.pathname === '/data' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4">
+                  📊 데이터
+                </span>
+              ) : (
+                <Link to="/data">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    📊 데이터
+                  </Button>
+                </Link>
+              )}
+              {location.pathname === '/system' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
+                  <Settings className="w-4 h-4 mr-2" />
+                  시스템
+                </span>
+              ) : (
+                <Link to="/system">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    시스템
+                  </Button>
+                </Link>
+              )}
+              
+              {/* User Dropdown Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent border-white/30 text-white hover:bg-white/10"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    사용자
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/user-management" className="cursor-pointer">
+                        <Users className="w-4 h-4 mr-2" />
+                        회원관리
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/change-password" className="cursor-pointer">
+                      비밀번호 변경
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   TrendingUp, 
@@ -12,7 +19,9 @@ import {
   Eye,
   Play,
   LogOut,
-  Users
+  Users,
+  Settings,
+  User
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -62,6 +71,7 @@ const DATE_RANGE_DAYS = 14;
 
 const TrendingVideosDetail = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { logout, userEmail } = useAuth();
   const [videoData, setVideoData] = useState<VideoData[]>([]);
   const [filteredVideoData, setFilteredVideoData] = useState<VideoData[]>([]);
@@ -298,32 +308,103 @@ const TrendingVideosDetail = () => {
                 </Badge>
               </div>
             </div>
-            <div className="flex items-center space-x-4">
-              {isAdmin && (
-                <Button variant="outline" onClick={() => navigate('/user-management')}>
-                  <Users className="w-4 h-4 mr-2" />
-                  회원관리
+            <div className="flex items-center space-x-3">
+              {location.pathname === '/dashboard' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
+                  <Eye className="w-4 h-4 mr-2" />
+                  국내
+                </span>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => navigate('/dashboard')}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  국내
                 </Button>
               )}
-              <Button variant="outline" onClick={() => navigate('/dashboard')}>
-                <Eye className="w-4 h-4 mr-2" />
-                국내
-              </Button>
-              <Button variant="outline" onClick={() => navigate('/trend')}>
-                <TrendingUp className="w-4 h-4 mr-2" />
-                트렌드
-              </Button>
-              <Button variant="outline" onClick={() => navigate('/data')}>
-                📊 데이터
-              </Button>
-              <Button variant="outline" onClick={() => navigate('/system')}>
-                <Calendar className="w-4 h-4 mr-2" />
-                시스템
-              </Button>
-              <Button variant="outline" onClick={handleLogout}>
-                <LogOut className="w-4 h-4 mr-2" />
-                로그아웃
-              </Button>
+              {location.pathname === '/trend' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
+                </span>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => navigate('/trend')}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  트렌드
+                </Button>
+              )}
+              {location.pathname === '/data' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4">
+                  📊 데이터
+                </span>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => navigate('/data')}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  📊 데이터
+                </Button>
+              )}
+              {location.pathname === '/system' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
+                  <Settings className="w-4 h-4 mr-2" />
+                  시스템
+                </span>
+              ) : (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => navigate('/system')}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  시스템
+                </Button>
+              )}
+              
+              {/* User Dropdown Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent border-white/30 text-white hover:bg-white/10"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    사용자
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/user-management" className="cursor-pointer">
+                        <Users className="w-4 h-4 mr-2" />
+                        회원관리
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/change-password" className="cursor-pointer">
+                      비밀번호 변경
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>

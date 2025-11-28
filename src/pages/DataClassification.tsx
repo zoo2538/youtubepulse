@@ -2848,26 +2848,36 @@ const DataClassification = () => {
               <h3 className="text-lg font-semibold text-foreground">일별 분류 진행</h3>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {/* 그룹 1: 주요 액션 */}
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
                 onClick={handleBulkSaveProgress}
                 disabled={!BULK_PROGRESS_ENABLED}
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 <SaveAll className="w-4 h-4 mr-2" />
                 진행률 일괄 저장
               </Button>
               <Button variant="outline" size="sm" onClick={handleHybridSync}>
                 <RefreshCw className="w-4 h-4 mr-2" />
-                서버 데이터 다운로드
+                최신 서버 데이터 동기화
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleDownloadAllBackup}
+                onClick={() => handleFetchAutoCollected('merge')}
               >
-                <Save className="w-4 h-4 mr-2" />
-                데이터 저장하기
+                <RefreshCw className="w-4 h-4 mr-2" />
+                자동수집 동기화
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRemoveDuplicatesByDate}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                일자별 중복 제거
               </Button>
               <Button
                 variant="outline"
@@ -2877,21 +2887,13 @@ const DataClassification = () => {
                     await refreshData();
                     showToast('데이터를 최신 상태로 불러왔습니다.', 'success');
                   } catch (error) {
-                    console.error('데이터 불러오기 실패:', error);
-                    showToast('데이터 불러오기에 실패했습니다.', 'error');
+                    console.error('로컬 데이터 새로고침 실패:', error);
+                    showToast('로컬 데이터 새로고침에 실패했습니다.', 'error');
                   }
                 }}
               >
-                <Download className="w-4 h-4 mr-2" />
-                데이터 불러오기
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleRemoveDuplicatesByDate}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                일자별 중복 제거
+                <RefreshCw className="w-4 h-4 mr-2" />
+                로컬 데이터 새로고침
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -2930,7 +2932,8 @@ const DataClassification = () => {
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={handleDownloadAllBackup}>
-                    데이터 저장하기
+                    <Download className="w-4 h-4 mr-2" />
+                    전체 백업 다운로드
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

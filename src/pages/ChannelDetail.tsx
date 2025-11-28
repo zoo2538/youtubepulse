@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useLocation } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { 
   LineChart, 
   Line, 
@@ -18,18 +25,32 @@ import {
   ExternalLink, 
   Calendar,
   Settings,
-  X
+  X,
+  User,
+  LogOut,
+  Users
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { subCategories, categoryColors } from "@/lib/subcategories";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
 
 const ChannelDetail = () => {
   const { channelId } = useParams<{ channelId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { userEmail, userRole, logout } = useAuth();
+  const isAdmin = userRole === 'admin';
   const [dynamicSubCategories, setDynamicSubCategories] = useState<Record<string, string[]>>(subCategories);
   const [channelData, setChannelData] = useState<any>(null);
   const [videos, setVideos] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   // 동적 카테고리 로드
   useEffect(() => {
@@ -255,41 +276,104 @@ const ChannelDetail = () => {
 
             {/* Navigation Buttons */}
             <div className="flex items-center space-x-3">
-              <Link to="/dashboard">
-                <Button 
-                  variant="destructive" 
-                  size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white"
-                >
+              {location.pathname === '/dashboard' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4">
                   국내
-                </Button>
-              </Link>
-              <Link to="/trend">
-                <Button 
-                  size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
+                </span>
+              ) : (
+                <Link to="/dashboard">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    국내
+                  </Button>
+                </Link>
+              )}
+              {location.pathname === '/trend' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
                   <TrendingUp className="w-4 h-4 mr-2" />
                   트렌드
-                </Button>
-              </Link>
-              <Link to="/data">
-                <Button 
-                  size="sm"
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
-                >
+                </span>
+              ) : (
+                <Link to="/trend">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    트렌드
+                  </Button>
+                </Link>
+              )}
+              {location.pathname === '/data' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4">
                   📊 데이터
-                </Button>
-              </Link>
-              <Link to="/system">
-                <Button 
-                  size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
-                >
+                </span>
+              ) : (
+                <Link to="/data">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    📊 데이터
+                  </Button>
+                </Link>
+              )}
+              {location.pathname === '/system' ? (
+                <span className="text-base font-semibold text-red-600 underline underline-offset-4 flex items-center">
                   <Settings className="w-4 h-4 mr-2" />
                   시스템
-                </Button>
-              </Link>
+                </span>
+              ) : (
+                <Link to="/system">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Settings className="w-4 h-4 mr-2" />
+                    시스템
+                  </Button>
+                </Link>
+              )}
+              
+              {/* User Dropdown Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="bg-transparent border-white/30 text-white hover:bg-white/10"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    사용자
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  {isAdmin && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/user-management" className="cursor-pointer">
+                        <Users className="w-4 h-4 mr-2" />
+                        회원관리
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem asChild>
+                    <Link to="/change-password" className="cursor-pointer">
+                      비밀번호 변경
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+                    <LogOut className="w-4 h-4 mr-2" />
+                    로그아웃
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
