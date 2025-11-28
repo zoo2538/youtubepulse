@@ -174,6 +174,6 @@ export default defineConfig({
     // React Router v7 Future Flag 설정
     __REACT_ROUTER_FUTURE_FLAGS__: JSON.stringify({
       v7_relativeSplatPath: true
-    })
+    }),
   },
 });
