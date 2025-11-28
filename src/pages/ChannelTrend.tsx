@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -157,8 +157,7 @@ const ChannelTrend = () => {
     const loadChannelRankings = async () => {
       try {
         setIsLoading(true);
-        const classifiedData = await indexedDBService.loadClassifiedData();
-        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+        const startTime = performance.now();
         
         // 선택된 날짜와 어제 날짜 계산
         const targetDate = selectedDate || getKoreanDateString();
@@ -166,60 +165,54 @@ const ChannelTrend = () => {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toLocaleDateString("en-CA", {timeZone: "Asia/Seoul"});
         
-        // 오늘 데이터 (모든 데이터 포함 - 분류 여부와 무관)
-        // 트렌드 페이지는 채널 랭킹이므로 분류 여부와 상관없이 모든 채널 데이터를 포함해야 함
-        // 단, 대한민국 채널만 표시
-        const allTodayData = [...classifiedData, ...unclassifiedData];
-        const todayData = allTodayData.filter((item: any) => {
-          // 날짜 필터링
-          const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
-          if (!itemDate) return false;
-          const dateMatch = itemDate.split('T')[0] === targetDate;
-          
-          // 대한민국 채널 필터링
-          if (country === '대한민국') {
-            return dateMatch && isKoreanChannel(item);
-          }
-          
-          return dateMatch;
-        });
+        // 데이터 병렬 로드
+        const [classifiedData, unclassifiedData] = await Promise.all([
+          indexedDBService.loadClassifiedData(),
+          indexedDBService.loadUnclassifiedData()
+        ]);
         
-        // 어제 데이터 (모든 데이터 포함 - 분류 여부와 무관)
-        // 대한민국 채널만 표시
-        const allYesterdayData = [...classifiedData, ...unclassifiedData];
-        const yesterdayData = allYesterdayData.filter((item: any) => {
-          // 날짜 필터링
-          const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
-          if (!itemDate) return false;
-          const dateMatch = itemDate.split('T')[0] === yesterdayStr;
-          
-          // 대한민국 채널 필터링
-          if (country === '대한민국') {
-            return dateMatch && isKoreanChannel(item);
-          }
-          
-          return dateMatch;
-        });
+        const loadTime = performance.now() - startTime;
+        console.log(`📊 데이터 로드 완료: ${classifiedData.length + unclassifiedData.length}개 (${loadTime.toFixed(0)}ms)`);
         
-        // 채널별 그룹화
+        // 한 번의 순회로 오늘/어제 데이터 분리 및 필터링 (성능 최적화)
+        const todayData: any[] = [];
+        const yesterdayData: any[] = [];
+        const allData = [...classifiedData, ...unclassifiedData];
+        
+        for (const item of allData) {
+          // 날짜 추출 (한 번만 수행)
+          const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
+          if (!itemDate) continue;
+          
+          const dateStr = itemDate.split('T')[0];
+          const isToday = dateStr === targetDate;
+          const isYesterday = dateStr === yesterdayStr;
+          
+          if (!isToday && !isYesterday) continue;
+          
+          // 대한민국 채널 필터링 (필요한 경우만)
+          if (country === '대한민국' && !isKoreanChannel(item)) continue;
+          
+          // 날짜별로 분류
+          if (isToday) todayData.push(item);
+          if (isYesterday) yesterdayData.push(item);
+        }
+        
+        // 채널별 그룹화 (성능 최적화: 비디오 배열 대신 Set 사용)
         const todayChannelGroups: any = {};
-        todayData.forEach((item: any) => {
-          if (!item.channelId || !item.channelName) return;
+        const videoIdSets: Record<string, Set<string>> = {}; // 고유 비디오 ID 추적
+        
+        for (const item of todayData) {
+          if (!item.channelId || !item.channelName) continue;
           
           // 공식 채널 필터링
           const isOfficial = isOfficialChannel(item.channelName);
           
           // 공식 채널만 표시 모드
-          if (showOnlyOfficial && !isOfficial) {
-            return; // 공식 채널이 아니면 제외
-          }
+          if (showOnlyOfficial && !isOfficial) continue;
           
           // 공식 채널 제외 모드
-          if (excludeOfficial && !showOnlyOfficial && isOfficial) {
-            // 디버깅: 공식 채널이 감지되었는지 확인
-            // console.log('공식 채널 제외:', item.channelName);
-            return; // 공식 채널 제외
-          }
+          if (excludeOfficial && !showOnlyOfficial && isOfficial) continue;
           
           if (!todayChannelGroups[item.channelId]) {
             todayChannelGroups[item.channelId] = {
@@ -228,23 +221,26 @@ const ChannelTrend = () => {
               thumbnail: item.thumbnailUrl || `https://via.placeholder.com/96x96?text=${item.channelName.charAt(0)}`,
               todayViews: 0,
               description: item.description || item.channelDescription,
-              videos: [],
               // 채널 상세 정보 추출 (가능한 경우)
               totalSubscribers: item.subscriberCount || item.totalSubscribers,
               channelCreationDate: item.channelCreationDate || item.channelCreationDate || 
                 (item.publishedAt ? item.publishedAt.split('T')[0] : undefined),
-              videoCount: item.channelVideoCount || 0
+              videoCount: 0
             };
+            videoIdSets[item.channelId] = new Set();
           }
+          
           todayChannelGroups[item.channelId].todayViews += item.viewCount || 0;
-          todayChannelGroups[item.channelId].videos.push(item);
-        });
+          // 고유 비디오 ID 추적
+          const videoId = item.videoId || item.id;
+          if (videoId) {
+            videoIdSets[item.channelId].add(videoId);
+          }
+        }
         
-        // 각 채널의 고유 비디오 개수 계산
+        // 고유 비디오 개수 설정
         Object.keys(todayChannelGroups).forEach(channelId => {
-          const channel = todayChannelGroups[channelId];
-          const uniqueVideos = new Set(channel.videos.map((v: any) => v.videoId || v.id));
-          channel.videoCount = uniqueVideos.size;
+          todayChannelGroups[channelId].videoCount = videoIdSets[channelId]?.size || 0;
         });
         
         const yesterdayChannelGroups: any = {};
@@ -312,6 +308,9 @@ const ChannelTrend = () => {
           });
         
         setChannelRankings(rankings);
+        
+        const totalTime = performance.now() - startTime;
+        console.log(`✅ 채널 랭킹 계산 완료: ${rankings.length}개 채널 (총 ${totalTime.toFixed(0)}ms)`);
         
         // URL 파라미터로 채널이 지정된 경우 선택
         if (channelIdParam && rankings.length > 0) {
@@ -428,11 +427,15 @@ const ChannelTrend = () => {
     setSearchParams({ channelId: channel.channelId });
   };
 
-  // 검색 필터링된 채널 목록
-  const filteredRankings = channelRankings.filter(channel =>
-    channel.channelName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    channel.channelId.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // 검색 필터링된 채널 목록 (useMemo로 최적화)
+  const filteredRankings = useMemo(() => {
+    if (!searchQuery.trim()) return channelRankings;
+    const query = searchQuery.toLowerCase();
+    return channelRankings.filter(channel =>
+      channel.channelName.toLowerCase().includes(query) ||
+      channel.channelId.toLowerCase().includes(query)
+    );
+  }, [channelRankings, searchQuery]);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) {
