@@ -2,7 +2,7 @@
 
 class DataExportImport {
   private dbName = 'YouTubePulseDB';
-  private version = 11; // indexeddb-service와 동일하게 맞춤
+  private version = 12; // indexeddb-service와 동일하게 맞춤
 
   // 데이터 내보내기 (개발서버에서 실행)
   async exportData(): Promise<any> {
