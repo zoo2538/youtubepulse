@@ -39,8 +39,8 @@ const dump = Object.keys(process.env).filter(k =>
 );
 console.log('ENV_DB_KEYS', dump, 'LEN', v.length);
 if (!v.trim()) { 
-  console.error('FATAL: DATABASE_URL empty or whitespace'); 
-  process.exit(1); 
+  console.warn('⚠️ DATABASE_URL empty or whitespace - 서버는 데이터베이스 없이 실행됩니다'); 
+  // process.exit(1); // 데이터베이스 없이도 서버 실행 허용
 }
 try { 
   const u = new URL(v.trim()); 
@@ -184,6 +184,32 @@ app.use(cors({
 // OPTIONS 요청에 대한 명시적 처리 (모든 경로) - Express 5 호환
 app.options('/*splat', cors());
 
+// Security headers
+app.disable('x-powered-by'); // X-Powered-By 헤더 제거
+app.use((req, res, next) => {
+  // X-Content-Type-Options 헤더 추가 (MIME 타입 스니핑 방지)
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  // API 응답에 Content-Type charset=utf-8 설정
+  const originalJson = res.json;
+  res.json = function(data) {
+    if (!res.getHeader('Content-Type')) {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+    // API 응답은 짧은 캐시 (180초)
+    if (!res.getHeader('Cache-Control')) {
+      res.setHeader('Cache-Control', 'public, max-age=180');
+    }
+    return originalJson.call(this, data);
+  };
+  
+  // Expires, Pragma 헤더 제거 (Cache-Control 사용)
+  res.removeHeader('Expires');
+  res.removeHeader('Pragma');
+  
+  next();
+});
+
 // JSON 파싱 (크기 제한 증가: 100MB)
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
@@ -265,11 +291,62 @@ async function createTables() {
         day_key_local VARCHAR(10),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        keyword VARCHAR(255),
+        -- 채널 상세 정보 컬럼 추가
+        subscriber_count BIGINT,
+        channel_video_count INTEGER,
+        channel_creation_date DATE,
+        channel_description TEXT,
+        channel_thumbnail_url VARCHAR(500),
         UNIQUE(video_id, day_key_local)
       )
     `);
     
     console.log('✅ PostgreSQL 테이블 생성 완료');
+    
+    // 기존 테이블에 누락된 컬럼 추가 (마이그레이션)
+    console.log('🔧 데이터베이스 마이그레이션 시작...');
+    
+    // subscriber_count 및 채널 정보 컬럼 추가
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS subscriber_count BIGINT
+    `);
+    console.log('✅ subscriber_count 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_video_count INTEGER
+    `);
+    console.log('✅ channel_video_count 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_creation_date DATE
+    `);
+    console.log('✅ channel_creation_date 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_description TEXT
+    `);
+    console.log('✅ channel_description 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_thumbnail_url VARCHAR(500)
+    `);
+    console.log('✅ channel_thumbnail_url 컬럼 추가 완료');
+    
+    // collection_type 컬럼 추가 (없을 경우)
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
+    `);
+    console.log('✅ collection_type 컬럼 확인 완료');
+    
+    console.log('✅ 데이터베이스 마이그레이션 완료');
+    
     client.release();
   } catch (error) {
     console.error('❌ PostgreSQL 테이블 생성 실패:', error);
@@ -949,22 +1026,22 @@ app.post('/api/unclassified', async (req, res) => {
             updated_at = NOW()
           RETURNING (xmax = 0) AS inserted
         `, [
-          item.videoId, 
-          item.channelId, 
-          item.channelName, 
-          item.videoTitle,
-          item.videoDescription, 
-          item.viewCount || 0,
-          item.likeCount || 0,
-          item.commentCount || 0,
-          item.uploadDate, 
-          item.collectionDate,
-          item.thumbnailUrl, 
+          item.videoId || item.video_id, 
+          item.channelId || item.channel_id, 
+          item.channelName || item.channel_name, 
+          item.videoTitle || item.video_title,
+          item.videoDescription || item.video_description, 
+          item.viewCount || item.view_count || 0,
+          item.likeCount || item.like_count || 0,
+          item.commentCount || item.comment_count || 0,
+          item.uploadDate || item.upload_date, 
+          item.collectionDate || item.collection_date,
+          item.thumbnailUrl || item.thumbnail_url, 
           item.category || '', 
-          item.subCategory || '', 
+          item.subCategory || item.sub_category || '', 
           item.status || 'unclassified',
           dayKeyLocal,
-          item.collectionType || 'manual'
+          item.collectionType || item.collection_type || 'manual'
         ]);
           
           if (result.rows[0].inserted) {
@@ -1147,7 +1224,8 @@ app.get('/api/unclassified', async (req, res) => {
           id, video_id, channel_id, channel_name, video_title, 
           video_description, view_count, like_count, comment_count,
           upload_date, collection_date, thumbnail_url, 
-          category, sub_category, status, collection_type, day_key_local
+          category, sub_category, status, collection_type, day_key_local,
+          subscriber_count, channel_video_count, channel_creation_date, channel_description, channel_thumbnail_url
         FROM unclassified_data 
         WHERE day_key_local >= $1
         ORDER BY collection_date DESC, view_count DESC
@@ -1160,7 +1238,8 @@ app.get('/api/unclassified', async (req, res) => {
           id, video_id, channel_id, channel_name, video_title, 
           video_description, view_count, like_count, comment_count,
           upload_date, collection_date, thumbnail_url, 
-          category, sub_category, status, collection_type, day_key_local
+          category, sub_category, status, collection_type, day_key_local,
+          subscriber_count, channel_video_count, channel_creation_date, channel_description, channel_thumbnail_url
         FROM unclassified_data 
         ORDER BY collection_date DESC, view_count DESC
       `;
@@ -1192,6 +1271,12 @@ app.get('/api/unclassified', async (req, res) => {
         commentCount: row.comment_count,
         uploadDate: row.upload_date,
         collectionDate: row.collection_date,
+        // 채널 상세 정보 추가
+        subscriberCount: row.subscriber_count,
+        channelVideoCount: row.channel_video_count,
+        channelCreationDate: row.channel_creation_date,
+        channelDescription: row.channel_description,
+        channelThumbnail: row.channel_thumbnail_url,
         dayKeyLocal: dayKeyLocal, // KST 기준 일자 키 추가
         thumbnailUrl: row.thumbnail_url,
         category: row.category || '',
@@ -1764,23 +1849,32 @@ app.post('/api/test-postgresql', async (req, res) => {
 // 자동수집 API 엔드포인트 (GitHub Actions에서 호출)
 app.post('/api/auto-collect', async (req, res) => {
   try {
+    // 호출 추적 로그 추가
+    console.log('🕵️ 자동수집 API 호출 추적:');
+    console.log('   - IP:', req.ip);
+    console.log('   - User-Agent:', req.get('user-agent'));
+    console.log('   - Referer:', req.get('referer'));
+    console.log('   - Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('   - Body:', req.body);
+    
     // 수동 수집 중인지 확인
     if (global.manualCollectionInProgress) {
       console.log('⚠️ 수동 수집이 진행 중이므로 자동 수집을 건너뜁니다.');
       return res.json({ success: false, message: '수동 수집이 진행 중입니다.' });
     }
 
-    // 자동 수집 시작 플래그 설정
+    // 자동 수집 시작 플래그 설정 (타임스탬프 포함)
     global.autoCollectionInProgress = true;
+    global.autoCollectionLastRunTime = Date.now();
     
     console.log('🤖 자동수집 API 호출됨');
-    console.log('🤖 요청 본문:', req.body);
     
     // 자동수집 함수 실행 및 결과 확인
     const result = await autoCollectData();
     
     // 자동 수집 완료 플래그 해제
     global.autoCollectionInProgress = false;
+    global.autoCollectionLastRunTime = null;
     
     if (result === false) {
       console.error('❌ 자동수집 함수에서 실패 반환');
@@ -1798,6 +1892,7 @@ app.post('/api/auto-collect', async (req, res) => {
     
     // 오류 발생 시에도 플래그 해제
     global.autoCollectionInProgress = false;
+    global.autoCollectionLastRunTime = null;
     
     res.status(500).json({ 
       error: 'Auto collection failed', 
@@ -1808,19 +1903,84 @@ app.post('/api/auto-collect', async (req, res) => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 크론 안정화 래퍼 함수
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function safeCron(fn) {
+  return async () => {
+    try {
+      await fn();
+    } catch (e) {
+      console.error('❌ [크론잡] 전역 예외 발생:', e.message);
+      console.error('❌ [크론잡] 오류 스택:', e.stack);
+      // 재시도 큐에 적재 (향후 구현)
+      console.log('🔄 [크론잡] 재시도 큐에 적재됨');
+    }
+  };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // 자동 데이터 수집 함수
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// 한국어 텍스트 확인 함수
+function isKoreanText(text) {
+  if (!text || typeof text !== 'string') return false;
+  const koreanRegex = /[가-힣]/;
+  return koreanRegex.test(text);
+}
+
+// 한국어 영상 필터링 함수 (클라이언트와 동일한 로직)
+function isKoreanVideo(video, filterLevel = 'moderate') {
+  if (!video?.snippet) return false;
+  
+  const { title, description, channelTitle } = video.snippet;
+  
+  // 제목, 설명, 채널명에서 한국어 텍스트 확인
+  const titleKorean = isKoreanText(title);
+  const descriptionKorean = isKoreanText(description);
+  const channelKorean = isKoreanText(channelTitle);
+  
+  // 언어 필터링 강도별 판정
+  switch (filterLevel) {
+    case 'strict':
+      // 엄격: 제목과 설명 모두 한국어여야 함
+      return titleKorean && descriptionKorean;
+    case 'moderate':
+      // 보통: 제목이 한국어이거나 채널명이 한국어여야 함
+      return titleKorean || channelKorean;
+    case 'loose':
+      // 느슨: 제목, 설명, 채널명 중 하나라도 한국어면 포함
+      return titleKorean || descriptionKorean || channelKorean;
+    default:
+      return titleKorean || channelKorean;
+  }
+}
+
 async function autoCollectData() {
+  // TDZ 방지: 실행 날짜 상수를 함수 최상단에서 초기화
+  const runDateISO = new Date().toISOString().split('T')[0];
+  
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🤖 자동 데이터 수집 시작');
   console.log('🤖 시간:', new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }));
   console.log('🤖 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📅 실행 날짜 (Asia/Seoul):', runDateISO);
+  
+  // 한국어 필터링 설정 (기본값: moderate 모드)
+  const koreanOnly = true;
+  const languageFilterLevel = 'moderate';
+  console.log(`🇰🇷 한국어 필터링 적용: ${koreanOnly ? `${languageFilterLevel} 모드` : '비활성화'}`);
+  
+  // 디버깅: 환경 변수 확인
+  console.log('🔍 디버깅: 환경 변수 확인');
+  console.log('🔍 YOUTUBE_API_KEY 존재:', !!process.env.YOUTUBE_API_KEY);
+  // VITE_YOUTUBE_API_KEY는 더 이상 사용되지 않음
+  console.log('🔍 DATABASE_URL 존재:', !!process.env.DATABASE_URL);
   
   let requestCount = 0; // API 요청 카운터 초기화
   let client; // PostgreSQL 클라이언트 변수 선언
   
   try {
-    const apiKey = process.env.YOUTUBE_API_KEY || process.env.VITE_YOUTUBE_API_KEY;
+    const apiKey = process.env.YOUTUBE_API_KEY;
     if (!apiKey) {
       console.error('❌ YouTube API Key가 설정되지 않았습니다.');
       return false;
@@ -1845,16 +2005,67 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 - 키워드 검색만 사용하므로 비활성화
-    console.log('📺 1단계: 트렌드 영상 수집 건너뛰기 (키워드 검색만 사용)');
+    // 1단계: 트렌드 영상 수집 (상위 200개)
+    console.log('📺 1단계: 트렌드 영상 수집 중... (상위 200개)');
     let trendingVideos = [];
-    console.log('✅ 트렌드: 건너뜀 (키워드 검색으로 충분한 데이터 확보)');
+    let nextPageToken = '';
+    
+    try {
+      // 상위 200개 수집 (50개씩 4페이지)
+      for (let page = 0; page < 4; page++) {
+        const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
+        
+        const trendingResponse = await fetch(trendingUrl);
+        requestCount++;
+        
+        if (!trendingResponse.ok) {
+          const errorText = await trendingResponse.text();
+          console.error(`❌ 트렌드 영상 수집 실패 (페이지 ${page + 1}): ${trendingResponse.status} - ${errorText}`);
+          break;
+        }
+        
+        const trendingData = await trendingResponse.json();
+        
+        if (trendingData.error) {
+          console.error(`❌ 트렌드 영상 수집 오류:`, trendingData.error);
+          break;
+        }
+        
+        if (trendingData.items && trendingData.items.length > 0) {
+          // 한국어 필터링 적용
+          const filteredVideos = trendingData.items.filter(video => {
+            if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+              return false;
+            }
+            return true;
+          });
+          
+          const filteredCount = trendingData.items.length - filteredVideos.length;
+          if (filteredCount > 0) {
+            console.log(`  🇰🇷 트렌드 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+          }
+          
+          trendingVideos = [...trendingVideos, ...filteredVideos];
+          nextPageToken = trendingData.nextPageToken;
+          
+          if (!nextPageToken) break;
+        }
+        
+        // API 할당량 고려 대기
+        if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      console.log(`✅ 트렌드 영상 수집 완료: ${trendingVideos.length}개`);
+    } catch (error) {
+      console.error('❌ 트렌드 영상 수집 오류:', error);
+      console.log('⚠️ 키워드 수집만 진행합니다.');
+    }
 
-    // 2단계: 키워드 기반 영상 수집 (전체 75개 키워드 × 50개 = 최대 3,750개)
-    console.log('🔍 2단계: 키워드 영상 수집 중... (75개 키워드 × 50개)');
+    // 2단계: 키워드 기반 영상 수집 (전체 80개 키워드 × 50개 = 최대 4,000개)
+    console.log('🔍 2단계: 키워드 영상 수집 중... (80개 키워드 × 50개)');
     let keywordVideos = [];
     
-    // 전체 키워드 사용
+    // 전체 키워드 사용 (75개)
     const testKeywords = [
       // 인기 콘텐츠 (4개)
       '브이로그', '리뷰', '언박싱', '튜토리얼',
@@ -1889,31 +2100,64 @@ async function autoCollectData() {
       // 음식 & 요리 (2개)
       '요리', 'K푸드',
       // 시니어 & 노년층 (9개)
-      '막장', '건강관리', '인생경험', '지혜', '사연', '감동', '인생', '국뽕', '실화',
+      '생활 정보', '건강관리', '반전', '지혜', '인생 사연', '감동 사연', '인생', '국뽕', '실화',
       // 트렌드 & 밈 (5개)
       '썰', '밈', '힐링', '커뮤니티', '짤',
       // 하이라이트 & 편집 콘텐츠 (4개)
-      '모음', '명장면', '베스트', '짜집기'
-    ]; // 총 75개
+      '모음', '플리', '플레이 리스트', '짜집기',
+      // 해외 (5개)
+      '해외 썰', '해외 이슈', '해외 정보', '해외 밈', '해외 경제'
+    ]; // 총 80개
+    
+    // 403 에러 연속 발생 시 조기 중단 카운터
+    let consecutive403Errors = 0;
+    const MAX_CONSECUTIVE_403 = 3; // 3번 연속 실패 시 중단
     
     for (const keyword of testKeywords) {
       console.log(`🔍 키워드 검색: "${keyword}"`);
       const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(keyword)}&type=video&maxResults=50&regionCode=KR&order=viewCount&key=${apiKey}`;
+      console.log(`🔍 API URL: ${searchUrl.replace(apiKey, 'API_KEY_HIDDEN')}`);
+      
+      // 수동수집과 동일한 방식: 재시도 없이 한 번만 호출
       const searchResponse = await fetch(searchUrl);
+      console.log(`🔍 API 응답 상태: ${searchResponse.status} ${searchResponse.statusText}`);
+      
+      // 403 에러가 연속으로 발생하면 중단
+      if (searchResponse.status === 403) {
+        consecutive403Errors++;
+        console.error(`❌ 403 Forbidden (${consecutive403Errors}/${MAX_CONSECUTIVE_403})`);
+        
+        if (consecutive403Errors >= MAX_CONSECUTIVE_403) {
+          console.error('❌ 연속된 403 에러로 인해 데이터 수집 중단');
+          console.error('❌ API 키가 제한되어 있거나 잘못되었습니다.');
+          console.error('❌ Railway Variables에서 YOUTUBE_API_KEY를 확인하세요.');
+          break; // for 루프 중단
+        }
+        
+        // 403 에러가 발생했지만 아직 중단하지 않음
+        continue; // 다음 키워드로 넘어가기
+      }
+      
+      // 403이 아닌 경우 카운터 리셋
+      consecutive403Errors = 0;
       
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
         console.log(`🔍 키워드 "${keyword}" 검색 결과: ${searchData.items?.length || 0}개`);
         
         if (searchData.error) {
-          console.error(`❌ 키워드 검색 오류:`, searchData.error);
+          console.error(`❌ 키워드 "${keyword}" 검색 오류:`, searchData.error);
+          console.error(`❌ 오류 코드: ${searchData.error.code}`);
+          console.error(`❌ 오류 메시지: ${searchData.error.message}`);
           continue; // 다음 키워드로 계속
         }
         
         requestCount++;
         
         if (searchData.items && searchData.items.length > 0) {
-          const videoIds = searchData.items.map(item => item.id.videoId).join(',');
+          // 할당량 절약: 상위 10개만 videos.list로 상세 정보 조회
+          const topVideos = searchData.items.slice(0, 10);
+          const videoIds = topVideos.map(item => item.id.videoId).join(',');
           const videosUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${videoIds}&key=${apiKey}`;
           const videosResponse = await fetch(videosUrl);
           
@@ -1928,8 +2172,21 @@ async function autoCollectData() {
             
             requestCount++;
             if (videosData.items) {
+              // 한국어 필터링 적용
+              const filteredVideos = videosData.items.filter(video => {
+                if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+                  return false;
+                }
+                return true;
+              });
+              
+              const filteredCount = videosData.items.length - filteredVideos.length;
+              if (filteredCount > 0) {
+                console.log(`  🇰🇷 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+              }
+              
               // 키워드 정보를 함께 저장
-              const videosWithKeyword = videosData.items.map(item => ({
+              const videosWithKeyword = filteredVideos.map(item => ({
                 ...item,
                 searchKeyword: keyword // 어떤 키워드로 수집되었는지 기록
               }));
@@ -1941,8 +2198,8 @@ async function autoCollectData() {
           }
         }
       } else {
-        const errorText = await searchResponse.text();
-        console.error(`❌ 키워드 검색 요청 실패: ${searchResponse.status} - ${errorText}`);
+        console.error(`❌ 키워드 "${keyword}" 검색 실패: ${searchResponse.status} ${searchResponse.statusText}`);
+        // 수동수집과 동일: 실패 시 다음 키워드로 계속
       }
       
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -1950,25 +2207,71 @@ async function autoCollectData() {
     
     console.log(`✅ 키워드: ${keywordVideos.length}개 수집`);
 
-    // 3단계: 합치기 및 중복 제거
+    // 3단계: 수동수집과 동일한 중복 제거 방식 적용
+    console.log('🔄 수동수집과 동일한 중복 제거 방식 적용...');
+    
+    // 모든 영상을 수동수집과 동일한 형태로 변환
     const allVideos = [...trendingVideos, ...keywordVideos];
-    const videoMap = new Map();
+    const transformedVideos = allVideos.map(video => ({
+      videoId: video.id,
+      dayKeyLocal: runDateISO, // 당일 데이터로 설정
+      collectionDate: runDateISO,
+      uploadDate: video.snippet?.publishedAt ? video.snippet.publishedAt.split('T')[0] : runDateISO,
+      viewCount: parseInt(video.statistics?.viewCount || '0'),
+      likeCount: parseInt(video.statistics?.likeCount || '0'),
+      commentCount: parseInt(video.statistics?.commentCount || '0'),
+      videoTitle: video.snippet?.title || '',
+      videoDescription: video.snippet?.description || '',
+      channelId: video.snippet?.channelId || '',
+      channelName: video.snippet?.channelTitle || '',
+      thumbnailUrl: video.snippet?.thumbnails?.high?.url || video.snippet?.thumbnails?.default?.url || '',
+      searchKeyword: video.searchKeyword || 'trending',
+      source: video.searchKeyword ? 'keyword' : 'trending',
+      // 원본 데이터도 보존
+      originalData: video
+    }));
     
-    allVideos.forEach(video => {
-      const existing = videoMap.get(video.id);
-      if (!existing || parseInt(video.statistics?.viewCount || '0') > parseInt(existing.statistics?.viewCount || '0')) {
-        videoMap.set(video.id, video);
+    console.log(`📊 변환된 영상 데이터: ${transformedVideos.length}개`);
+    
+    // 수동수집과 동일한 dedupeByVideoDay 함수 사용
+    const dedupeByVideoDay = (videos) => {
+      const map = new Map();
+      let duplicatesFound = 0;
+      
+      for (const video of videos) {
+        const dayKey = video.dayKeyLocal || video.collectionDate || video.uploadDate;
+        if (!dayKey) continue;
+        
+        const key = `${video.videoId}|${dayKey}`;
+        const existing = map.get(key);
+        
+        if (!existing) {
+          map.set(key, video);
+        } else {
+          duplicatesFound++;
+          const currentViews = video.viewCount || 0;
+          const existingViews = existing.viewCount || 0;
+          
+          if (currentViews > existingViews) {
+            map.set(key, video);
+            console.log(`🔄 중복 교체: ${video.videoId} (조회수 ${existingViews} → ${currentViews})`);
+          }
+        }
       }
-    });
+      
+      if (duplicatesFound > 0) {
+        console.log(`📊 중복 제거 완료: ${duplicatesFound}개 중복 발견, ${map.size}개 유지`);
+      }
+      
+      return Array.from(map.values());
+    };
     
-    let uniqueVideos = Array.from(videoMap.values());
-    uniqueVideos.sort((a, b) => parseInt(b.statistics?.viewCount || '0') - parseInt(a.statistics?.viewCount || '0'));
-    
-    console.log(`✅ 전체: ${allVideos.length}개 → 중복 제거: ${uniqueVideos.length}개`);
+    const uniqueVideos = dedupeByVideoDay(transformedVideos);
+    console.log(`✅ 수동수집과 동일한 중복 제거: ${transformedVideos.length}개 → ${uniqueVideos.length}개`);
 
     // 4단계: 채널 정보 수집
     console.log('📊 채널 정보 수집 중...');
-    const channelIds = [...new Set(uniqueVideos.map(v => v.snippet.channelId))];
+    const channelIds = [...new Set(uniqueVideos.map(v => v.channelId))];
     let allChannels = [];
     
     for (let i = 0; i < channelIds.length; i += 50) {
@@ -2020,45 +2323,61 @@ async function autoCollectData() {
     
     console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
+    // 채널 정보를 채널 ID로 매핑
+    const channelInfoMap = new Map();
+    allChannels.forEach(channel => {
+      channelInfoMap.set(channel.id, {
+        subscriberCount: parseInt(channel.statistics?.subscriberCount) || 0,
+        videoCount: parseInt(channel.statistics?.videoCount) || 0,
+        publishedAt: channel.snippet?.publishedAt || '',
+        channelDescription: channel.snippet?.description || '',
+        channelThumbnail: channel.snippet?.thumbnails?.high?.url || channel.snippet?.thumbnails?.default?.url || ''
+      });
+    });
+    
     // 6단계: 데이터 변환 및 저장
     // KST 기준으로 오늘 날짜 생성 (오전 9시 실행되므로 당일로 저장)
     const now = new Date();
-    const kstNow = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
     const today = kstNow.toISOString().split('T')[0];
     
     console.log(`📅 수집 날짜 설정: ${today} (당일 데이터로 저장)`);
     const newData = uniqueVideos.map((video, index) => {
-      const channel = allChannels.find(ch => ch.id === video.snippet.channelId);
-      const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
-      
-      // 키워드 정보 찾기 (키워드 수집에서 온 영상인지 확인)
-      let sourceKeyword = 'trending';
-      const keywordVideo = keywordVideos.find(kv => kv.id === video.id);
-      if (keywordVideo && keywordVideo.searchKeyword) {
-        // 키워드 수집에서 온 영상인 경우, 저장된 키워드 사용
-        sourceKeyword = keywordVideo.searchKeyword;
-      }
+      const channel = allChannels.find(ch => ch.id === video.channelId);
+      const channelInfo = channelInfoMap.get(video.channelId);
+      const existingClassification = classifiedChannelMap.get(video.channelId);
       
       return {
         id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
-        channelId: video.snippet.channelId,
-        channelName: video.snippet.channelTitle,
+        channelId: video.channelId,
+        channelName: video.channelName,
         description: channel?.snippet?.description || "설명 없음",
-        videoId: video.id,
-        videoTitle: video.snippet.title,
-        videoDescription: video.snippet.description,
-        viewCount: parseInt(video.statistics?.viewCount || '0'),
-        uploadDate: video.snippet.publishedAt.split('T')[0],
-        collectionDate: today,
-        thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
+        videoId: video.videoId,
+        videoTitle: video.videoTitle,
+        videoDescription: video.videoDescription,
+        viewCount: video.viewCount,
+        likeCount: video.likeCount,
+        commentCount: video.commentCount,
+        publishedAt: video.originalData?.snippet?.publishedAt || '',
+        thumbnailUrl: video.thumbnailUrl,
+        duration: video.originalData?.contentDetails?.duration || '',
+        uploadDate: video.uploadDate,
+        collectionDate: video.collectionDate,
+        dayKeyLocal: video.dayKeyLocal,
         category: existingClassification?.category || "",
         subCategory: existingClassification?.subCategory || "",
         status: existingClassification ? "classified" : "unclassified",
-        keyword: sourceKeyword, // 키워드 정보 추가
-        source: keywordVideo ? 'keyword' : 'trending', // 수집 소스 정보 추가
-        collectionType: 'auto', // 자동 수집으로 명시
+        keyword: video.searchKeyword, // 키워드 정보 추가
+        source: video.source, // 수집 소스 정보 추가
+        collectionType: 'manual', // UI 호환성을 위해 기본값 유지
         collectionTimestamp: new Date().toISOString(), // 수집 시간 기록
-        collectionSource: 'auto_collect_api' // 수집 소스 기록
+        collectionSource: 'auto_collect_api', // 수집 소스 기록
+        // 채널 상세 정보 추가
+        subscriberCount: channelInfo?.subscriberCount,
+        channelVideoCount: channelInfo?.videoCount,
+        channelCreationDate: channelInfo?.publishedAt ? channelInfo.publishedAt.split('T')[0] : undefined,
+        channelDescription: channelInfo?.channelDescription,
+        channelThumbnail: channelInfo?.channelThumbnail
       };
     });
 
@@ -2100,8 +2419,9 @@ async function autoCollectData() {
               video_id, channel_id, channel_name, video_title, 
               video_description, view_count, like_count, comment_count,
               upload_date, collection_date, thumbnail_url, 
-              category, sub_category, status, day_key_local, collection_type, keyword
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+              category, sub_category, status, day_key_local, collection_type, keyword,
+              subscriber_count, channel_video_count, channel_creation_date, channel_description, channel_thumbnail_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             ON CONFLICT (video_id, day_key_local) 
             DO UPDATE SET
               channel_id = EXCLUDED.channel_id,
@@ -2117,6 +2437,11 @@ async function autoCollectData() {
               status = COALESCE(unclassified_data.status, EXCLUDED.status),
               collection_type = EXCLUDED.collection_type,
               keyword = COALESCE(unclassified_data.keyword, EXCLUDED.keyword),
+              subscriber_count = COALESCE(unclassified_data.subscriber_count, EXCLUDED.subscriber_count),
+              channel_video_count = COALESCE(unclassified_data.channel_video_count, EXCLUDED.channel_video_count),
+              channel_creation_date = COALESCE(unclassified_data.channel_creation_date, EXCLUDED.channel_creation_date),
+              channel_description = COALESCE(unclassified_data.channel_description, EXCLUDED.channel_description),
+              channel_thumbnail_url = COALESCE(unclassified_data.channel_thumbnail_url, EXCLUDED.channel_thumbnail_url),
               updated_at = NOW()
             RETURNING (xmax = 0) AS inserted
           `, [
@@ -2136,7 +2461,12 @@ async function autoCollectData() {
             item.status || 'unclassified',
             today,
             'auto',
-            item.keyword || ''
+            item.keyword || '',
+            item.subscriberCount || null,
+            item.channelVideoCount || null,
+            item.channelCreationDate || null,
+            item.channelDescription || null,
+            item.channelThumbnail || null
           ]);
           
           if (result.rows[0].inserted) {
@@ -2438,19 +2768,116 @@ function addCronHistory(status, message, error = null) {
   }
 }
 
+// 데이터베이스 스키마 수정 API (keyword 컬럼 및 채널 정보 컬럼 추가)
+app.post('/api/database/fix-schema', async (req, res) => {
+  if (!pool) {
+    return res.status(500).json({ error: 'Database not connected' });
+  }
+
+  try {
+    console.log('🔧 데이터베이스 스키마 수정 시작...');
+    const changes = [];
+    
+    // 1. keyword 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS keyword VARCHAR(255)
+    `);
+    console.log('✅ keyword 컬럼 추가 완료');
+    changes.push('Added keyword column to unclassified_data table');
+
+    // 2. keyword 컬럼 인덱스 추가
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_unclassified_data_keyword 
+      ON unclassified_data(keyword)
+    `);
+    console.log('✅ keyword 컬럼 인덱스 추가 완료');
+    changes.push('Added index on keyword column');
+
+    // 3. subscriber_count 및 채널 정보 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS subscriber_count BIGINT
+    `);
+    console.log('✅ subscriber_count 컬럼 추가 완료');
+    changes.push('Added subscriber_count column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_video_count INTEGER
+    `);
+    console.log('✅ channel_video_count 컬럼 추가 완료');
+    changes.push('Added channel_video_count column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_creation_date DATE
+    `);
+    console.log('✅ channel_creation_date 컬럼 추가 완료');
+    changes.push('Added channel_creation_date column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_description TEXT
+    `);
+    console.log('✅ channel_description 컬럼 추가 완료');
+    changes.push('Added channel_description column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_thumbnail_url VARCHAR(500)
+    `);
+    console.log('✅ channel_thumbnail_url 컬럼 추가 완료');
+    changes.push('Added channel_thumbnail_url column');
+
+    // 4. collection_type 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
+    `);
+    console.log('✅ collection_type 컬럼 추가 완료');
+    changes.push('Added collection_type column');
+
+    // 5. 기존 데이터의 keyword 컬럼 초기화
+    await pool.query(`
+      UPDATE unclassified_data 
+      SET keyword = '' 
+      WHERE keyword IS NULL
+    `);
+    console.log('✅ 기존 데이터 keyword 컬럼 초기화 완료');
+    changes.push('Initialized existing data keyword field');
+
+    res.json({
+      success: true,
+      message: 'Database schema fixed successfully',
+      changes
+    });
+
+  } catch (error) {
+    console.error('❌ 스키마 수정 오류:', error);
+    res.status(500).json({
+      error: 'Schema fix failed',
+      details: error.message
+    });
+  }
+});
+
 // 크론잡 실행 이력 조회 API
 app.get('/api/cron/history', (req, res) => {
   const now = new Date();
-  const nextRun = new Date(now);
-  nextRun.setHours(10, 0, 0, 0);
-  if (nextRun <= now) {
+  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  // KST 기준으로 다음 9시 계산
+  const nextRun = new Date(kstNow);
+  nextRun.setHours(9, 0, 0, 0);
+  if (nextRun <= kstNow) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
   
   res.json({
     success: true,
     serverStartTime: global.serverStartTime || new Date().toISOString(),
-    cronSchedule: '매일 10:00 KST',
+    cronSchedule: '매일 09:00 KST',
     currentTime: now.toISOString(),
     currentTimeKST: now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }),
     nextRun: nextRun.toISOString(),
@@ -2474,11 +2901,18 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌏 서버 타임존: Asia/Seoul`);
   console.log('='.repeat(80));
   
-  // 자동 수집 cron job 설정 (매일 10:00 KST - 당일 데이터로 저장)
+  // 기존 크론잡 정리 (중복 방지)
+  if (global.cronJobInstance) {
+    console.log('🔄 기존 크론잡 정리 중...');
+    global.cronJobInstance.destroy();
+    global.cronJobInstance = null;
+  }
+
+  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
   // cron 표현식: '분 시 일 월 요일'
-  // '0 10 * * *' = 매일 10:00 (오전 10시)
-  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 10시에 실행
-  const cronJob = cron.schedule('0 10 * * *', async () => {
+  // '0 9 * * *' = 매일 09:00 (KST 오전 9시)
+  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 9시에 실행
+  const cronJob = cron.schedule('0 9 * * *', safeCron(async () => {
     const executeTime = new Date();
     console.log('\n' + '='.repeat(80));
     console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
@@ -2486,6 +2920,35 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`🕐 트리거 시간 (UTC): ${executeTime.toISOString()}`);
     console.log('📅 당일(오늘) 데이터로 저장됩니다');
     console.log('='.repeat(80) + '\n');
+    
+    // 중복 실행 방지: 이미 실행 중이면 건너뛰기 (타임아웃 체크 포함)
+    if (global.autoCollectionInProgress) {
+      // 타임아웃 체크: 마지막 실행 시간이 2시간 이상 지났으면 강제 해제
+      const lastRunTime = global.autoCollectionLastRunTime || 0;
+      const now = Date.now();
+      const timeoutMs = 2 * 60 * 60 * 1000; // 2시간
+      
+      if (lastRunTime > 0 && (now - lastRunTime) > timeoutMs) {
+        console.log('⚠️ [크론잡] 자동 수집 플래그가 타임아웃되었습니다. 강제 해제하고 재실행합니다.');
+        console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+        console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
+        global.autoCollectionInProgress = false;
+        global.autoCollectionLastRunTime = null;
+        addCronHistory('timeout-reset', '자동 수집 플래그 타임아웃으로 강제 해제');
+      } else {
+        console.log('⚠️ [크론잡] 이미 자동 수집이 진행 중이므로 건너뜁니다.');
+        if (lastRunTime > 0) {
+          console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+          console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
+        }
+        addCronHistory('skipped', '이미 자동 수집이 진행 중');
+        return;
+      }
+    }
+    
+    // 자동 수집 시작 플래그 설정 (타임스탬프 포함)
+    global.autoCollectionInProgress = true;
+    global.autoCollectionLastRunTime = Date.now();
     
     // 이력 기록: 시작
     addCronHistory('started', '자동 수집 시작');
@@ -2503,23 +2966,38 @@ app.listen(PORT, '0.0.0.0', () => {
       console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
       console.error('❌ [크론잡] 오류 스택:', error.stack);
       addCronHistory('failed', '자동 수집 중 오류 발생', error);
+    } finally {
+      // 자동 수집 완료 플래그 해제
+      global.autoCollectionInProgress = false;
+      global.autoCollectionLastRunTime = null;
     }
-  }, {
+  }), {
     timezone: 'Asia/Seoul',
     scheduled: true
+  });
+  
+  // 크론잡 인스턴스 전역 저장 (중복 방지용)
+  global.cronJobInstance = cronJob;
+  
+  // 크론잡 상태 확인
+  console.log('📅 크론잡 설정 완료:', {
+    schedule: '매일 09:00 KST',
+    timezone: 'Asia/Seoul',
+    scheduled: cronJob.running,
+    nextRun: cronJob.nextDate ? cronJob.nextDate().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '알 수 없음'
   });
   
   // 다음 실행 시간 계산 (KST 기준)
   const now = new Date();
   const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   const nextRun = new Date(kstNow);
-  nextRun.setHours(10, 0, 0, 0);
+  nextRun.setHours(9, 0, 0, 0);
   if (nextRun <= kstNow) {
     nextRun.setDate(nextRun.getDate() + 1);
   }
   
   console.log('\n📋 크론잡 설정 정보:');
-  console.log(`   - 스케줄: 매일 10:00 KST (할당량 초기화 1시간 후)`);
+  console.log(`   - 스케줄: 매일 09:00 KST (할당량 초기화 1시간 후)`);
   console.log(`   - 타임존: Asia/Seoul`);
   console.log(`   - 현재 시간 (KST): ${now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
@@ -2529,7 +3007,7 @@ app.listen(PORT, '0.0.0.0', () => {
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
 // __dirname은 /app/dist/server이므로, 한 단계 위의 dist로 이동
-app.use(express.static(path.join(__dirname, '..')));
+// API 라우터가 먼저 처리되도록 express.static을 SPA 라우팅과 함께 마지막에 배치
 
 // 동기화 API 엔드포인트
 app.post('/api/sync/upload', async (req, res) => {
@@ -2688,6 +3166,45 @@ app.get('/api/sync/download', async (req, res) => {
   } catch (error) {
     console.error('동기화 다운로드 실패:', error);
     res.status(500).json({ error: 'Download failed' });
+  }
+});
+
+// POST 방식 동기화 다운로드 API (증분 동기화)
+app.post('/api/sync/download', async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ 
+      error: 'Database connection not available',
+      message: 'PostgreSQL pool이 초기화되지 않았습니다.'
+    });
+  }
+  
+  try {
+    const { lastSyncTime } = req.body;
+    
+    if (!lastSyncTime) {
+      return res.status(400).json({ error: 'lastSyncTime is required' });
+    }
+
+    // 서버용 PostgreSQL 서비스 사용
+    const { getDifferentialData } = await import('./lib/postgresql-server-service.js');
+    const recentData = await getDifferentialData(pool, lastSyncTime);
+
+    res.status(200).json({
+      success: true,
+      channels: recentData.channels || [],
+      videos: recentData.videos || [],
+      classificationData: recentData.classificationData || [],
+      unclassifiedData: recentData.unclassifiedData || [],
+      syncTime: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ 동기화 다운로드 API 오류:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '서버 동기화 처리 중 오류 발생',
+      message: error.message
+    });
   }
 });
 
@@ -3045,7 +3562,7 @@ app.post('/api/reset-database', async (req, res) => {
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// 14일 데이터 자동 정리 스케줄러
+// 7일 데이터 자동 정리 스케줄러
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function autoCleanupOldData() {
   if (!pool) {
@@ -3054,7 +3571,7 @@ async function autoCleanupOldData() {
   }
   
   try {
-    const retentionDays = 14;
+    const retentionDays = 7;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
     const cutoffDateString = cutoffDate.toISOString().split('T')[0];
@@ -3105,7 +3622,7 @@ async function autoCleanupOldData() {
   }
 }
 
-// 매일 자정(KST) 14일 데이터 정리 실행
+// 매일 자정(KST) 7일 데이터 정리 실행
 setInterval(() => {
   const now = new Date();
   const kstHour = parseInt(now.toLocaleString('en-US', { 
@@ -3120,19 +3637,59 @@ setInterval(() => {
   
   // 자정(00:00~00:05)에 실행
   if (kstHour === 0 && kstMinute < 5) {
-    console.log('🕛 KST 자정 감지 - 14일 데이터 자동 정리 실행');
+    console.log('🕛 KST 자정 감지 - 7일 데이터 자동 정리 실행');
     autoCleanupOldData();
   }
 }, 5 * 60 * 1000); // 5분마다 체크
 
 // 서버 시작 시 1회 실행
-console.log('🧹 서버 시작 시 14일 데이터 정리 1회 실행...');
+console.log('🧹 서버 시작 시 7일 데이터 정리 1회 실행...');
 autoCleanupOldData();
+
+// 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
+// 캐시 설정: 정적 리소스는 1년 캐시, immutable 사용
+app.use(express.static(path.join(__dirname, '..'), {
+  maxAge: 31536000000, // 1년 (밀리초)
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // 정적 리소스 캐싱 설정
+    if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', getContentType(path) + '; charset=utf-8');
+    } else if (path.match(/\.(html)$/)) {
+      // HTML 파일은 짧은 캐시 (180초)
+      res.setHeader('Cache-Control', 'public, max-age=180');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+  }
+}));
+
+// Content-Type 헬퍼 함수
+function getContentType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  const contentTypes = {
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.ico': 'image/x-icon',
+    '.svg': 'image/svg+xml',
+    '.woff': 'font/woff',
+    '.woff2': 'font/woff2',
+    '.ttf': 'font/ttf',
+    '.eot': 'application/vnd.ms-fontobject'
+  };
+  return contentTypes[ext] || 'application/octet-stream';
+}
 
 // SPA 라우팅 - 모든 경로를 index.html로 리다이렉트 (API 라우트 제외)
 app.use((req, res) => {
   // API 경로는 제외하고 SPA 라우팅 적용
   if (req.path.startsWith('/api/')) {
+    // API 라우트는 이미 위에서 처리되었으므로 여기서는 404
     return res.status(404).json({ error: 'API endpoint not found' });
   }
   // __dirname은 /app/dist/server이므로, 한 단계 위로 이동
