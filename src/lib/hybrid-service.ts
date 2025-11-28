@@ -396,13 +396,30 @@ class HybridService {
           
         } catch (error: any) {
           retryCount++;
-          const isServerError = error.message?.includes('status: 500') || error.message?.includes('status: 413');
+          const errorMessage = error.message || String(error);
+          const isServerError = errorMessage?.includes('status: 500') || errorMessage?.includes('status: 413');
+          
+          // 데이터베이스 연결 오류 감지 (재시도 불필요)
+          const isDatabaseError = errorMessage?.includes('Database not connected') || 
+                                  errorMessage?.includes('Database connection not available') ||
+                                  errorMessage?.includes('Database not connected');
           
           console.error(`❌ 배치 ${batchNum} 전송 실패 (시도 ${retryCount}/${MAX_RETRIES}):`, {
-            error: error.message,
+            error: errorMessage,
             isServerError,
+            isDatabaseError,
             currentBatchSize
           });
+          
+          // 데이터베이스 연결 오류는 즉시 실패 처리 (재시도 불필요)
+          if (isDatabaseError) {
+            console.error(`🚨 서버 데이터베이스 연결 오류 감지 - 재시도하지 않고 즉시 실패 처리`);
+            console.error(`💀 배치 ${batchNum} 데드레터 큐로 이동 (데이터베이스 연결 오류):`, batch.map(item => item.id));
+            deadLetterItems.push(...batch);
+            failedCount += batch.length;
+            batchSuccess = true; // 다음 배치로 진행
+            break; // while 루프 종료하여 다음 배치로 진행
+          }
           
           if (isServerError && retryCount < MAX_RETRIES) {
             // 서버 에러 시 배치 크기 축소
