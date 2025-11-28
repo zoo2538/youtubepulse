@@ -9,6 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import Logo from "@/components/ui/logo";
 import { useEffect } from "react";
+import { hybridDatabaseService } from '@/lib/hybrid-database-service'; // ✅ 추가
 
 const Dashboard = () => {
   const { userEmail, userRole, logout } = useAuth();
@@ -19,6 +20,33 @@ const Dashboard = () => {
   // useEffect(() => {
   //   // 임시 비밀번호 감지 로직 비활성화
   // }, [userEmail, navigate]);
+
+  useEffect(() => {
+    // 앱 시작 시, PostgreSQL의 최신 데이터를 IndexedDB로 동기화
+    const initialSync = async () => {
+      try {
+        console.log('🔄 웹 실행: PostgreSQL에서 최신 데이터 동기화 시작');
+        
+        // 동기화 활성화
+        hybridDatabaseService.updateConfig({ syncEnabled: true });
+        
+        // hybridDatabaseService 내부에 syncFromPostgreSQL 함수를 호출
+        await hybridDatabaseService.syncFromPostgreSQL();
+        
+        console.log('✅ 최신 데이터 동기화 완료. 화면에 표시 시작');
+        
+        // 동기화 완료 후, 화면에 데이터를 다시 로딩하거나 상태를 업데이트하는 로직이 필요
+        // loadData(); 
+        
+      } catch (error) {
+        console.error('❌ 초기 동기화 실패:', error);
+      }
+    };
+    
+    initialSync();
+    
+    // 이 useEffect는 한 번만 실행되도록 빈 배열을 넣어줍니다.
+  }, []);
 
   const handleLogout = () => {
     logout();

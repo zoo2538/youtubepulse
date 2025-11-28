@@ -1,5 +1,5 @@
 import { indexedDBService } from './indexeddb-service';
-import { postgresqlService } from './postgresql-service';
+// import { postgresqlService } from './postgresql-service'; // ❌ 서버 전용 서비스 제거
 
 interface HybridConfig {
   useIndexedDB: boolean;
@@ -208,42 +208,38 @@ class HybridDatabaseService {
 
   // PostgreSQL에서 IndexedDB로 데이터 동기화
   async syncFromPostgreSQL(): Promise<void> {
-    try {
-      if (!this.config.syncEnabled) {
-        console.log('⚠️ 동기화가 비활성화되어 있습니다.');
-        return;
-      }
+    if (!this.config.syncEnabled) return;
 
-      console.log('🔄 PostgreSQL에서 IndexedDB로 데이터 동기화 시작...');
+    console.log('🔄 API 게이트웨이를 통한 동기화 시작...');
+    
+    // 1. 마지막 동기화 시간 가져오기 (증분 동기화 준비)
+    const lastSyncTime = localStorage.getItem('last_sync_time') || '1970-01-01T00:00:00.000Z';
 
-      // PostgreSQL에서 데이터 조회 (서버 환경에서만)
-      if (typeof window === 'undefined') {
-        const channels = await postgresqlService.getChannels();
-        const videos = await postgresqlService.getVideos();
-        const classificationData = await postgresqlService.getClassificationData();
+    // 2. 서버의 동기화 게이트웨이 API에 요청
+    const response = await fetch('/api/sync/download', {
+      method: 'POST', // POST를 사용해 body에 데이터 전달
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lastSyncTime }), // 마지막 동기화 시간 전달
+    });
 
-        // IndexedDB에 저장
-        if (channels.length > 0) {
-          await indexedDBService.saveChannels(channels);
-          console.log(`✅ ${channels.length}개 채널 동기화 완료`);
-        }
-
-        if (videos.length > 0) {
-          await indexedDBService.saveVideos(videos);
-          console.log(`✅ ${videos.length}개 영상 동기화 완료`);
-        }
-
-        if (classificationData.length > 0) {
-          await indexedDBService.saveClassificationData(classificationData);
-          console.log(`✅ ${classificationData.length}개 분류 데이터 동기화 완료`);
-        }
-      }
-
-      console.log('✅ 데이터 동기화 완료');
-    } catch (error) {
-      console.error('❌ 데이터 동기화 실패:', error);
-      throw error;
+    if (!response.ok) {
+      throw new Error('API를 통한 동기화 실패');
     }
+
+    // 3. 서버에서 받은 최신 데이터를 IndexedDB에 저장
+    const data = await response.json();
+
+    if (data.channels?.length > 0 || data.videos?.length > 0 || data.classificationData?.length > 0) {
+      await indexedDBService.saveChannels(data.channels || []);
+      await indexedDBService.saveVideos(data.videos || []);
+      await indexedDBService.saveClassificationData(data.classificationData || []);
+      console.log(`✅ 최신 ${data.videos?.length || 0}개 영상 동기화 완료`);
+    } else {
+      console.log('✨ 이미 최신 상태입니다. (서버 응답)');
+    }
+
+    // 4. 동기화 시간 갱신 (증분 동기화를 위해)
+    localStorage.setItem('last_sync_time', new Date().toISOString());
   }
 
   // 설정 업데이트

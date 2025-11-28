@@ -3169,6 +3169,45 @@ app.get('/api/sync/download', async (req, res) => {
   }
 });
 
+// POST 방식 동기화 다운로드 API (증분 동기화)
+app.post('/api/sync/download', async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ 
+      error: 'Database connection not available',
+      message: 'PostgreSQL pool이 초기화되지 않았습니다.'
+    });
+  }
+  
+  try {
+    const { lastSyncTime } = req.body;
+    
+    if (!lastSyncTime) {
+      return res.status(400).json({ error: 'lastSyncTime is required' });
+    }
+
+    // 서버용 PostgreSQL 서비스 사용
+    const { getDifferentialData } = await import('./lib/postgresql-server-service.js');
+    const recentData = await getDifferentialData(pool, lastSyncTime);
+
+    res.status(200).json({
+      success: true,
+      channels: recentData.channels || [],
+      videos: recentData.videos || [],
+      classificationData: recentData.classificationData || [],
+      unclassifiedData: recentData.unclassifiedData || [],
+      syncTime: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ 동기화 다운로드 API 오류:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '서버 동기화 처리 중 오류 발생',
+      message: error.message
+    });
+  }
+});
+
 app.get('/api/sync/check', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });

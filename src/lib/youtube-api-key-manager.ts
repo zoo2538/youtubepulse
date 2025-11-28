@@ -3,6 +3,8 @@
  * 할당량 추적 및 자동 키 전환 기능 포함
  */
 
+import { universalStorage } from './universal-storage';
+
 interface ApiKeyUsage {
   key: string;
   dailyQuota: number; // 일일 할당량 (기본 10,000)
@@ -32,7 +34,8 @@ const QUOTA_THRESHOLD = 0.95; // 95% 사용 시 경고
  */
 function saveApiKeyUsage(usage: Record<number, ApiKeyUsage>): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(usage));
+    // ✅ 수정: localStorage.setItem -> universalStorage.setItem
+    universalStorage.setItem(STORAGE_KEY, JSON.stringify(usage));
   } catch (error) {
     console.error('API 키 사용량 저장 실패:', error);
   }
@@ -43,7 +46,7 @@ function saveApiKeyUsage(usage: Record<number, ApiKeyUsage>): void {
  */
 function loadApiKeyUsage(): Record<number, ApiKeyUsage> {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = universalStorage.getItem(STORAGE_KEY);
     if (saved) {
       return JSON.parse(saved);
     }
