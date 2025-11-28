@@ -5,12 +5,25 @@ export interface Channel {
   channelId: string;
   channelName: string;
   description: string;
-  category: string;
-  subCategory: string;
   youtubeUrl: string;
   thumbnailUrl: string;
   createdAt: string;
   updatedAt: string;
+  
+  // ❌ 제거해야 할 필드: 이 정보는 이제 ChannelClassificationLog에서 동적으로 가져옵니다.
+  // category?: string; 
+  // subCategory?: string; 
+}
+
+// ✅ ChannelClassificationLog 인터페이스는 그대로 유지
+export interface ChannelClassificationLog {
+  id: string; 
+  channelId: string;
+  category: string;
+  subCategory: string;
+  effectiveDate: string; 
+  updatedAt: string;
+  userId?: string; 
 }
 
 export interface DailyStats {

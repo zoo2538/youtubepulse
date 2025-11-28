@@ -1,4 +1,5 @@
 import { indexedDBService } from './indexeddb-service';
+import type { ChannelClassificationLog } from './database-schema';
 // import { postgresqlService } from './postgresql-service'; // ❌ 서버 전용 서비스 제거
 
 interface HybridConfig {
@@ -94,6 +95,64 @@ class HybridDatabaseService {
       }
     } catch (error) {
       console.error('❌ 분류 데이터 저장 실패:', error);
+      throw error;
+    }
+  }
+
+  // ✅ 신규 메서드: 수동 분류 저장 (로그 기록)
+  async saveClassificationLog(
+    channelId: string, 
+    category: string, 
+    subCategory: string,
+    userId?: string // 누가 분류했는지 정보
+  ): Promise<void> {
+    const newLog: ChannelClassificationLog = {
+      channelId,
+      category,
+      subCategory,
+      // 현재 시점을 유효 시작 날짜로 기록 (수동 분류는 즉시 적용)
+      effectiveDate: new Date().toISOString(), 
+      updatedAt: new Date().toISOString(),
+      userId: userId || 'manual_user',
+      id: crypto.randomUUID(), // 클라이언트 측에서 UUID 생성 (IndexedDB 저장을 위해)
+    };
+
+    try {
+      // 1. IndexedDB에 저장 (빠른 UI 반응을 위한 로컬 캐시)
+      if (this.config.useIndexedDB) {
+        // IndexedDB에 분류 로그 저장
+        await indexedDBService.saveClassificationLog(newLog);
+        console.log(`✅ 분류 로그 IndexedDB 저장 완료: ${channelId}`);
+      }
+
+      // 2. PostgreSQL에 저장 (기준 데이터에 기록)
+      // 브라우저 환경에서는 API를 통해 서버에 저장
+      if (typeof window !== 'undefined') {
+        try {
+          const response = await fetch('/api/sync/classification-log', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newLog),
+          });
+
+          if (!response.ok) {
+            throw new Error('분류 로그 서버 저장 실패');
+          }
+
+          console.log('✅ 분류 로그 PostgreSQL 저장 완료 (API)');
+        } catch (error) {
+          console.error('❌ 분류 로그 서버 저장 실패:', error);
+          // 서버 저장 실패해도 로컬에는 저장되었으므로 계속 진행
+        }
+      } else if (this.config.usePostgreSQL) {
+        // 서버 환경에서 직접 PostgreSQL 서비스 사용
+        // const { createPostgreSQLService } = await import('./postgresql-service-server');
+        // const postgresqlService = createPostgreSQLService(/* pool */);
+        // await postgresqlService.insertClassificationLog(newLog);
+        console.log('⚠️ 서버 환경에서 PostgreSQL 직접 저장은 구현 필요');
+      }
+    } catch (error) {
+      console.error('❌ 분류 로그 저장 실패:', error);
       throw error;
     }
   }

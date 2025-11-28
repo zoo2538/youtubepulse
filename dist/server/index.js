@@ -303,6 +303,50 @@ async function createTables() {
     `);
     
     console.log('✅ PostgreSQL 테이블 생성 완료');
+    
+    // 기존 테이블에 누락된 컬럼 추가 (마이그레이션)
+    console.log('🔧 데이터베이스 마이그레이션 시작...');
+    
+    // subscriber_count 및 채널 정보 컬럼 추가
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS subscriber_count BIGINT
+    `);
+    console.log('✅ subscriber_count 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_video_count INTEGER
+    `);
+    console.log('✅ channel_video_count 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_creation_date DATE
+    `);
+    console.log('✅ channel_creation_date 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_description TEXT
+    `);
+    console.log('✅ channel_description 컬럼 추가 완료');
+    
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_thumbnail_url VARCHAR(500)
+    `);
+    console.log('✅ channel_thumbnail_url 컬럼 추가 완료');
+    
+    // collection_type 컬럼 추가 (없을 경우)
+    await client.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
+    `);
+    console.log('✅ collection_type 컬럼 확인 완료');
+    
+    console.log('✅ 데이터베이스 마이그레이션 완료');
+    
     client.release();
   } catch (error) {
     console.error('❌ PostgreSQL 테이블 생성 실패:', error);
@@ -1961,13 +2005,64 @@ async function autoCollectData() {
       return false;
     }
 
-    // 1단계: 트렌드 영상 수집 - 키워드 검색만 사용하므로 비활성화
-    console.log('📺 1단계: 트렌드 영상 수집 건너뛰기 (키워드 검색만 사용)');
+    // 1단계: 트렌드 영상 수집 (상위 200개)
+    console.log('📺 1단계: 트렌드 영상 수집 중... (상위 200개)');
     let trendingVideos = [];
-    console.log('✅ 트렌드: 건너뜀 (키워드 검색으로 충분한 데이터 확보)');
+    let nextPageToken = '';
+    
+    try {
+      // 상위 200개 수집 (50개씩 4페이지)
+      for (let page = 0; page < 4; page++) {
+        const trendingUrl = `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&chart=mostPopular&regionCode=KR&maxResults=50${nextPageToken ? `&pageToken=${nextPageToken}` : ''}&key=${apiKey}`;
+        
+        const trendingResponse = await fetch(trendingUrl);
+        requestCount++;
+        
+        if (!trendingResponse.ok) {
+          const errorText = await trendingResponse.text();
+          console.error(`❌ 트렌드 영상 수집 실패 (페이지 ${page + 1}): ${trendingResponse.status} - ${errorText}`);
+          break;
+        }
+        
+        const trendingData = await trendingResponse.json();
+        
+        if (trendingData.error) {
+          console.error(`❌ 트렌드 영상 수집 오류:`, trendingData.error);
+          break;
+        }
+        
+        if (trendingData.items && trendingData.items.length > 0) {
+          // 한국어 필터링 적용
+          const filteredVideos = trendingData.items.filter(video => {
+            if (koreanOnly && !isKoreanVideo(video, languageFilterLevel)) {
+              return false;
+            }
+            return true;
+          });
+          
+          const filteredCount = trendingData.items.length - filteredVideos.length;
+          if (filteredCount > 0) {
+            console.log(`  🇰🇷 트렌드 한국어 필터링: ${filteredCount}개 제외 (${filteredVideos.length}개 유지)`);
+          }
+          
+          trendingVideos = [...trendingVideos, ...filteredVideos];
+          nextPageToken = trendingData.nextPageToken;
+          
+          if (!nextPageToken) break;
+        }
+        
+        // API 할당량 고려 대기
+        if (page < 3) await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      console.log(`✅ 트렌드 영상 수집 완료: ${trendingVideos.length}개`);
+    } catch (error) {
+      console.error('❌ 트렌드 영상 수집 오류:', error);
+      console.log('⚠️ 키워드 수집만 진행합니다.');
+    }
 
-    // 2단계: 키워드 기반 영상 수집 (전체 75개 키워드 × 50개 = 최대 3,750개)
-    console.log('🔍 2단계: 키워드 영상 수집 중... (75개 키워드 × 50개)');
+    // 2단계: 키워드 기반 영상 수집 (전체 80개 키워드 × 50개 = 최대 4,000개)
+    console.log('🔍 2단계: 키워드 영상 수집 중... (80개 키워드 × 50개)');
     let keywordVideos = [];
     
     // 전체 키워드 사용 (75개)
@@ -2005,12 +2100,14 @@ async function autoCollectData() {
       // 음식 & 요리 (2개)
       '요리', 'K푸드',
       // 시니어 & 노년층 (9개)
-      '막장', '건강관리', '인생경험', '지혜', '사연', '감동', '인생', '국뽕', '실화',
+      '생활 정보', '건강관리', '반전', '지혜', '인생 사연', '감동 사연', '인생', '국뽕', '실화',
       // 트렌드 & 밈 (5개)
       '썰', '밈', '힐링', '커뮤니티', '짤',
       // 하이라이트 & 편집 콘텐츠 (4개)
-      '모음', '명장면', '베스트', '짜집기'
-    ]; // 총 75개
+      '모음', '플리', '플레이 리스트', '짜집기',
+      // 해외 (5개)
+      '해외 썰', '해외 이슈', '해외 정보', '해외 밈', '해외 경제'
+    ]; // 총 80개
     
     // 403 에러 연속 발생 시 조기 중단 카운터
     let consecutive403Errors = 0;
@@ -2193,11 +2290,11 @@ async function autoCollectData() {
     
     console.log(`✅ 채널: ${allChannels.length}개 수집`);
 
-    // 5단계: 7일 자동 분류 로직 조회 (실시간 최신 데이터)
+    // 5단계: 14일 자동 분류 로직 조회 (실시간 최신 데이터)
     console.log('🔄 자동 분류 참조 데이터 조회 중 (실시간)...');
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const sevenDaysAgoString = sevenDaysAgo.toISOString().split('T')[0];
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    const fourteenDaysAgoString = fourteenDaysAgo.toISOString().split('T')[0];
     
     const client = await pool.connect();
     
@@ -2213,7 +2310,7 @@ async function autoCollectData() {
         AND sub_category != ''
         AND day_key_local >= $1
       ORDER BY channel_id, day_key_local DESC
-    `, [sevenDaysAgoString]);
+    `, [fourteenDaysAgoString]);
     
     let classifiedChannelMap = new Map();
     classifiedResult.rows.forEach(row => {
@@ -2224,7 +2321,7 @@ async function autoCollectData() {
       });
     });
     
-    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 7일)`);
+    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 14일)`);
 
     // 채널 정보를 채널 ID로 매핑
     const channelInfoMap = new Map();
@@ -2671,7 +2768,7 @@ function addCronHistory(status, message, error = null) {
   }
 }
 
-// 데이터베이스 스키마 수정 API (keyword 컬럼 추가)
+// 데이터베이스 스키마 수정 API (keyword 컬럼 및 채널 정보 컬럼 추가)
 app.post('/api/database/fix-schema', async (req, res) => {
   if (!pool) {
     return res.status(500).json({ error: 'Database not connected' });
@@ -2679,6 +2776,7 @@ app.post('/api/database/fix-schema', async (req, res) => {
 
   try {
     console.log('🔧 데이터베이스 스키마 수정 시작...');
+    const changes = [];
     
     // 1. keyword 컬럼 추가
     await pool.query(`
@@ -2686,6 +2784,7 @@ app.post('/api/database/fix-schema', async (req, res) => {
       ADD COLUMN IF NOT EXISTS keyword VARCHAR(255)
     `);
     console.log('✅ keyword 컬럼 추가 완료');
+    changes.push('Added keyword column to unclassified_data table');
 
     // 2. keyword 컬럼 인덱스 추가
     await pool.query(`
@@ -2693,23 +2792,65 @@ app.post('/api/database/fix-schema', async (req, res) => {
       ON unclassified_data(keyword)
     `);
     console.log('✅ keyword 컬럼 인덱스 추가 완료');
+    changes.push('Added index on keyword column');
 
-    // 3. 기존 데이터의 keyword 컬럼 초기화
+    // 3. subscriber_count 및 채널 정보 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS subscriber_count BIGINT
+    `);
+    console.log('✅ subscriber_count 컬럼 추가 완료');
+    changes.push('Added subscriber_count column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_video_count INTEGER
+    `);
+    console.log('✅ channel_video_count 컬럼 추가 완료');
+    changes.push('Added channel_video_count column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_creation_date DATE
+    `);
+    console.log('✅ channel_creation_date 컬럼 추가 완료');
+    changes.push('Added channel_creation_date column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_description TEXT
+    `);
+    console.log('✅ channel_description 컬럼 추가 완료');
+    changes.push('Added channel_description column');
+
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS channel_thumbnail_url VARCHAR(500)
+    `);
+    console.log('✅ channel_thumbnail_url 컬럼 추가 완료');
+    changes.push('Added channel_thumbnail_url column');
+
+    // 4. collection_type 컬럼 추가
+    await pool.query(`
+      ALTER TABLE unclassified_data 
+      ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
+    `);
+    console.log('✅ collection_type 컬럼 추가 완료');
+    changes.push('Added collection_type column');
+
+    // 5. 기존 데이터의 keyword 컬럼 초기화
     await pool.query(`
       UPDATE unclassified_data 
       SET keyword = '' 
       WHERE keyword IS NULL
     `);
     console.log('✅ 기존 데이터 keyword 컬럼 초기화 완료');
+    changes.push('Initialized existing data keyword field');
 
     res.json({
       success: true,
       message: 'Database schema fixed successfully',
-      changes: [
-        'Added keyword column to unclassified_data table',
-        'Added index on keyword column',
-        'Initialized existing data keyword field'
-      ]
+      changes
     });
 
   } catch (error) {
@@ -3025,6 +3166,45 @@ app.get('/api/sync/download', async (req, res) => {
   } catch (error) {
     console.error('동기화 다운로드 실패:', error);
     res.status(500).json({ error: 'Download failed' });
+  }
+});
+
+// POST 방식 동기화 다운로드 API (증분 동기화)
+app.post('/api/sync/download', async (req, res) => {
+  if (!pool) {
+    return res.status(503).json({ 
+      error: 'Database connection not available',
+      message: 'PostgreSQL pool이 초기화되지 않았습니다.'
+    });
+  }
+  
+  try {
+    const { lastSyncTime } = req.body;
+    
+    if (!lastSyncTime) {
+      return res.status(400).json({ error: 'lastSyncTime is required' });
+    }
+
+    // 서버용 PostgreSQL 서비스 사용
+    const { getDifferentialData } = await import('./lib/postgresql-server-service.js');
+    const recentData = await getDifferentialData(pool, lastSyncTime);
+
+    res.status(200).json({
+      success: true,
+      channels: recentData.channels || [],
+      videos: recentData.videos || [],
+      classificationData: recentData.classificationData || [],
+      unclassifiedData: recentData.unclassifiedData || [],
+      syncTime: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ 동기화 다운로드 API 오류:', error);
+    res.status(500).json({ 
+      success: false,
+      error: '서버 동기화 처리 중 오류 발생',
+      message: error.message
+    });
   }
 });
 

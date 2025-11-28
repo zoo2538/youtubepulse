@@ -1,6 +1,7 @@
 // IndexedDB 데이터 저장 서비스
 import { getKoreanDateString } from './utils';
 import { subCategories as defaultSubCategories } from './subcategories';
+import type { ChannelClassificationLog } from './database-schema';
 const REMOVED_SUBCATEGORIES: Record<string, string[]> = {
   '크리에이터': ['전문브랜드']
 };
@@ -57,7 +58,7 @@ const DATE_RANGE_DAYS = 14;
 
 class IndexedDBService {
   private dbName = 'YouTubePulseDB';
-  private version = 11; // 스키마 재생성을 위한 대폭 증가
+  private version = 12; // classificationLogs 스토어 추가를 위한 버전 증가
   private db: IDBDatabase | null = null;
 
   // 연결 재시작
@@ -194,6 +195,14 @@ class IndexedDBService {
         if (!db.objectStoreNames.contains('classifiedByDate')) {
           const byDate = db.createObjectStore('classifiedByDate', { keyPath: 'date' });
           byDate.createIndex('date', 'date', { unique: true });
+        }
+
+        // classificationLogs 저장소: 채널 분류 이력 로그
+        if (!db.objectStoreNames.contains('classificationLogs')) {
+          const classificationLogsStore = db.createObjectStore('classificationLogs', { keyPath: 'id' });
+          classificationLogsStore.createIndex('channelId', 'channelId', { unique: false });
+          classificationLogsStore.createIndex('effectiveDate', 'effectiveDate', { unique: false });
+          classificationLogsStore.createIndex('channelEffective', ['channelId', 'effectiveDate'], { unique: false });
         }
 
         if (!db.objectStoreNames.contains('backupSettings')) {
@@ -616,6 +625,119 @@ class IndexedDBService {
         });
       };
       clearRequest.onerror = () => reject(clearRequest.error);
+    });
+  }
+
+  // ✅ 신규 메서드: 분류 로그 저장
+  async saveClassificationLog(log: ChannelClassificationLog): Promise<void> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classificationLogs'], 'readwrite');
+      const store = transaction.objectStore('classificationLogs');
+      
+      // id를 키로 사용하여 저장 (중복 시 업데이트)
+      const putRequest = store.put(log);
+      
+      putRequest.onsuccess = () => {
+        console.log(`✅ 분류 로그 저장 완료: ${log.channelId} (${log.category}/${log.subCategory})`);
+        resolve();
+      };
+      
+      putRequest.onerror = () => {
+        console.error('❌ 분류 로그 저장 실패:', putRequest.error);
+        reject(putRequest.error);
+      };
+    });
+  }
+
+  // 분류 로그 조회 (채널 ID로)
+  async getClassificationLogs(channelId: string): Promise<ChannelClassificationLog[]> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classificationLogs'], 'readonly');
+      const store = transaction.objectStore('classificationLogs');
+      const index = store.index('channelId');
+      const request = index.getAll(channelId);
+      
+      request.onsuccess = () => {
+        const logs = request.result as ChannelClassificationLog[];
+        // effectiveDate 기준으로 정렬 (최신순)
+        logs.sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime());
+        resolve(logs);
+      };
+      
+      request.onerror = () => {
+        console.error('❌ 분류 로그 조회 실패:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  // 분류 로그 조회 (특정 시점의 유효한 분류)
+  async getClassificationAtDate(channelId: string, date: string): Promise<ChannelClassificationLog | null> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classificationLogs'], 'readonly');
+      const store = transaction.objectStore('classificationLogs');
+      const index = store.index('channelId');
+      const request = index.getAll(channelId);
+      
+      request.onsuccess = () => {
+        const logs = request.result as ChannelClassificationLog[];
+        const targetDate = new Date(date);
+        
+        // effectiveDate가 targetDate 이하인 로그 중 가장 최근 것 찾기
+        const validLogs = logs.filter(log => new Date(log.effectiveDate) <= targetDate);
+        validLogs.sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime());
+        
+        resolve(validLogs.length > 0 ? validLogs[0] : null);
+      };
+      
+      request.onerror = () => {
+        console.error('❌ 분류 로그 조회 실패:', request.error);
+        reject(request.error);
+      };
+    });
+  }
+
+  // ✅ 신규 메서드: 특정 시점의 채널 카테고리 조회
+  async getChannelCategory(channelId: string, targetDate: string): Promise<{category: string, subCategory: string} | null> {
+    if (!this.db) await this.init();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction(['classificationLogs'], 'readonly');
+      const store = transaction.objectStore('classificationLogs');
+      const index = store.index('channelId');
+      const request = index.getAll(channelId);
+      
+      request.onsuccess = () => {
+        // 1. 해당 채널의 모든 분류 로그를 가져옵니다.
+        const allLogs = request.result as ChannelClassificationLog[];
+        
+        // 2. 해당 채널의 로그만 필터링합니다. (이미 channelId 인덱스로 필터링됨)
+        const channelLogs = allLogs;
+        
+        // 3. targetDate보다 effectiveDate가 같거나 작은 로그 중, 가장 최신 것을 찾습니다.
+        const targetDateObj = new Date(targetDate);
+        const validLogs = channelLogs.filter(log => new Date(log.effectiveDate) <= targetDateObj);
+        validLogs.sort((a, b) => new Date(b.effectiveDate).getTime() - new Date(a.effectiveDate).getTime());
+        
+        const latestLog = validLogs.length > 0 ? validLogs[0] : null;
+        
+        if (latestLog) {
+          resolve({ category: latestLog.category, subCategory: latestLog.subCategory });
+        } else {
+          resolve(null);
+        }
+      };
+      
+      request.onerror = () => {
+        console.error('❌ 채널 카테고리 조회 실패:', request.error);
+        reject(request.error);
+      };
     });
   }
 

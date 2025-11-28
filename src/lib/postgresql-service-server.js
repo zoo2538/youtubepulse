@@ -181,6 +181,48 @@ class PostgreSQLServerService {
       client.release();
     }
   }
+
+  /**
+   * ✅ 신규 메서드: 분류 로그 삽입
+   * @param {Object} logEntry - ChannelClassificationLog 객체
+   * @param {string} logEntry.channelId - 채널 ID
+   * @param {string} logEntry.category - 카테고리
+   * @param {string} logEntry.subCategory - 서브 카테고리
+   * @param {string} logEntry.effectiveDate - 유효 시작 날짜 (ISO 문자열)
+   * @param {string} logEntry.updatedAt - 업데이트 시간 (ISO 문자열)
+   * @param {string} [logEntry.userId] - 분류자 ID (옵션)
+   * @returns {Promise<void>}
+   */
+  async insertClassificationLog(logEntry) {
+    const client = await this.pool.connect();
+    try {
+      const query = `
+        INSERT INTO channel_classification_log (
+          channel_id, category, sub_category, effective_date, updated_at, user_id
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (channel_id, effective_date) DO UPDATE
+        SET category = EXCLUDED.category, 
+            sub_category = EXCLUDED.sub_category,
+            updated_at = EXCLUDED.updated_at,
+            user_id = EXCLUDED.user_id;
+      `;
+      const values = [
+        logEntry.channelId, 
+        logEntry.category, 
+        logEntry.subCategory, 
+        logEntry.effectiveDate, 
+        logEntry.updatedAt,
+        logEntry.userId || null
+      ];
+      await client.query(query, values);
+      console.log(`✅ 분류 로그 삽입 완료: ${logEntry.channelId}`);
+    } catch (error) {
+      console.error('❌ 분류 로그 삽입 실패:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 /**
