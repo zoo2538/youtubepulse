@@ -150,6 +150,10 @@ const ChannelTrend = () => {
   
   // 디바운싱을 위한 타이머 ref
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // 스크롤 위치 유지를 위한 ref
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const savedScrollTopRef = useRef<number | null>(null);
+  const shouldRestoreScrollRef = useRef<boolean>(false);
   const [selectedChannel, setSelectedChannel] = useState<ChannelRankingData | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -490,15 +494,47 @@ const ChannelTrend = () => {
   };
 
   // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소 + URL 업데이트)
-  const handleClick = (channel: ChannelRankingData) => {
+  const handleClick = (channel: ChannelRankingData, event: React.MouseEvent) => {
     // 대기 중인 호버 타이머 취소
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
+    
+    // 스크롤 위치 저장 (클릭 시에만)
+    if (tableScrollRef.current) {
+      savedScrollTopRef.current = tableScrollRef.current.scrollTop;
+      shouldRestoreScrollRef.current = true;
+    }
+    
     // 즉시 채널 선택 (URL 포함)
     handleChannelSelectWithUrl(channel);
   };
+  
+  // 스크롤 위치 복원 (클릭 후 selectedChannelId 변경 시에만)
+  useEffect(() => {
+    if (shouldRestoreScrollRef.current && savedScrollTopRef.current !== null && tableScrollRef.current) {
+      const savedScroll = savedScrollTopRef.current;
+      const restoreScroll = () => {
+        if (tableScrollRef.current && savedScroll !== null) {
+          tableScrollRef.current.scrollTop = savedScroll;
+        }
+      };
+      
+      // 리렌더링 완료 후 스크롤 복원 (여러 시점에 시도)
+      requestAnimationFrame(() => {
+        restoreScroll();
+        setTimeout(() => {
+          restoreScroll();
+        }, 0);
+        setTimeout(() => {
+          restoreScroll();
+          savedScrollTopRef.current = null;
+          shouldRestoreScrollRef.current = false;
+        }, 10);
+      });
+    }
+  }, [selectedChannelId]);
 
   // 검색 필터링된 채널 목록 (useMemo로 최적화)
   const filteredRankings = useMemo(() => {
@@ -696,7 +732,7 @@ const ChannelTrend = () => {
               </div>
 
               {/* 채널 랭킹 테이블 */}
-              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              <div ref={tableScrollRef} className="space-y-2 max-h-[600px] overflow-y-auto">
                 {isLoading ? (
                   <div className="text-center py-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
@@ -721,7 +757,7 @@ const ChannelTrend = () => {
                           }`}
                           onMouseEnter={() => handleMouseEnter(channel)}
                           onMouseLeave={handleMouseLeave}
-                          onClick={() => handleClick(channel)}
+                          onClick={(e) => handleClick(channel, e)}
                         >
                           <TableCell>
                             <div className="flex flex-col items-center">
