@@ -453,21 +453,28 @@ const ChannelTrend = () => {
     };
   }, []);
 
-  // 채널 선택 핸들러
+  // 채널 선택 핸들러 (state만 업데이트, URL 변경 없음)
   const handleChannelSelect = (channel: ChannelRankingData) => {
     setSelectedChannel(channel);
     setSelectedChannelId(channel.channelId);
-    setSearchParams({ channelId: channel.channelId });
   };
 
-  // 마우스 호버 핸들러 (디바운싱 적용)
+  // 채널 선택 핸들러 (state + URL 업데이트)
+  const handleChannelSelectWithUrl = (channel: ChannelRankingData) => {
+    setSelectedChannel(channel);
+    setSelectedChannelId(channel.channelId);
+    // replace: true로 히스토리를 교체하여 스크롤 위치 유지
+    setSearchParams({ channelId: channel.channelId }, { replace: true });
+  };
+
+  // 마우스 호버 핸들러 (디바운싱 적용, URL 변경 없음)
   const handleMouseEnter = (channel: ChannelRankingData) => {
     // 기존 타이머가 있다면 취소
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     
-    // 300ms 후에 채널 선택 실행
+    // 300ms 후에 채널 선택 실행 (URL 변경 없이 state만 업데이트)
     hoverTimeoutRef.current = setTimeout(() => {
       handleChannelSelect(channel);
       hoverTimeoutRef.current = null;
@@ -482,15 +489,15 @@ const ChannelTrend = () => {
     }
   };
 
-  // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소)
+  // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소 + URL 업데이트)
   const handleClick = (channel: ChannelRankingData) => {
     // 대기 중인 호버 타이머 취소
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
-    // 즉시 채널 선택
-    handleChannelSelect(channel);
+    // 즉시 채널 선택 (URL 포함)
+    handleChannelSelectWithUrl(channel);
   };
 
   // 검색 필터링된 채널 목록 (useMemo로 최적화)
