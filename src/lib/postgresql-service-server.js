@@ -223,6 +223,42 @@ class PostgreSQLServerService {
       client.release();
     }
   }
+
+  /**
+   * ✅ 신규 메서드: 오래된 데이터 삭제 (Retention Policy)
+   * @param {number} retentionDays - 보관 기간 (일)
+   * @returns {Promise<number>} 삭제된 행 수
+   */
+  async cleanupOldData(retentionDays) {
+    const client = await this.pool.connect();
+    try {
+      // 기준 날짜 계산 (오늘 - retentionDays)
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+      const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+
+      console.log(`🧹 PostgreSQL 정리 시작: ${cutoffDateStr} 이전 데이터 삭제`);
+
+      // 1. 영상 데이터 삭제 (collection_date 또는 upload_date 기준)
+      const videoQuery = `
+        DELETE FROM videos 
+        WHERE (collection_date < $1 OR (collection_date IS NULL AND upload_date < $1));
+      `;
+      const videoResult = await client.query(videoQuery, [cutoffDateStr]);
+      
+      // 2. 통계 데이터 삭제 (선택 사항)
+      // const statsQuery = `DELETE FROM daily_stats WHERE date < $1`;
+      // await client.query(statsQuery, [cutoffDateStr]);
+
+      console.log(`✅ PostgreSQL 정리 완료: 영상 ${videoResult.rowCount}개 삭제됨`);
+      return videoResult.rowCount;
+    } catch (error) {
+      console.error('❌ PostgreSQL 정리 중 오류:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 /**

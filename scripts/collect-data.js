@@ -6,8 +6,17 @@
  */
 
 import { collectDailyData } from '../src/lib/youtube-api-service.js';
-// ✅ 추가:
-import { postgresqlService } from '../src/lib/postgresql-service.js'; // PostgreSQL 서비스 (가정)
+import { Pool } from 'pg';
+import { createPostgreSQLService } from '../src/lib/postgresql-service-server.js';
+
+// PostgreSQL 연결 풀 생성
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? { rejectUnauthorized: false } : false
+});
+
+// 서버용 PostgreSQL 서비스 생성
+const postgresqlService = createPostgreSQLService(pool);
 
 console.log('🚀 YouTube Pulse 자동 데이터 수집 시작...');
 console.log(`⏰ 실행 시간: ${new Date().toLocaleString('ko-KR')}`);
@@ -27,6 +36,16 @@ try {
   // await postgresqlService.saveDailyStats(Object.values(result.dailyStats)); // saveDailyStats 함수가 필요시 추가
   // await postgresqlService.saveTrendingData(Object.values(result.trendingData)); // trendingData도 필요시 추가
   
+  console.log('💾 PostgreSQL에 저장 완료');
+  
+  // ✅ 추가: 14일 지난 데이터 삭제 (청소)
+  try {
+    console.log('🧹 오래된 데이터 정리 중...');
+    await postgresqlService.cleanupOldData(14); 
+  } catch (cleanupError) {
+    console.warn('⚠️ 데이터 정리 실패 (수집은 성공):', cleanupError);
+  }
+  
   console.log('✅ 데이터 수집 완료!');
   console.log(`📈 수집 결과:`);
   console.log(`   - 새 채널: ${result.newChannels}개`);
@@ -37,10 +56,14 @@ try {
   const completionTime = new Date().toISOString();
   console.log(`⏰ 완료 시간: ${completionTime}`);
   
+  console.log('✅ 9시 자동 수집 및 정리 완료!');
+  
+  await pool.end();
   process.exit(0);
   
 } catch (error) {
   console.error('❌ 데이터 수집 실패:', error);
+  await pool.end();
   process.exit(1);
 }
 
