@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -147,6 +147,9 @@ const ChannelTrend = () => {
   const [showOnlyOfficial, setShowOnlyOfficial] = useState<boolean>(false); // 공식 채널만 표시 (기본값: false)
   
   const [channelRankings, setChannelRankings] = useState<ChannelRankingData[]>([]);
+  
+  // 디바운싱을 위한 타이머 ref
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<ChannelRankingData | null>(null);
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -441,11 +444,53 @@ const ChannelTrend = () => {
     loadChartData();
   }, [selectedChannelId, period, startDate, endDate]);
 
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
+
   // 채널 선택 핸들러
   const handleChannelSelect = (channel: ChannelRankingData) => {
     setSelectedChannel(channel);
     setSelectedChannelId(channel.channelId);
     setSearchParams({ channelId: channel.channelId });
+  };
+
+  // 마우스 호버 핸들러 (디바운싱 적용)
+  const handleMouseEnter = (channel: ChannelRankingData) => {
+    // 기존 타이머가 있다면 취소
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    
+    // 300ms 후에 채널 선택 실행
+    hoverTimeoutRef.current = setTimeout(() => {
+      handleChannelSelect(channel);
+      hoverTimeoutRef.current = null;
+    }, 300);
+  };
+
+  // 마우스 떠날 때 타이머 취소
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  };
+
+  // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소)
+  const handleClick = (channel: ChannelRankingData) => {
+    // 대기 중인 호버 타이머 취소
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    // 즉시 채널 선택
+    handleChannelSelect(channel);
   };
 
   // 검색 필터링된 채널 목록 (useMemo로 최적화)
@@ -667,7 +712,9 @@ const ChannelTrend = () => {
                           className={`cursor-pointer hover:bg-muted/50 ${
                             selectedChannelId === channel.channelId ? 'bg-red-600/10' : ''
                           }`}
-                          onClick={() => handleChannelSelect(channel)}
+                          onMouseEnter={() => handleMouseEnter(channel)}
+                          onMouseLeave={handleMouseLeave}
+                          onClick={() => handleClick(channel)}
                         >
                           <TableCell>
                             <div className="flex flex-col items-center">
