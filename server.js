@@ -1396,57 +1396,110 @@ app.patch('/api/videos/:id', async (req, res) => {
     
     console.log(`📝 비디오 수정 요청: ${id}`, updateData);
     
-    // 현재 데이터 조회
+    // 1. 먼저 classification_data 테이블에서 찾기
     const currentResult = await client.query(`
-      SELECT data FROM classification_data 
+      SELECT data, data_type FROM classification_data 
       WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
       AND data::text LIKE '%"id":"${id}"%'
     `);
     
-    if (currentResult.rows.length === 0) {
+    if (currentResult.rows.length > 0) {
+      // classification_data 테이블에 있는 경우
+      const currentData = currentResult.rows[0].data;
+      const updatedData = currentData.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            ...updateData,
+            updatedAt: new Date().toISOString(),
+            version: (item.version || 0) + 1
+          };
+        }
+        return item;
+      });
+      
+      // 업데이트된 데이터 저장
+      await client.query(`
+        UPDATE classification_data 
+        SET data = $1, created_at = CURRENT_TIMESTAMP
+        WHERE data_type = $2
+        AND data::text LIKE '%"id":"${id}"%'
+      `, [JSON.stringify(updatedData), currentResult.rows[0].data_type]);
+      
       client.release();
-      return res.status(404).json({ error: 'Video not found' });
+      
+      const updatedItem = updatedData.find((item) => item.id === id);
+      
+      console.log(`✅ 비디오 수정 완료 (classification_data): ${id}`, {
+        updated_at: updatedItem?.updatedAt,
+        version: updatedItem?.version,
+        affectedIds: [id]
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Video updated successfully',
+        updated_at: updatedItem?.updatedAt,
+        version: updatedItem?.version,
+        affectedIds: [id]
+      });
     }
     
-    // 데이터 업데이트
-    const currentData = currentResult.rows[0].data;
-    const updatedData = currentData.map((item) => {
-      if (item.id === id) {
-        return {
-          ...item,
-          ...updateData,
-          updatedAt: new Date().toISOString(),
-          version: (item.version || 0) + 1
-        };
-      }
-      return item;
-    });
+    // 2. classification_data에 없으면 unclassified_data 테이블에서 찾기
+    const unclassifiedResult = await client.query(`
+      SELECT id, video_id FROM unclassified_data 
+      WHERE video_id = $1 OR id::text = $1
+      LIMIT 1
+    `, [id]);
     
-    // 업데이트된 데이터 저장
-    await client.query(`
-      UPDATE classification_data 
-      SET data = $1, created_at = CURRENT_TIMESTAMP
-      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data @> '[{"id": $2}]'
-    `, [JSON.stringify(updatedData), id]);
+    if (unclassifiedResult.rows.length > 0) {
+      // unclassified_data 테이블에 있는 경우
+      const row = unclassifiedResult.rows[0];
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 1;
+      
+      if (updateData.category !== undefined) {
+        updateFields.push(`category = $${paramIndex++}`);
+        updateValues.push(updateData.category);
+      }
+      if (updateData.subCategory !== undefined || updateData.sub_category !== undefined) {
+        updateFields.push(`sub_category = $${paramIndex++}`);
+        updateValues.push(updateData.subCategory || updateData.sub_category);
+      }
+      if (updateData.status !== undefined) {
+        updateFields.push(`status = $${paramIndex++}`);
+        updateValues.push(updateData.status);
+      }
+      
+      if (updateFields.length > 0) {
+        updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+        // WHERE 절에 사용할 값 추가
+        const whereValue = row.video_id || row.id.toString();
+        updateValues.push(whereValue);
+        
+        await client.query(`
+          UPDATE unclassified_data 
+          SET ${updateFields.join(', ')}
+          WHERE video_id = $${paramIndex} OR id = $${paramIndex}::integer
+        `, updateValues);
+        
+        client.release();
+        
+        console.log(`✅ 비디오 수정 완료 (unclassified_data): ${id}`, {
+          affectedIds: [id]
+        });
+        
+        return res.json({
+          success: true,
+          message: 'Video updated successfully',
+          affectedIds: [id]
+        });
+      }
+    }
     
     client.release();
-    
-    const updatedItem = updatedData.find((item) => item.id === id);
-    
-    console.log(`✅ 비디오 수정 완료: ${id}`, {
-      updated_at: updatedItem?.updatedAt,
-      version: updatedItem?.version,
-      affectedIds: [id]
-    });
-    
-    res.json({
-      success: true,
-      message: 'Video updated successfully',
-      updated_at: updatedItem?.updatedAt,
-      version: updatedItem?.version,
-      affectedIds: [id]
-    });
+    return res.status(404).json({ error: 'Video not found' });
     
   } catch (error) {
     console.error('비디오 수정 실패:', error);
@@ -1469,48 +1522,76 @@ app.delete('/api/videos/:id', async (req, res) => {
     
     console.log(`🗑️ 비디오 삭제 요청: ${id}`);
     
-    // 현재 데이터 조회
+    // 1. 먼저 classification_data 테이블에서 찾기
     const currentResult = await client.query(`
       SELECT data, data_type FROM classification_data 
       WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
       AND data::text LIKE '%"id":"${id}"%'
     `);
     
-    if (currentResult.rows.length === 0) {
+    if (currentResult.rows.length > 0) {
+      // classification_data 테이블에 있는 경우
+      const currentData = currentResult.rows[0].data;
+      const filteredData = currentData.filter((item) => item.id !== id);
+      
+      if (filteredData.length === currentData.length) {
+        client.release();
+        return res.status(404).json({ error: 'Video not found in data' });
+      }
+      
+      // 업데이트된 데이터 저장
+      await client.query(`
+        UPDATE classification_data 
+        SET data = $1, created_at = CURRENT_TIMESTAMP
+        WHERE data_type = $2
+        AND data::text LIKE '%"id":"${id}"%'
+      `, [JSON.stringify(filteredData), currentResult.rows[0].data_type]);
+      
       client.release();
-      return res.status(404).json({ error: 'Video not found' });
+      
+      console.log(`✅ 비디오 삭제 완료 (classification_data): ${id}`, {
+        affectedIds: [id],
+        remainingItems: filteredData.length
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Video deleted successfully',
+        affectedIds: [id],
+        remainingItems: filteredData.length
+      });
     }
     
-    // 데이터에서 해당 항목 제거
-    const currentData = currentResult.rows[0].data;
-    const filteredData = currentData.filter((item) => item.id !== id);
+    // 2. classification_data에 없으면 unclassified_data 테이블에서 찾기
+    const unclassifiedResult = await client.query(`
+      SELECT id, video_id FROM unclassified_data 
+      WHERE video_id = $1 OR id::text = $1
+      LIMIT 1
+    `, [id]);
     
-    if (filteredData.length === currentData.length) {
+    if (unclassifiedResult.rows.length > 0) {
+      // unclassified_data 테이블에 있는 경우
+      const row = unclassifiedResult.rows[0];
+      const deleteResult = await client.query(`
+        DELETE FROM unclassified_data 
+        WHERE video_id = $1 OR id = $1::integer
+      `, [id]);
+      
       client.release();
-      return res.status(404).json({ error: 'Video not found in data' });
+      
+      console.log(`✅ 비디오 삭제 완료 (unclassified_data): ${id}`, {
+        affectedIds: [id]
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Video deleted successfully',
+        affectedIds: [id]
+      });
     }
-    
-    // 업데이트된 데이터 저장
-    await client.query(`
-      UPDATE classification_data 
-      SET data = $1, created_at = CURRENT_TIMESTAMP
-      WHERE data_type = $2
-      AND data @> '[{"id": $3}]'
-    `, [JSON.stringify(filteredData), currentResult.rows[0].data_type, id]);
     
     client.release();
-    
-    console.log(`✅ 비디오 삭제 완료: ${id}`, {
-      affectedIds: [id],
-      remainingItems: filteredData.length
-    });
-    
-    res.json({
-      success: true,
-      message: 'Video deleted successfully',
-      affectedIds: [id],
-      remainingItems: filteredData.length
-    });
+    return res.status(404).json({ error: 'Video not found' });
     
   } catch (error) {
     console.error('비디오 삭제 실패:', error);
