@@ -397,7 +397,7 @@ export function PerformanceVideosList() {
     const video = performanceData.find(v => v.id === videoId);
     
     if (!insight || !video) {
-      showToast('복사할 분석 결과가 없습니다.', { type: 'warning' });
+      alert('복사할 분석 결과가 없습니다.');
       return;
     }
 
@@ -433,7 +433,7 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
       }, 2000);
     } catch (error) {
       console.error('복사 실패:', error);
-      showToast('❌ 클립보드 복사에 실패했습니다.', { type: 'error' });
+      showToast('❌ 클립보드 복사에 실패했습니다.', { type: 'error', duration: 3000 });
     }
   };
 
