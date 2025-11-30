@@ -19,7 +19,11 @@ import {
   Search,
   TrendingUp,
   TrendingDown,
-  ArrowUpDown
+  ArrowUpDown,
+  Sparkles,
+  CheckCircle2,
+  Loader2,
+  Key
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -27,6 +31,14 @@ import { getKoreanDateString } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 
 // 한국어 텍스트 감지 함수
 const isKoreanText = (text: string): boolean => {
@@ -124,6 +136,21 @@ interface ChannelRankingData {
   totalSubscribers?: number;
   channelCreationDate?: string;
   videoCount?: number;
+  topVideo?: {
+    videoId: string;
+    title: string;
+    viewCount: number;
+    description?: string;
+    thumbnailUrl?: string;
+  };
+}
+
+interface AiAnalysisResult {
+  summary: string;
+  viral_reason: string;
+  keywords: string[];
+  clickbait_score: number;
+  sentiment: string;
 }
 
 const ChannelTrend = () => {
@@ -158,6 +185,88 @@ const ChannelTrend = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingChart, setIsLoadingChart] = useState(false);
+  
+  // AI 분석 관련 상태
+  const [analyzingVideoId, setAnalyzingVideoId] = useState<string | null>(null);
+  const [analysisResults, setAnalysisResults] = useState<Record<string, AiAnalysisResult>>({});
+  const [openDialogVideoId, setOpenDialogVideoId] = useState<string | null>(null);
+  const [analyzedVideoIds, setAnalyzedVideoIds] = useState<Set<string>>(new Set());
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
+  const [openApiKeyDialog, setOpenApiKeyDialog] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
+
+  // 컴포넌트 마운트 시 API 키 로드
+  useEffect(() => {
+    const savedKey = localStorage.getItem('geminiApiKey');
+    setGeminiApiKey(savedKey);
+  }, []);
+
+  // API 키 저장 함수
+  const handleSaveApiKey = () => {
+    if (!apiKeyInput.trim()) {
+      alert('API 키를 입력해주세요.');
+      return;
+    }
+    const trimmedKey = apiKeyInput.trim();
+    localStorage.setItem('geminiApiKey', trimmedKey);
+    setGeminiApiKey(trimmedKey);
+    setOpenApiKeyDialog(false);
+    setApiKeyInput('');
+    alert('API 키가 저장되었습니다.');
+  };
+
+  // AI 분석 함수
+  const handleAnalyze = async (video: { videoId: string; title: string; viewCount: number; description?: string }) => {
+    if (analyzingVideoId === video.videoId) return;
+    
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey || apiKey.trim() === '') {
+      alert('먼저 AI 키를 설정해주세요.');
+      setOpenApiKeyDialog(true);
+      return;
+    }
+    
+    setAnalyzingVideoId(video.videoId);
+    
+    try {
+      const response = await fetch('/api/analyze/video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoId: video.videoId,
+          title: video.title,
+          channelName: selectedChannel?.channelName || '알 수 없음',
+          description: video.description || '',
+          viewCount: video.viewCount,
+          apiKey: apiKey.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`분석 실패: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setAnalysisResults(prev => ({
+          ...prev,
+          [video.videoId]: result.data,
+        }));
+        setAnalyzedVideoIds(prev => new Set([...prev, video.videoId]));
+        setOpenDialogVideoId(video.videoId);
+      } else {
+        throw new Error(result.error || '분석 결과를 받을 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('AI 분석 실패:', error);
+      alert(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setAnalyzingVideoId(null);
+    }
+  };
 
   // 채널 랭킹 데이터 로드
   useEffect(() => {
@@ -245,9 +354,26 @@ const ChannelTrend = () => {
           }
         }
         
-        // 고유 비디오 개수 설정
+        // 고유 비디오 개수 설정 및 최고 조회수 비디오 찾기
         Object.keys(todayChannelGroups).forEach(channelId => {
           todayChannelGroups[channelId].videoCount = videoIdSets[channelId]?.size || 0;
+          
+          // 해당 채널의 최고 조회수 비디오 찾기
+          const channelVideos = todayData.filter((item: any) => 
+            item.channelId === channelId && (item.videoId || item.id)
+          );
+          if (channelVideos.length > 0) {
+            const topVideo = channelVideos.reduce((max: any, video: any) => 
+              (video.viewCount || 0) > (max.viewCount || 0) ? video : max
+            );
+            todayChannelGroups[channelId].topVideo = {
+              videoId: topVideo.videoId || topVideo.id,
+              title: topVideo.videoTitle || topVideo.title || '제목 없음',
+              viewCount: topVideo.viewCount || 0,
+              description: topVideo.videoDescription || topVideo.description || '',
+              thumbnailUrl: topVideo.thumbnailUrl || topVideo.thumbnail
+            };
+          }
         });
         
         const yesterdayChannelGroups: any = {};
@@ -289,7 +415,8 @@ const ChannelTrend = () => {
               description: channel.description,
               totalSubscribers: channel.totalSubscribers,
               channelCreationDate: channel.channelCreationDate,
-              videoCount: channel.videoCount || channel.videos.length
+              videoCount: channel.videoCount || channel.videos.length,
+              topVideo: channel.topVideo
             };
           })
           .filter(channel => {
@@ -631,11 +758,56 @@ const ChannelTrend = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
+        {/* API 키 설정 경고 배너 */}
+        {!geminiApiKey && (
+          <Card className="p-4 mb-6 border-2 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="font-semibold text-yellow-800 dark:text-yellow-200">
+                    Gemini API 키가 설정되지 않았습니다
+                  </p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                    AI 분석 기능을 사용하려면 API 키를 설정해주세요.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  setApiKeyInput('');
+                  setOpenApiKeyDialog(true);
+                }}
+                className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+              >
+                <Key className="w-4 h-4 mr-2" />
+                키 설정하기
+              </Button>
+            </div>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
           {/* 왼쪽: 채널 랭킹 대시보드 (1.5배 확장: 3/7 = 약 43%) */}
           <div className="lg:col-span-3 space-y-4">
             <Card className="p-4">
-              <h2 className="text-lg font-semibold text-foreground mb-4">채널 랭킹 대시보드</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-foreground">채널 랭킹 대시보드</h2>
+                {/* AI 키 설정 버튼 */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const savedKey = localStorage.getItem('geminiApiKey');
+                    setApiKeyInput(savedKey || '');
+                    setOpenApiKeyDialog(true);
+                  }}
+                  className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 border-0"
+                >
+                  <Key className="w-4 h-4 mr-2" />
+                  🔑 AI 키 설정
+                </Button>
+              </div>
               
               {/* 필터 컨트롤 */}
               <div className="space-y-3 mb-4">
@@ -899,6 +1071,67 @@ const ChannelTrend = () => {
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                           {selectedChannel.description}
                         </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 최고 조회수 비디오 및 AI 분석 */}
+                  {selectedChannel.topVideo && (
+                    <div className="mb-6 p-4 border-2 border-purple-200 rounded-lg bg-gradient-to-br from-purple-50 to-blue-50">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-purple-700 flex items-center">
+                          <TrendingUp className="w-4 h-4 mr-2" />
+                          최고 조회수 영상
+                        </h4>
+                        <Button
+                          size="sm"
+                          variant={analyzedVideoIds.has(selectedChannel.topVideo.videoId) ? "outline" : "default"}
+                          onClick={() => {
+                            if (analysisResults[selectedChannel.topVideo!.videoId]) {
+                              setOpenDialogVideoId(selectedChannel.topVideo!.videoId);
+                            } else {
+                              handleAnalyze(selectedChannel.topVideo!);
+                            }
+                          }}
+                          disabled={analyzingVideoId === selectedChannel.topVideo.videoId || !geminiApiKey}
+                          className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                        >
+                          {analyzingVideoId === selectedChannel.topVideo.videoId ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              분석 중...
+                            </>
+                          ) : analyzedVideoIds.has(selectedChannel.topVideo.videoId) ? (
+                            <>
+                              <CheckCircle2 className="w-4 h-4 mr-2" />
+                              📊 분석 완료
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-4 h-4 mr-2" />
+                              ✨ AI 분석
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-foreground line-clamp-2">
+                          {selectedChannel.topVideo.title}
+                        </p>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>조회수: {formatNumber(selectedChannel.topVideo.viewCount)}</span>
+                          {selectedChannel.topVideo.videoId && (
+                            <a
+                              href={`https://www.youtube.com/watch?v=${selectedChannel.topVideo.videoId}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline flex items-center"
+                            >
+                              <ExternalLink className="w-3 h-3 mr-1" />
+                              영상 보기
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
