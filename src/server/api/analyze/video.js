@@ -3,7 +3,12 @@
  * Gemini AI를 사용하여 유튜브 영상을 분석하고 결과를 저장/조회
  */
 
-import { createPostgreSQLService } from '../../../lib/postgresql-service-server.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// 현재 파일의 디렉토리 경로 계산
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Gemini 서비스 모듈을 동적으로 로드
@@ -96,7 +101,30 @@ export async function handleAnalyzeVideo(req, res) {
       });
     }
 
-    // 3. PostgreSQL 서비스 인스턴스 생성
+    // 3. PostgreSQL 서비스 인스턴스 생성 (동적 로드)
+    let createPostgreSQLService;
+    try {
+      // 절대 경로를 사용하여 모듈 로드
+      // 현재 파일: src/server/api/analyze/video.js
+      // 목표 파일: src/lib/postgresql-service-server.js
+      // 경로: __dirname -> .. -> .. -> .. -> lib -> postgresql-service-server.js
+      const postgresqlServicePath = path.join(__dirname, '..', '..', '..', 'lib', 'postgresql-service-server.js');
+      const postgresqlModule = await import(postgresqlServicePath);
+      createPostgreSQLService = postgresqlModule.createPostgreSQLService;
+      
+      if (!createPostgreSQLService) {
+        throw new Error('createPostgreSQLService 함수를 찾을 수 없습니다.');
+      }
+    } catch (importError) {
+      console.error('❌ PostgreSQL 서비스 모듈 로드 실패:', importError);
+      console.error('❌ 시도한 경로:', path.join(__dirname, '..', '..', '..', 'lib', 'postgresql-service-server.js'));
+      return res.status(500).json({
+        success: false,
+        error: 'PostgreSQL 서비스 모듈을 로드할 수 없습니다.',
+        message: importError.message
+      });
+    }
+    
     const postgresqlService = createPostgreSQLService(pool);
 
     // 4. 기존 분석 결과 확인 (캐시 확인)
@@ -180,12 +208,14 @@ export async function handleAnalyzeVideo(req, res) {
       });
     }
 
-    if (error.message?.includes('모듈을 찾을 수 없습니다') || error.message?.includes('gemini-service')) {
+    if (error.message?.includes('모듈을 찾을 수 없습니다') || error.message?.includes('gemini-service') || error.message?.includes('postgresql-service')) {
       return res.status(500).json({
         success: false,
-        error: 'Gemini 서비스 모듈을 로드할 수 없습니다.',
+        error: '서비스 모듈을 로드할 수 없습니다.',
         message: error.message,
-        details: '@google/generative-ai 패키지가 설치되어 있는지 확인하세요.'
+        details: error.message?.includes('postgresql-service') 
+          ? 'PostgreSQL 서비스 모듈을 찾을 수 없습니다. 파일 경로를 확인하세요.'
+          : '@google/generative-ai 패키지가 설치되어 있는지 확인하세요.'
       });
     }
 
