@@ -112,6 +112,11 @@ const ChannelTrend = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingChart, setIsLoadingChart] = useState(false);
   
+  // 차트 데이터 캐시 (메모이제이션)
+  const chartDataCacheRef = useRef<Map<string, { data: any[], timestamp: number }>>(new Map());
+  const CHART_CACHE_TTL = 5 * 60 * 1000; // 5분 캐시 유지
+  const chartLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  
   // AI 분석 관련 상태
   const [analyzingVideoId, setAnalyzingVideoId] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<Record<string, AiAnalysisResult>>({});
@@ -463,7 +468,7 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     }
   }, [isLoading]); // isLoading만 의존성으로 사용하여 로딩 완료 시에만 실행
 
-  // 채널 선택 시 차트 데이터 로드
+  // 채널 선택 시 차트 데이터 로드 (캐싱 적용)
   useEffect(() => {
     if (!selectedChannelId) {
       setChartData([]);
@@ -471,14 +476,32 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
       return;
     }
     
-    const loadChartData = async () => {
-      try {
-        setIsLoadingChart(true);
-        const startTime = performance.now();
-        console.log(`📊 차트 데이터 로드 시작: 채널 ${selectedChannelId}`);
-        
-        const unclassifiedData = await indexedDBService.loadUnclassifiedData();
-        const classifiedData = await indexedDBService.loadClassifiedData();
+    // 디바운싱: 짧은 시간 내 여러 요청이 발생해도 마지막 요청만 처리
+    if (chartLoadDebounceRef.current) {
+      clearTimeout(chartLoadDebounceRef.current);
+    }
+    
+    chartLoadDebounceRef.current = setTimeout(async () => {
+      const loadChartData = async () => {
+        try {
+          // 캐시 키 생성 (채널ID + 기간 + 날짜 범위)
+          const cacheKey = `${selectedChannelId}-${period}-${startDate}-${endDate}`;
+          const cached = chartDataCacheRef.current.get(cacheKey);
+          
+          // 캐시가 있고 유효한 경우 재사용
+          if (cached && Date.now() - cached.timestamp < CHART_CACHE_TTL) {
+            console.log(`📊 차트 데이터 캐시 사용: 채널 ${selectedChannelId}`);
+            setChartData(cached.data);
+            setIsLoadingChart(false);
+            return;
+          }
+          
+          setIsLoadingChart(true);
+          const startTime = performance.now();
+          console.log(`📊 차트 데이터 로드 시작: 채널 ${selectedChannelId}`);
+          
+          const unclassifiedData = await indexedDBService.loadUnclassifiedData();
+          const classifiedData = await indexedDBService.loadClassifiedData();
         
         // 트렌드 페이지는 채널 랭킹이므로 분류 여부와 상관없이 모든 데이터 포함
         const unclassifiedChannelData = unclassifiedData.filter((item: any) => 
@@ -547,6 +570,13 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
           }))
           .sort((a, b) => a.date.localeCompare(b.date));
         
+        // 캐시에 저장
+        const cacheKey = `${selectedChannelId}-${period}-${startDate}-${endDate}`;
+        chartDataCacheRef.current.set(cacheKey, {
+          data: sortedData,
+          timestamp: Date.now()
+        });
+        
         setChartData(sortedData);
         const loadTime = performance.now() - startTime;
         console.log(`✅ 차트 데이터 로드 완료: ${sortedData.length}개 데이터 포인트 (${loadTime.toFixed(0)}ms)`);
@@ -558,6 +588,14 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     };
     
     loadChartData();
+    chartLoadDebounceRef.current = null;
+    }, 150); // 150ms 디바운싱으로 빠른 호버에도 대응
+    
+    return () => {
+      if (chartLoadDebounceRef.current) {
+        clearTimeout(chartLoadDebounceRef.current);
+      }
+    };
   }, [selectedChannelId, period, startDate, endDate]);
 
   // 컴포넌트 언마운트 시 타이머 정리
@@ -583,17 +621,21 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     setSearchParams({ channelId: channel.channelId }, { replace: true });
   };
 
-  // 마우스 호버 핸들러 (디바운싱 적용, 리렌더링 최소화)
-  // hover 시에는 상태 변경을 최소화하여 불필요한 리렌더링 방지
+  // 마우스 호버 핸들러 (디바운싱 적용, 차트 미리보기)
   const handleMouseEnter = (channel: ChannelRankingData) => {
     // 기존 타이머가 있다면 취소
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     
-    // hover 시에는 상태 변경 없이 CSS만으로 처리 (리렌더링 방지)
-    // 필요시에만 선택적 상태 업데이트
-    // hoverTimeoutRef는 유지하되 상태 변경은 최소화
+    // 호버 시 디바운싱 적용 (300ms 후 차트 로드)
+    // 짧은 시간 내 여러 호버가 발생해도 마지막 호버만 처리하여 성능 최적화
+    hoverTimeoutRef.current = setTimeout(() => {
+      // 호버 시에도 차트를 보여주되, URL은 변경하지 않음 (스크롤 위치 유지)
+      setSelectedChannel(channel);
+      setSelectedChannelId(channel.channelId);
+      hoverTimeoutRef.current = null;
+    }, 300); // 300ms 디바운싱
   };
 
   // 마우스 떠날 때 타이머 취소
@@ -604,22 +646,34 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     }
   };
 
-  // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소 + URL 업데이트)
+  // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소 + URL 업데이트 + 스크롤 유지)
   const handleClick = (channel: ChannelRankingData, event: React.MouseEvent) => {
+    // 이벤트 전파 방지 (필요시)
+    event.stopPropagation();
+    
     // 대기 중인 호버 타이머 취소
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
     
-    // 스크롤 위치 저장 (클릭 시에만)
+    // 스크롤 위치 저장 (클릭 시 즉시 저장)
     if (tableScrollRef.current) {
-      savedScrollTopRef.current = tableScrollRef.current.scrollTop;
+      const currentScrollTop = tableScrollRef.current.scrollTop;
+      savedScrollTopRef.current = currentScrollTop;
       shouldRestoreScrollRef.current = true;
+      console.log(`📍 스크롤 위치 저장: ${currentScrollTop}px`);
     }
     
     // 즉시 채널 선택 (URL 포함)
     handleChannelSelectWithUrl(channel);
+    
+    // 클릭 후 즉시 스크롤 복원 시도 (DOM 업데이트 전에 미리 복원)
+    requestAnimationFrame(() => {
+      if (tableScrollRef.current && savedScrollTopRef.current !== null) {
+        tableScrollRef.current.scrollTop = savedScrollTopRef.current;
+      }
+    });
   };
   
   // 스크롤 위치 복원 (클릭 후 selectedChannelId 변경 시에만)
@@ -628,11 +682,13 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
       const savedScroll = savedScrollTopRef.current;
       const restoreScroll = () => {
         if (tableScrollRef.current && savedScroll !== null) {
+          const currentScroll = tableScrollRef.current.scrollTop;
           tableScrollRef.current.scrollTop = savedScroll;
+          console.log(`📍 스크롤 복원 시도: ${currentScroll}px → ${savedScroll}px`);
         }
       };
       
-      // 리렌더링 완료 후 스크롤 복원 (여러 시점에 시도)
+      // 리렌더링 완료 후 스크롤 복원 (여러 시점에 시도하여 확실하게 복원)
       requestAnimationFrame(() => {
         restoreScroll();
         setTimeout(() => {
@@ -640,9 +696,12 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
         }, 0);
         setTimeout(() => {
           restoreScroll();
-          savedScrollTopRef.current = null;
-          shouldRestoreScrollRef.current = false;
         }, 10);
+        setTimeout(() => {
+          restoreScroll();
+          // 복원 완료 후 플래그 초기화 (다음 클릭을 위해)
+          shouldRestoreScrollRef.current = false;
+        }, 50);
       });
     }
   }, [selectedChannelId]);
