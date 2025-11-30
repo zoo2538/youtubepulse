@@ -3261,10 +3261,41 @@ app.post('/api/analyze/video', async (req, res) => {
   });
   
   try {
-    const { handleAnalyzeVideo } = await import('./src/server/api/analyze/video.js');
+    // 동적 import 경로 계산 (루트 또는 dist/server에서 실행 모두 지원)
+    const possiblePaths = [
+      path.join(__dirname, 'src', 'server', 'api', 'analyze', 'video.js'),  // 루트에서 실행
+      path.join(__dirname, '..', 'src', 'server', 'api', 'analyze', 'video.js'),  // dist/server에서 실행
+      './src/server/api/analyze/video.js',  // 상대 경로 (루트)
+      '../../src/server/api/analyze/video.js'  // 상대 경로 (dist/server)
+    ];
+    
+    let handleAnalyzeVideo = null;
+    let lastError = null;
+    
+    for (const modulePath of possiblePaths) {
+      try {
+        console.log(`🔍 모듈 로드 시도: ${modulePath}`);
+        const module = await import(modulePath);
+        if (module.handleAnalyzeVideo) {
+          handleAnalyzeVideo = module.handleAnalyzeVideo;
+          console.log(`✅ 모듈 로드 성공: ${modulePath}`);
+          break;
+        }
+      } catch (pathError) {
+        lastError = pathError;
+        console.log(`⚠️ 모듈 로드 실패: ${modulePath} - ${pathError.message}`);
+        continue;
+      }
+    }
+    
+    if (!handleAnalyzeVideo) {
+      throw new Error(`모듈을 찾을 수 없습니다. 시도한 경로: ${possiblePaths.join(', ')}. 마지막 오류: ${lastError?.message}`);
+    }
+    
     await handleAnalyzeVideo(req, res);
   } catch (error) {
     console.error('❌ 영상 분석 API 라우트 오류:', error);
+    console.error('❌ 오류 스택:', error.stack);
     res.status(500).json({
       success: false,
       error: 'API 라우트 처리 중 오류 발생',
