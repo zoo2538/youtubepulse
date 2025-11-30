@@ -180,6 +180,10 @@ export async function handleAnalyzeVideo(req, res) {
         data: {
           summary: cachedResult.summary,
           viral_reason: cachedResult.viralReason,
+          target_audience: cachedResult.target_audience,
+          intro_hook: cachedResult.intro_hook,
+          plot_structure: cachedResult.plot_structure,
+          emotional_trigger: cachedResult.emotional_trigger,
           keywords: cachedResult.keywords || [],
           clickbait_score: cachedResult.clickbaitScore,
           sentiment: cachedResult.sentiment
@@ -226,6 +230,10 @@ export async function handleAnalyzeVideo(req, res) {
       data: {
         summary: analysisResult.summary,
         viral_reason: analysisResult.viral_reason,
+        target_audience: analysisResult.target_audience,
+        intro_hook: analysisResult.intro_hook,
+        plot_structure: analysisResult.plot_structure,
+        emotional_trigger: analysisResult.emotional_trigger,
         keywords: analysisResult.keywords,
         clickbait_score: analysisResult.clickbait_score,
         sentiment: analysisResult.sentiment
