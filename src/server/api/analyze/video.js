@@ -17,13 +17,16 @@ const __dirname = path.dirname(__filename);
 async function loadGeminiService() {
   try {
     // 여러 경로 시도 (빌드 환경 및 개발 환경 모두 지원)
-    // 배포 환경: dist/server/src/server/api/analyze/video.js -> dist/server/src/lib/gemini-service.js
+    // 배포 환경: /app/dist/server/src/server/api/analyze/video.js -> /app/dist/server/src/lib/gemini-service.js
     // 개발 환경: src/server/api/analyze/video.js -> src/lib/gemini-service.js
     const possiblePaths = [
-      '../../../lib/gemini-service.js',  // 최우선: 배포 환경 (dist/server/src/server/api/analyze -> dist/server/src/lib)
-      '../../../lib/gemini-service.ts',  // 최우선: 개발 환경 (src/server/api/analyze -> src/lib)
-      '../../../../lib/gemini-service.js',  // 추가 폴백
-      '../../../../lib/gemini-service.ts'   // 추가 폴백
+      path.join(__dirname, '..', '..', '..', 'lib', 'gemini-service.js'),  // 최우선: 절대 경로 (배포/개발)
+      path.join(__dirname, '..', '..', '..', 'lib', 'gemini-service.ts'),  // 최우선: 절대 경로 (개발)
+      path.join(process.cwd(), 'src', 'lib', 'gemini-service.js'),  // 절대 경로 (cwd 기준)
+      path.join(process.cwd(), 'src', 'lib', 'gemini-service.ts'),  // 절대 경로 (cwd 기준)
+      path.join(process.cwd(), 'dist', 'server', 'src', 'lib', 'gemini-service.js'),  // 배포 환경 절대 경로
+      '../../../lib/gemini-service.js',  // 상대 경로 폴백
+      '../../../lib/gemini-service.ts'   // 상대 경로 폴백
     ];
     
     for (const modulePath of possiblePaths) {
@@ -103,21 +106,44 @@ export async function handleAnalyzeVideo(req, res) {
 
     // 3. PostgreSQL 서비스 인스턴스 생성 (동적 로드)
     let createPostgreSQLService;
+    const possiblePaths = [
+      path.join(__dirname, '..', '..', '..', 'lib', 'postgresql-service-server.js'),  // 최우선: 배포/개발 환경
+      path.join(process.cwd(), 'src', 'lib', 'postgresql-service-server.js'),  // 절대 경로 (cwd 기준)
+      path.join(process.cwd(), 'dist', 'server', 'src', 'lib', 'postgresql-service-server.js'),  // 배포 환경 절대 경로
+      '../../../lib/postgresql-service-server.js'  // 상대 경로 폴백
+    ];
+    
     try {
       // 절대 경로를 사용하여 모듈 로드
-      // 현재 파일: src/server/api/analyze/video.js
-      // 목표 파일: src/lib/postgresql-service-server.js
+      // 배포 환경: /app/dist/server/src/server/api/analyze/video.js -> /app/dist/server/src/lib/postgresql-service-server.js
+      // 개발 환경: src/server/api/analyze/video.js -> src/lib/postgresql-service-server.js
       // 경로: __dirname -> .. -> .. -> .. -> lib -> postgresql-service-server.js
-      const postgresqlServicePath = path.join(__dirname, '..', '..', '..', 'lib', 'postgresql-service-server.js');
-      const postgresqlModule = await import(postgresqlServicePath);
-      createPostgreSQLService = postgresqlModule.createPostgreSQLService;
+      
+      let lastError = null;
+      for (const modulePath of possiblePaths) {
+        try {
+          console.log(`🔍 PostgreSQL 서비스 모듈 로드 시도: ${modulePath}`);
+          const postgresqlModule = await import(modulePath);
+          if (postgresqlModule.createPostgreSQLService) {
+            createPostgreSQLService = postgresqlModule.createPostgreSQLService;
+            console.log(`✅ PostgreSQL 서비스 모듈 로드 성공: ${modulePath}`);
+            break;
+          }
+        } catch (pathError) {
+          lastError = pathError;
+          console.log(`⚠️ 모듈 로드 실패: ${modulePath} - ${pathError.message}`);
+          continue;
+        }
+      }
       
       if (!createPostgreSQLService) {
-        throw new Error('createPostgreSQLService 함수를 찾을 수 없습니다.');
+        throw new Error(`모듈을 찾을 수 없습니다. 시도한 경로: ${possiblePaths.join(', ')}. 마지막 오류: ${lastError?.message}`);
       }
     } catch (importError) {
       console.error('❌ PostgreSQL 서비스 모듈 로드 실패:', importError);
-      console.error('❌ 시도한 경로:', path.join(__dirname, '..', '..', '..', 'lib', 'postgresql-service-server.js'));
+      console.error('❌ 시도한 경로들:', possiblePaths);
+      console.error('❌ 현재 __dirname:', __dirname);
+      console.error('❌ 현재 process.cwd():', process.cwd());
       return res.status(500).json({
         success: false,
         error: 'PostgreSQL 서비스 모듈을 로드할 수 없습니다.',
