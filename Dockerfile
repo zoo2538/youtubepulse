@@ -19,8 +19,9 @@ COPY package.json package-lock.json ./
 # This is necessary for @rollup/rollup-linux-x64-musl on Alpine Linux (musl)
 # npm ci does not install optional dependencies properly on Alpine
 # Remove node_modules to force fresh install with optional deps (keep package-lock.json)
+# Ignore scripts to avoid electron download failures in Alpine (not needed for server build)
 RUN rm -rf node_modules && \
-    npm install --include=optional && \
+    npm install --include=optional --ignore-scripts && \
     npm cache clean --force
 
 # Copy source files
