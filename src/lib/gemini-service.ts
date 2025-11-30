@@ -6,11 +6,13 @@
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { YoutubeTranscript } from 'youtube-transcript';
 
 /**
  * 영상 데이터 인터페이스
  */
 export interface VideoDataForAnalysis {
+  videoId: string;
   title: string;
   channelName: string;
   viewCount: number;
@@ -23,6 +25,10 @@ export interface VideoDataForAnalysis {
 export interface VideoAnalysisResult {
   summary: string;
   viral_reason: string;
+  target_audience?: string;
+  intro_hook?: string;
+  plot_structure?: string;
+  emotional_trigger?: string;
   keywords: string[];
   clickbait_score: number;
   sentiment: '긍정' | '부정' | '중립';
@@ -45,6 +51,37 @@ export async function analyzeVideoWithGemini(
     throw new Error('API 키가 필요합니다.');
   }
 
+  // 자막 추출 시도
+  let transcriptText = '';
+  try {
+    console.log(`📝 자막 추출 시도: ${videoData.videoId}`);
+    const transcriptItems = await YoutubeTranscript.fetchTranscript(videoData.videoId);
+    
+    if (transcriptItems && transcriptItems.length > 0) {
+      // 자막을 공백으로 이어붙이기
+      transcriptText = transcriptItems
+        .map(item => item.text)
+        .join(' ')
+        .trim();
+      
+      // 토큰 제한 방지: 15,000자까지만 사용
+      if (transcriptText.length > 15000) {
+        transcriptText = transcriptText.substring(0, 15000);
+        console.log(`⚠️ 자막이 너무 길어서 15,000자로 제한했습니다.`);
+      }
+      
+      console.log(`✅ 자막 추출 성공: ${transcriptText.length}자`);
+    } else {
+      console.log(`⚠️ 자막이 없습니다. 설명(description)을 사용합니다.`);
+    }
+  } catch (transcriptError) {
+    console.warn(`⚠️ 자막 추출 실패: ${transcriptError instanceof Error ? transcriptError.message : '알 수 없는 오류'}`);
+    console.log(`📄 설명(description)을 대신 사용합니다.`);
+  }
+
+  // 자막이 없으면 설명(description) 사용
+  const contentText = transcriptText || videoData.description || '(내용 없음)';
+
   // Gemini AI 클라이언트 초기화
   const genAI = new GoogleGenerativeAI(apiKey);
   // 모델 이름: gemini-2.5-flash는 현재 가장 빠르고 유연한 모델입니다
@@ -56,22 +93,32 @@ export async function analyzeVideoWithGemini(
     }
   });
 
-  // 프롬프트 구성
-  const prompt = `너는 유튜브 트렌드 분석 전문가야. 다음 영상 정보를 분석해서 시청자가 이 영상을 왜 보는지, 내용은 무엇인지 파악해줘.
+  // 프롬프트 구성 (범용 심층 분석)
+  const prompt = `너는 '유튜브 콘텐츠 시나리오 분석 전문가'야.
 
-제목: ${videoData.title}
-채널: ${videoData.channelName}
-조회수: ${videoData.viewCount}
-설명: ${videoData.description || '(설명 없음)'}
+아래 제공된 **영상 대본(Transcript)**과 메타데이터를 분석해서, 시청자를 끝까지 붙잡아둔 **'스토리텔링 구조'**와 **'성공 요인'**을 파헤쳐줘.
 
-응답은 오직 **JSON 형식**으로만 해줘:
+반드시 다음 JSON 형식으로만 답변해.
+
+[영상 정보]
+
+- 제목: ${videoData.title}
+
+- 채널명: ${videoData.channelName}
+
+- 대본(내용): ${contentText}
+
+[분석 요구사항 (JSON)]
 
 {
-  "summary": "3문장 요약",
-  "viral_reason": "인기 요인 분석 (1문장)",
-  "keywords": ["키워드1", "키워드2", "키워드3", "키워드4", "키워드5"],
-  "clickbait_score": 0~100 (낚시성 점수),
-  "sentiment": "긍정/부정/중립"
+  "summary": "영상 내용을 기승전결이 명확하게 보이도록 3문장으로 요약",
+  "viral_reason": "이 영상이 높은 조회수를 기록한 핵심 심리적/기술적 이유 (1문장)",
+  "target_audience": "이 콘텐츠가 가장 소구되는 핵심 타겟층 (예: 2030 직장인, 5060 주부, 10대 게이머 등)",
+  "intro_hook": "초반 60초 내에 시청자의 이탈을 막은 결정적인 **'오프닝 멘트'**나 **'상황 설정'** 분석",
+  "plot_structure": "영상의 전개 구조 분석 (예: [도입]문제제기 -> [전개]실험/갈등 -> [절정]결과확인 -> [결말]인사이트/반전)",
+  "emotional_trigger": "시청자가 느꼈을 핵심 감정 (예: 호기심, 공감, 분노, 대리만족, 정보충족 등)",
+  "clickbait_score": 0~100 (제목/내용의 일치도 기반 낚시성 점수),
+  "keywords": ["핵심키워드1", "핵심키워드2", "핵심키워드3", "핵심키워드4", "핵심키워드5"]
 }`;
 
   try {
@@ -107,6 +154,10 @@ export async function analyzeVideoWithGemini(
     return {
       summary: analysisResult.summary || '분석 결과 없음',
       viral_reason: analysisResult.viral_reason || '인기 요인 분석 불가',
+      target_audience: analysisResult.target_audience || '타겟층 분석 불가',
+      intro_hook: analysisResult.intro_hook || '오프닝 분석 불가',
+      plot_structure: analysisResult.plot_structure || '구조 분석 불가',
+      emotional_trigger: analysisResult.emotional_trigger || '감정 분석 불가',
       keywords: Array.isArray(analysisResult.keywords) 
         ? analysisResult.keywords.slice(0, 5) 
         : [],

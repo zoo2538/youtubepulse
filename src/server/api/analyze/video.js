@@ -194,6 +194,7 @@ export async function handleAnalyzeVideo(req, res) {
     const analyzeVideoWithGemini = await loadGeminiService();
     
     const videoData = {
+      videoId,
       title,
       channelName,
       viewCount,
@@ -208,6 +209,10 @@ export async function handleAnalyzeVideo(req, res) {
       videoId,
       summary: analysisResult.summary,
       viralReason: analysisResult.viral_reason,
+      target_audience: analysisResult.target_audience,
+      intro_hook: analysisResult.intro_hook,
+      plot_structure: analysisResult.plot_structure,
+      emotional_trigger: analysisResult.emotional_trigger,
       keywords: analysisResult.keywords,
       clickbaitScore: analysisResult.clickbait_score,
       sentiment: analysisResult.sentiment

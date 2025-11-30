@@ -339,6 +339,10 @@ async function createTables() {
         video_id VARCHAR(50) PRIMARY KEY,
         summary TEXT,
         viral_reason TEXT,
+        target_audience TEXT,
+        intro_hook TEXT,
+        plot_structure TEXT,
+        emotional_trigger TEXT,
         keywords TEXT[],
         clickbait_score INTEGER,
         sentiment VARCHAR(20),
@@ -388,6 +392,20 @@ async function createTables() {
       ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
     `);
     console.log('✅ collection_type 컬럼 확인 완료');
+    
+    // video_ai_insights 테이블에 새로운 컬럼 추가 (이미 있으면 무시)
+    try {
+      await client.query(`
+        ALTER TABLE video_ai_insights 
+        ADD COLUMN IF NOT EXISTS target_audience TEXT,
+        ADD COLUMN IF NOT EXISTS intro_hook TEXT,
+        ADD COLUMN IF NOT EXISTS plot_structure TEXT,
+        ADD COLUMN IF NOT EXISTS emotional_trigger TEXT
+      `);
+      console.log('✅ video_ai_insights 테이블 마이그레이션 완료');
+    } catch (migrationError) {
+      console.warn('⚠️ video_ai_insights 마이그레이션 중 오류 (무시):', migrationError.message);
+    }
     
     console.log('✅ 데이터베이스 마이그레이션 완료');
     

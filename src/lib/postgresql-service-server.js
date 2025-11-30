@@ -276,11 +276,16 @@ class PostgreSQLServerService {
     try {
       const query = `
         INSERT INTO video_ai_insights (
-          video_id, summary, viral_reason, keywords, clickbait_score, sentiment
-        ) VALUES ($1, $2, $3, $4, $5, $6)
+          video_id, summary, viral_reason, target_audience, intro_hook, 
+          plot_structure, emotional_trigger, keywords, clickbait_score, sentiment
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         ON CONFLICT (video_id) DO UPDATE
         SET summary = EXCLUDED.summary,
             viral_reason = EXCLUDED.viral_reason,
+            target_audience = EXCLUDED.target_audience,
+            intro_hook = EXCLUDED.intro_hook,
+            plot_structure = EXCLUDED.plot_structure,
+            emotional_trigger = EXCLUDED.emotional_trigger,
             keywords = EXCLUDED.keywords,
             clickbait_score = EXCLUDED.clickbait_score,
             sentiment = EXCLUDED.sentiment;
@@ -289,6 +294,10 @@ class PostgreSQLServerService {
         insight.videoId,
         insight.summary || null,
         insight.viralReason || null,
+        insight.target_audience || null,
+        insight.intro_hook || null,
+        insight.plot_structure || null,
+        insight.emotional_trigger || null,
         insight.keywords || [],
         insight.clickbaitScore || null,
         insight.sentiment || null
@@ -316,6 +325,10 @@ class PostgreSQLServerService {
           video_id,
           summary,
           viral_reason,
+          target_audience,
+          intro_hook,
+          plot_structure,
+          emotional_trigger,
           keywords,
           clickbait_score,
           sentiment,
@@ -334,6 +347,10 @@ class PostgreSQLServerService {
         videoId: row.video_id,
         summary: row.summary,
         viralReason: row.viral_reason,
+        target_audience: row.target_audience,
+        intro_hook: row.intro_hook,
+        plot_structure: row.plot_structure,
+        emotional_trigger: row.emotional_trigger,
         keywords: row.keywords || [],
         clickbaitScore: row.clickbait_score,
         sentiment: row.sentiment,

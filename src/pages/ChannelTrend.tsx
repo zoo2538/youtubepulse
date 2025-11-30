@@ -252,6 +252,11 @@ const ChannelTrend = () => {
   useEffect(() => {
     const loadChannelRankings = async () => {
       try {
+        // 로딩 시작 전 스크롤 위치 저장
+        if (tableScrollRef.current) {
+          savedScrollTopRef.current = tableScrollRef.current.scrollTop;
+        }
+        
         setIsLoading(true);
         const startTime = performance.now();
         
@@ -322,6 +327,16 @@ const ChannelTrend = () => {
             }
             
             setIsLoading(false);
+            
+            // 로딩 완료 후 스크롤 위치 복원
+            if (savedScrollTopRef.current !== null && tableScrollRef.current) {
+              requestAnimationFrame(() => {
+                if (tableScrollRef.current && savedScrollTopRef.current !== null) {
+                  tableScrollRef.current.scrollTop = savedScrollTopRef.current;
+                  // 복원 후 초기화하지 않음 (필터 변경 시에도 유지)
+                }
+              });
+            }
           } else {
             console.error('❌ 워커 랭킹 계산 실패:', error);
             setIsLoading(false);

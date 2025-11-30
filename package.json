@@ -83,6 +83,7 @@
     "vaul": "^0.9.1",
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5",
+    "youtube-transcript": "^1.2.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
