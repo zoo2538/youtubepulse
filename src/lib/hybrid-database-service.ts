@@ -129,7 +129,8 @@ class HybridDatabaseService {
       // 브라우저 환경에서는 API를 통해 서버에 저장
       if (typeof window !== 'undefined') {
         try {
-          const response = await fetch('/api/sync/classification-log', {
+          const { API_BASE_URL } = await import('./config');
+          const response = await fetch(`${API_BASE_URL}/api/sync/classification-log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newLog),
@@ -280,7 +281,8 @@ class HybridDatabaseService {
       console.log('📅 마지막 동기화 시간:', lastSyncTime);
 
       // 2. 서버의 동기화 게이트웨이 API에 요청
-      const response = await fetch('/api/sync/download', {
+      const API_BASE_URL = (await import('./config')).API_BASE_URL;
+      const response = await fetch(`${API_BASE_URL}/api/sync/download`, {
         method: 'POST', // POST를 사용해 body에 데이터 전달
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lastSyncTime }), // 마지막 동기화 시간 전달
@@ -288,17 +290,27 @@ class HybridDatabaseService {
 
       console.log('📡 서버 응답 상태:', response.status, response.statusText);
 
+      // 응답 본문을 한 번만 읽기 위해 clone 사용
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+
       if (!response.ok) {
-        // 더 자세한 에러 정보 수집
+        // 더 자세한 에러 정보 수집 (clone 사용)
         let errorMessage = `API를 통한 동기화 실패 (${response.status} ${response.statusText})`;
         try {
-          const errorData = await response.json();
-          errorMessage += `: ${errorData.error || errorData.message || JSON.stringify(errorData)}`;
-          console.error('❌ 서버 에러 응답:', errorData);
+          const responseClone = response.clone();
+          if (isJson) {
+            const errorData = await responseClone.json();
+            errorMessage += `: ${errorData.error || errorData.message || JSON.stringify(errorData)}`;
+            console.error('❌ 서버 에러 응답:', errorData);
+          } else {
+            const errorText = await responseClone.text();
+            errorMessage += `: ${errorText || '알 수 없는 오류'}`;
+            console.error('❌ 서버 에러 텍스트:', errorText);
+          }
         } catch (e) {
-          const errorText = await response.text();
-          errorMessage += `: ${errorText || '알 수 없는 오류'}`;
-          console.error('❌ 서버 에러 텍스트:', errorText);
+          console.error('❌ 응답 본문 읽기 실패:', e);
+          errorMessage += `: HTTP ${response.status}`;
         }
         throw new Error(errorMessage);
       }
