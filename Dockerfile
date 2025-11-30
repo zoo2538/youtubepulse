@@ -49,6 +49,7 @@ COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/start-server.mjs ./start-server.mjs
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
 # Copy src/server/api directory if it exists (for dynamic imports)
+# copy-server.js already copies it to dist/server/src/server/api, but we also need it at root level
 COPY --from=builder --chown=nodejs:nodejs /app/src/server/api ./src/server/api
 
 # Create logs directory for metrics and verification logs

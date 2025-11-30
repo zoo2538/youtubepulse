@@ -3147,11 +3147,13 @@ app.post('/api/analyze/video', async (req, res) => {
   try {
     // 동적 import 경로 계산 (dist/server에서 실행)
     // copy-server.js가 src/server/api를 dist/server/src/server/api로 복사함
+    // Dockerfile도 /app/src/server/api로 복사함
     const possiblePaths = [
-      path.join(__dirname, 'src', 'server', 'api', 'analyze', 'video.js'),  // dist/server에서 실행 (복사된 경로)
+      path.join(__dirname, 'src', 'server', 'api', 'analyze', 'video.js'),  // dist/server/src/server/api (copy-server.js가 복사)
+      path.join(__dirname, '..', 'src', 'server', 'api', 'analyze', 'video.js'),  // /app/src/server/api (Dockerfile이 복사)
       './src/server/api/analyze/video.js',  // 상대 경로 (dist/server)
-      path.join(__dirname, '..', 'src', 'server', 'api', 'analyze', 'video.js'),  // 루트에서 실행 (개발 환경)
-      '../../src/server/api/analyze/video.js'  // 상대 경로 (루트)
+      '../../src/server/api/analyze/video.js',  // 상대 경로 (루트)
+      path.join(process.cwd(), 'src', 'server', 'api', 'analyze', 'video.js')  // 절대 경로 (cwd 기준)
     ];
     
     let handleAnalyzeVideo = null;
