@@ -18,8 +18,8 @@ COPY package.json package-lock.json ./
 # Use npm install with --include=optional to ensure optional dependencies are installed
 # This is necessary for @rollup/rollup-linux-x64-musl on Alpine Linux (musl)
 # npm ci does not install optional dependencies properly on Alpine
-# Remove node_modules and package-lock.json to force fresh install with optional deps
-RUN rm -rf node_modules package-lock.json && \
+# Remove node_modules to force fresh install with optional deps (keep package-lock.json)
+RUN rm -rf node_modules && \
     npm install --include=optional && \
     npm cache clean --force
 
