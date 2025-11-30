@@ -47,6 +47,8 @@ COPY --from=deps --chown=nodejs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 COPY --from=builder --chown=nodejs:nodejs /app/start-server.mjs ./start-server.mjs
 COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
+# Copy src/server/api directory if it exists (for dynamic imports)
+COPY --from=builder --chown=nodejs:nodejs /app/src/server/api ./src/server/api
 
 # Create logs directory for metrics and verification logs
 RUN mkdir -p logs/metrics && chown -R nodejs:nodejs logs
