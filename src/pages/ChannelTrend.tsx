@@ -42,89 +42,6 @@ import {
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 
-// 한국어 텍스트 감지 함수
-const isKoreanText = (text: string): boolean => {
-  if (!text || typeof text !== 'string') return false;
-  const koreanRegex = /[가-힣]/;
-  return koreanRegex.test(text);
-};
-
-// 한국 채널 필터링 함수
-const isKoreanChannel = (item: any): boolean => {
-  // 채널명 또는 비디오 제목에 한국어가 포함되어 있으면 한국 채널로 간주
-  const channelNameKorean = isKoreanText(item.channelName || '');
-  const videoTitleKorean = isKoreanText(item.videoTitle || item.title || '');
-  return channelNameKorean || videoTitleKorean;
-};
-
-// 공식 오피셜 채널 감지 함수
-const isOfficialChannel = (channelName: string): boolean => {
-  if (!channelName || typeof channelName !== 'string') return false;
-  
-  // 예외 처리: 공식 채널이 아닌 개인/크리에이터 채널
-  const exceptionPatterns = [
-    /미유.*MIUU.*AI/i,
-    /MIUU.*AI/i
-  ];
-  
-  // 예외 패턴에 매칭되면 공식 채널이 아님
-  if (exceptionPatterns.some(pattern => pattern.test(channelName))) {
-    return false;
-  }
-  
-  const officialPatterns = [
-    // 방송사 (채널명 어디에든 포함되면 공식 채널)
-    /MBC/i, /KBS/i, /kbs/i, /SBS/i, /JTBC/i, /tvN/i, /MBN/i, /채널A/i, /YTN/i, /Mnet/i, /tvchosun/i, /TV조선/i,
-    /MBC공식/i, /KBS공식/i, /SBS공식/i, /JTBC공식/i,
-    /스브스/i, /SUBUSU/i, // SBS 줄임말
-    /엠뚜루마뚜루/i, // MBC 공식 채널
-    // OTT/스트리밍 서비스
-    /넷플릭스/i, /Netflix/i, /지니키즈/i, /Genie Kids/i, /Genikids/i,
-    // 언론사 (채널명 어디에든 포함되면 공식 채널)
-    /조선일보/i, /중앙일보/i, /동아일보/i, /한겨레/i, /경향신문/i,
-    /매일경제/i, /한국경제/i, /서울신문/i, /연합뉴스/i,
-    // 정부/공공기관
-    /정부/i, /청와대/i, /국회/i, /행정안전부/i, /문화체육관광부/i,
-    // 대기업/기업 채널 (이름이 포함된 모든 채널)
-    /롯데/i, /Lotte/i, /농심/i, /Nongshim/i, /삼성/i, /Samsung/i, /LG/i, /현대/i, /Hyundai/i,
-    /SK/i, /한화/i, /Hanwha/i, /CJ/i, /GS/i, /두산/i, /Doosan/i, /포스코/i, /POSCO/i,
-    /신세계/i, /Shinsegae/i, /이마트/i, /Emart/i, /하나/i, /Hana/i, /KB/i, /신한/i, /Shinhan/i,
-    /기업/i, /회사/i, /Corporation/i, /Corp/i, /Company/i,
-    // 엔터테인먼트 회사 공식 채널
-    /SMTOWN/i, /SM ENT/i, /SM엔터/i, /HYBE/i, /JYP/i, /YG/i, /플레디스/i, /Pledis/i,
-    /큐브/i, /CUBE/i, /판타지오/i, /Fantagio/i, /스타쉽/i, /Starship/i,
-    // 아이돌 그룹 공식 채널
-    /BLACKPINK/i, /BTS/i, /BANGTAN/i, /BANGTANTV/i, /SEVENTEEN/i, /TWICE/i, /Red Velvet/i, /aespa/i,
-    /NewJeans/i, /IVE/i, /LE SSERAFIM/i, /NCT/i, /EXO/i, /SUPER JUNIOR/i,
-    // 기업 공식
-    /공식채널/i, /Official/i, /공식/i,
-    // YouTube 공식
-    /^YouTube/i, /^YouTube Music/i, /^YouTube Kids/i,
-    // 브랜드 계정
-    /브랜드/i, /Brand/i,
-    // 어린이 계정/방송 (채널명 어디에든 포함되면 공식 채널)
-    /어린이/i, /키즈/i, /Kids/i, /Children/i, /어린이방송/i, /키즈방송/i, /Kids TV/i, /Children TV/i,
-    /EBS어린이/i, /EBS키즈/i, /KBS어린이/i, /KBS키즈/i, /MBC어린이/i, /SBS어린이/i,
-    /베이비버스/i, /BabyBus/i, /리틀엔젤/i, /Little Angel/i,
-    /토이몽/i, /Toymong/i, /브레드 이발소/i, /Bread Barber/i,
-    /캐릭온/i, /Characteron/i, /핑크퐁/i, /Pinkfong/i, /어린이 프로/i,
-    /마샤와 곰/i, /Masha/i, /Masha and the Bear/i,
-    /토닥토닥 꼬모/i, /꼬모/i, /Kkomo/i,
-    // YouTube Topic 채널
-    /Topic/i, /topic/i, (/- Topic$/i),
-    // 엔터테인먼트 계정
-    /엔터테인먼트/i, /Entertainment/i,
-    // 뮤직 레이블/음악 공식 채널
-    /1theK/i, /원더케이/i, /M2/i, /멜론/i, /Melon/i,
-    /미스.*미스터.*트롯/i, /미스&미스터트롯/i,
-    /ootb STUDIO/i, /OOTB/i,
-    // 뉴스/방송 관련 (방송사 관련 채널만)
-    /뉴스/i, /News/i, /방송/i, /Broadcast/i, /esports/i
-  ];
-  
-  return officialPatterns.some(pattern => pattern.test(channelName));
-};
-
 interface ChannelRankingData {
   rank: number;
   channelId: string;
@@ -353,10 +270,13 @@ const ChannelTrend = () => {
         const loadTime = performance.now() - startTime;
         console.log(`📊 데이터 로드 완료: ${classifiedData.length + unclassifiedData.length}개 (${loadTime.toFixed(0)}ms)`);
         
-        // Web Worker 생성 및 랭킹 계산 위임
-        const worker = new Worker(new URL('../workers/ranking-worker.js', import.meta.url), { type: 'module' });
+        // 모든 데이터를 하나로 합침 (워커에서 처리)
+        const allData = [...classifiedData, ...unclassifiedData];
         
-        // 워커에 데이터 전송
+        // Web Worker 생성 및 랭킹 계산 위임
+        const worker = new Worker(new URL('../workers/ranking.worker.ts', import.meta.url), { type: 'module' });
+        
+        // 워커에 데이터 전송 (모든 계산 로직은 워커에서 처리)
         worker.postMessage({
           classifiedData,
           unclassifiedData,
