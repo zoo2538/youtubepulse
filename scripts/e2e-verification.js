@@ -226,25 +226,34 @@ async function testManualCollectionBranch() {
   logSection('4. 수동수집 분기 테스트 (즉시 재조회)');
   
   try {
-    // 먼저 실제 분류 데이터를 조회해서 테스트할 수 있는 데이터가 있는지 확인
+    // PATCH/DELETE API는 classification_data 테이블의 classified, manual_classified, auto_collected 타입만 지원
+    // 실제 데이터를 찾아서 테스트하거나, 데이터가 없으면 스킵
     logTest('테스트용 데이터 조회 중...');
+    
+    // 먼저 분류 데이터에서 찾기
     const classifiedResponse = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 15000);
     const classifiedData = await classifiedResponse.json();
     
     let testVideoId = null;
+    let foundInClassified = false;
     
     if (classifiedResponse.ok && classifiedData.success && classifiedData.data && classifiedData.data.length > 0) {
-      // 첫 번째 분류된 데이터의 id를 사용 (videoId가 아닌 id 필드)
+      // 첫 번째 분류된 데이터의 id를 사용
       const firstItem = classifiedData.data[0];
       testVideoId = firstItem.id || firstItem.videoId;
-      logInfo(`테스트용 비디오 ID: ${testVideoId}`);
-    } else {
-      // 분류 데이터가 없으면 자동수집 데이터에서 찾기
+      foundInClassified = true;
+      logInfo(`테스트용 비디오 ID (분류 데이터): ${testVideoId}`);
+    }
+    
+    // 분류 데이터가 없으면 자동수집 데이터에서 찾기
+    if (!testVideoId) {
       const autoResponse = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 15000);
       const autoData = await autoResponse.json();
       
       if (autoResponse.ok && autoData.success && autoData.data && autoData.data.length > 0) {
         const firstItem = autoData.data[0];
+        // auto-collected는 unclassified_data 테이블이므로 PATCH/DELETE API에서 찾을 수 없음
+        // 하지만 시도는 해볼 수 있음
         testVideoId = firstItem.id || firstItem.video_id || firstItem.videoId;
         logInfo(`테스트용 비디오 ID (자동수집): ${testVideoId}`);
       }
@@ -254,12 +263,12 @@ async function testManualCollectionBranch() {
       recordTest(
         'PATCH API (수정)',
         false,
-        '테스트할 데이터가 없습니다 (분류 데이터 또는 자동수집 데이터 필요)'
+        '테스트할 데이터가 없습니다 (classification_data 테이블의 데이터 필요)'
       );
       recordTest(
         'DELETE API (삭제)',
         false,
-        '테스트할 데이터가 없습니다 (분류 데이터 또는 자동수집 데이터 필요)'
+        '테스트할 데이터가 없습니다 (classification_data 테이블의 데이터 필요)'
       );
       return false;
     }
@@ -284,23 +293,35 @@ async function testManualCollectionBranch() {
       patchSuccess ? '수정 요청 성공' : `수정 실패: ${patchData.error || 'Unknown error'}`
     );
     
-    // DELETE API 테스트 (삭제) - 실제 데이터를 삭제하지 않기 위해 스킵하거나 롤백 필요
-    // 여기서는 테스트만 수행하고 실제 삭제는 하지 않음
-    logTest('DELETE API 테스트 중... (실제 삭제는 수행하지 않음)');
-    const deleteResponse = await fetchWithTimeout(`${API_BASE_URL}/api/videos/${testVideoId}`, {
-      method: 'DELETE'
-    }, 10000);
+    // DELETE API 테스트
+    // 실제 데이터를 삭제하면 안 되므로, foundInClassified가 false이거나 테스트 데이터인 경우에만 삭제
+    if (foundInClassified) {
+      // 실제 분류 데이터는 삭제하지 않음 (데이터 보호)
+      logTest('DELETE API 테스트 스킵 (실제 데이터 보호)');
+      recordTest(
+        'DELETE API (삭제)',
+        false,
+        '실제 분류 데이터 삭제는 스킵됨 (데이터 보호)'
+      );
+    } else {
+      // 테스트 데이터인 경우 삭제 가능
+      logTest('DELETE API 테스트 중...');
+      const deleteResponse = await fetchWithTimeout(`${API_BASE_URL}/api/videos/${testVideoId}`, {
+        method: 'DELETE'
+      }, 10000);
+      
+      const deleteData = await deleteResponse.json();
+      const deleteSuccess = deleteResponse.ok && deleteData.success;
+      recordTest(
+        'DELETE API (삭제)',
+        deleteSuccess,
+        deleteSuccess ? '삭제 요청 성공' : `삭제 실패: ${deleteData.error || 'Unknown error'}`
+      );
+      
+      return patchSuccess && deleteSuccess;
+    }
     
-    const deleteData = await deleteResponse.json();
-    // DELETE는 실제로 삭제되므로, 404가 아닌 경우 성공으로 간주
-    const deleteSuccess = deleteResponse.ok && deleteData.success;
-    recordTest(
-      'DELETE API (삭제)',
-      deleteSuccess,
-      deleteSuccess ? '삭제 요청 성공' : `삭제 실패: ${deleteData.error || 'Unknown error'}`
-    );
-    
-    return patchSuccess && deleteSuccess;
+    return patchSuccess;
   } catch (error) {
     recordTest('수동수집 분기 테스트', false, `테스트 실패: ${error.message}`);
     return false;
