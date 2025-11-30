@@ -2,7 +2,7 @@
  * Google Gemini AI를 사용한 유튜브 영상 분석 서비스
  * 
  * @package @google/generative-ai
- * @model gemini-pro
+ * @model gemini-2.5-flash
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -47,9 +47,14 @@ export async function analyzeVideoWithGemini(
 
   // Gemini AI 클라이언트 초기화
   const genAI = new GoogleGenerativeAI(apiKey);
-  // 모델 이름: gemini-pro는 가장 안정적인 기본 모델입니다
-  // gemini-1.5-flash나 gemini-1.5-pro-latest는 API 버전에 따라 지원되지 않을 수 있습니다
-  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+  // 모델 이름: gemini-2.5-flash는 현재 가장 빠르고 유연한 모델입니다
+  // generationConfig에 responseMimeType을 설정하여 JSON 응답을 직접 받을 수 있습니다
+  const model = genAI.getGenerativeModel({ 
+    model: 'gemini-2.5-flash',
+    generationConfig: { 
+      responseMimeType: 'application/json'
+    }
+  });
 
   // 프롬프트 구성
   const prompt = `너는 유튜브 트렌드 분석 전문가야. 다음 영상 정보를 분석해서 시청자가 이 영상을 왜 보는지, 내용은 무엇인지 파악해줘.
@@ -71,15 +76,17 @@ export async function analyzeVideoWithGemini(
 
   try {
     // Gemini API 호출
+    // responseMimeType: "application/json"을 설정했으므로 응답이 직접 JSON 형식으로 옵니다
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    // JSON 파싱 시도
+    // JSON 파싱 (responseMimeType이 설정되어 있으므로 직접 파싱 가능)
     let analysisResult: VideoAnalysisResult;
     
     try {
-      // JSON 코드 블록 제거 (```json ... ``` 형식 처리)
+      // responseMimeType: "application/json"을 사용하면 JSON이 직접 반환됩니다
+      // 하지만 여전히 코드 블록이나 추가 텍스트가 포함될 수 있으므로 안전하게 처리
       const jsonText = text
         .replace(/```json\s*/g, '')
         .replace(/```\s*/g, '')
