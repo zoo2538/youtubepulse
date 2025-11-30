@@ -302,6 +302,19 @@ async function createTables() {
       )
     `);
     
+    // ✅ AI 분석 결과 테이블 (튜브렌즈 스타일)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS video_ai_insights (
+        video_id VARCHAR(50) PRIMARY KEY,
+        summary TEXT,
+        viral_reason TEXT,
+        keywords TEXT[],
+        clickbait_score INTEGER,
+        sentiment VARCHAR(20),
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     console.log('✅ PostgreSQL 테이블 생성 완료');
     
     // 기존 테이블에 누락된 컬럼 추가 (마이그레이션)
@@ -3233,6 +3246,21 @@ app.get('/api/sync/check', async (req, res) => {
   } catch (error) {
     console.error('동기화 확인 실패:', error);
     res.status(500).json({ error: 'Check failed' });
+  }
+});
+
+// ✅ 영상 AI 분석 API
+app.post('/api/analyze/video', async (req, res) => {
+  try {
+    const { handleAnalyzeVideo } = await import('./src/server/api/analyze/video.js');
+    await handleAnalyzeVideo(req, res);
+  } catch (error) {
+    console.error('❌ 영상 분석 API 라우트 오류:', error);
+    res.status(500).json({
+      success: false,
+      error: 'API 라우트 처리 중 오류 발생',
+      message: error.message
+    });
   }
 });
 
