@@ -570,8 +570,7 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
           }))
           .sort((a, b) => a.date.localeCompare(b.date));
         
-        // 캐시에 저장
-        const cacheKey = `${selectedChannelId}-${period}-${startDate}-${endDate}`;
+        // 캐시에 저장 (cacheKey는 이미 위에서 선언됨)
         chartDataCacheRef.current.set(cacheKey, {
           data: sortedData,
           timestamp: Date.now()
