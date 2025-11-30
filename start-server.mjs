@@ -26,7 +26,12 @@ console.log('🔍 간단한 서버 파일 존재 확인:', fs.existsSync('./simp
 
 try {
   console.log('🚀 전체 서버 시작 시도...');
-  await import('./dist/server/index.js');
+  const serverModule = await import('./dist/server/index.js');
+  console.log('✅ 서버 모듈 로드 완료');
+  
+  // 서버가 시작될 때까지 잠시 대기 (app.listen이 비동기로 실행됨)
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
   console.log('✅ 전체 서버 시작 성공');
 } catch (error) {
   console.error('❌ 전체 서버 시작 실패:', error);
@@ -40,6 +45,8 @@ try {
     console.log('✅ 간단한 서버 시작 성공 (폴백)');
   } catch (fallbackError) {
     console.error('❌ 간단한 서버도 실패:', fallbackError);
+    console.error('❌ 폴백 오류 상세:', fallbackError.message);
+    console.error('❌ 폴백 오류 스택:', fallbackError.stack);
     process.exit(1);
   }
 }

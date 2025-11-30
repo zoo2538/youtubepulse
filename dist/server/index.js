@@ -2900,123 +2900,7 @@ app.get('/api/cron/history', (req, res) => {
   });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  const startTime = new Date();
-  const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-  
-  // 서버 시작 시간 저장
-  global.serverStartTime = startTime.toISOString();
-  
-  console.log('='.repeat(80));
-  console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
-  console.log(`⏰ 서버 시작 시간 (KST): ${startTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
-  console.log(`⏰ 서버 시작 시간 (UTC): ${startTime.toISOString()}`);
-  console.log(`🌏 서버 타임존: Asia/Seoul`);
-  console.log('='.repeat(80));
-  
-  // 기존 크론잡 정리 (중복 방지)
-  if (global.cronJobInstance) {
-    console.log('🔄 기존 크론잡 정리 중...');
-    global.cronJobInstance.destroy();
-    global.cronJobInstance = null;
-  }
-
-  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
-  // cron 표현식: '분 시 일 월 요일'
-  // '0 9 * * *' = 매일 09:00 (KST 오전 9시)
-  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 9시에 실행
-  const cronJob = cron.schedule('0 9 * * *', safeCron(async () => {
-    const executeTime = new Date();
-    console.log('\n' + '='.repeat(80));
-    console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
-    console.log(`🕐 트리거 시간 (KST): ${executeTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
-    console.log(`🕐 트리거 시간 (UTC): ${executeTime.toISOString()}`);
-    console.log('📅 당일(오늘) 데이터로 저장됩니다');
-    console.log('='.repeat(80) + '\n');
-    
-    // 중복 실행 방지: 이미 실행 중이면 건너뛰기 (타임아웃 체크 포함)
-    if (global.autoCollectionInProgress) {
-      // 타임아웃 체크: 마지막 실행 시간이 2시간 이상 지났으면 강제 해제
-      const lastRunTime = global.autoCollectionLastRunTime || 0;
-      const now = Date.now();
-      const timeoutMs = 2 * 60 * 60 * 1000; // 2시간
-      
-      if (lastRunTime > 0 && (now - lastRunTime) > timeoutMs) {
-        console.log('⚠️ [크론잡] 자동 수집 플래그가 타임아웃되었습니다. 강제 해제하고 재실행합니다.');
-        console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
-        console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
-        global.autoCollectionInProgress = false;
-        global.autoCollectionLastRunTime = null;
-        addCronHistory('timeout-reset', '자동 수집 플래그 타임아웃으로 강제 해제');
-      } else {
-        console.log('⚠️ [크론잡] 이미 자동 수집이 진행 중이므로 건너뜁니다.');
-        if (lastRunTime > 0) {
-          console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
-          console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
-        }
-        addCronHistory('skipped', '이미 자동 수집이 진행 중');
-        return;
-      }
-    }
-    
-    // 자동 수집 시작 플래그 설정 (타임스탬프 포함)
-    global.autoCollectionInProgress = true;
-    global.autoCollectionLastRunTime = Date.now();
-    
-    // 이력 기록: 시작
-    addCronHistory('started', '자동 수집 시작');
-    
-    try {
-      const result = await autoCollectData();
-      if (result) {
-        console.log('\n✅ [크론잡] 자동 수집 완료 성공!');
-        addCronHistory('success', '자동 수집 완료 성공');
-      } else {
-        console.log('\n⚠️ [크론잡] 자동 수집 실패 (false 반환)');
-        addCronHistory('failed', '자동 수집 실패 (false 반환)');
-      }
-    } catch (error) {
-      console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
-      console.error('❌ [크론잡] 오류 스택:', error.stack);
-      addCronHistory('failed', '자동 수집 중 오류 발생', error);
-    } finally {
-      // 자동 수집 완료 플래그 해제
-      global.autoCollectionInProgress = false;
-      global.autoCollectionLastRunTime = null;
-    }
-  }), {
-    timezone: 'Asia/Seoul',
-    scheduled: true
-  });
-  
-  // 크론잡 인스턴스 전역 저장 (중복 방지용)
-  global.cronJobInstance = cronJob;
-  
-  // 크론잡 상태 확인
-  console.log('📅 크론잡 설정 완료:', {
-    schedule: '매일 09:00 KST',
-    timezone: 'Asia/Seoul',
-    scheduled: cronJob.running,
-    nextRun: cronJob.nextDate ? cronJob.nextDate().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '알 수 없음'
-  });
-  
-  // 다음 실행 시간 계산 (KST 기준)
-  const now = new Date();
-  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
-  const nextRun = new Date(kstNow);
-  nextRun.setHours(9, 0, 0, 0);
-  if (nextRun <= kstNow) {
-    nextRun.setDate(nextRun.getDate() + 1);
-  }
-  
-  console.log('\n📋 크론잡 설정 정보:');
-  console.log(`   - 스케줄: 매일 09:00 KST (할당량 초기화 1시간 후)`);
-  console.log(`   - 타임존: Asia/Seoul`);
-  console.log(`   - 현재 시간 (KST): ${now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
-  console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
-  console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
-  console.log('='.repeat(80) + '\n');
-});
+// app.listen은 파일 끝에서 호출됨 (중복 방지)
 
 // 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
 // __dirname은 /app/dist/server이므로, 한 단계 위의 dist로 이동
@@ -3755,13 +3639,14 @@ function getContentType(filePath) {
 
 // GET 요청만 정적 파일 서빙 및 SPA 라우팅 처리 (POST 등은 API 라우트로만)
 // Express 최신 버전 호환: app.use()를 사용하여 모든 GET 요청 처리
+// 주의: 이 미들웨어는 모든 라우트 등록 후 마지막에 위치해야 함
 app.use((req, res, next) => {
   // GET 요청만 처리
   if (req.method !== 'GET') {
     return next();
   }
   
-  // API 경로는 제외
+  // API 경로는 제외 (이미 위에서 처리됨)
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API endpoint not found' });
   }
@@ -3777,3 +3662,122 @@ app.use((req, res, next) => {
     }
   });
 });
+
+// 서버 시작
+console.log('🔧 서버 리스너 설정 중...');
+app.listen(PORT, '0.0.0.0', () => {
+  const startTime = new Date();
+  const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  
+  // 서버 시작 시간 저장
+  global.serverStartTime = startTime.toISOString();
+  
+  console.log('='.repeat(80));
+  console.log(`🚀 YouTube Pulse API Server running on port ${PORT}`);
+  console.log(`⏰ 서버 시작 시간 (KST): ${startTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+  console.log(`⏰ 서버 시작 시간 (UTC): ${startTime.toISOString()}`);
+  console.log(`🌏 서버 타임존: Asia/Seoul`);
+  console.log('='.repeat(80));
+  
+  // 기존 크론잡 정리 (중복 방지)
+  if (global.cronJobInstance) {
+    console.log('🔄 기존 크론잡 정리 중...');
+    global.cronJobInstance.destroy();
+    global.cronJobInstance = null;
+  }
+
+  // 자동 수집 cron job 설정 (매일 09:00 KST - 당일 데이터로 저장)
+  // cron 표현식: '분 시 일 월 요일'
+  // '0 9 * * *' = 매일 09:00 (KST 오전 9시)
+  // YouTube API 할당량은 UTC 자정(KST 오전 9시)에 초기화되므로 9시에 실행
+  const cronJob = cron.schedule('0 9 * * *', safeCron(async () => {
+    const executeTime = new Date();
+    console.log('\n' + '='.repeat(80));
+    console.log('⏰ [크론잡] 자동 수집 스케줄 트리거됨!');
+    console.log(`🕐 트리거 시간 (KST): ${executeTime.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+    console.log(`🕐 트리거 시간 (UTC): ${executeTime.toISOString()}`);
+    console.log('📅 당일(오늘) 데이터로 저장됩니다');
+    console.log('='.repeat(80) + '\n');
+    
+    // 중복 실행 방지: 이미 실행 중이면 건너뛰기 (타임아웃 체크 포함)
+    if (global.autoCollectionInProgress) {
+      // 타임아웃 체크: 마지막 실행 시간이 2시간 이상 지났으면 강제 해제
+      const lastRunTime = global.autoCollectionLastRunTime || 0;
+      const now = Date.now();
+      const timeoutMs = 2 * 60 * 60 * 1000; // 2시간
+      
+      if (lastRunTime > 0 && (now - lastRunTime) > timeoutMs) {
+        console.log('⚠️ [크론잡] 자동 수집 플래그가 타임아웃되었습니다. 강제 해제하고 재실행합니다.');
+        console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+        console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
+        global.autoCollectionInProgress = false;
+        global.autoCollectionLastRunTime = null;
+        addCronHistory('timeout-reset', '자동 수집 플래그 타임아웃으로 강제 해제');
+      } else {
+        console.log('⚠️ [크론잡] 이미 자동 수집이 진행 중이므로 건너뜁니다.');
+        if (lastRunTime > 0) {
+          console.log(`   - 마지막 실행 시간: ${new Date(lastRunTime).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+          console.log(`   - 경과 시간: ${Math.round((now - lastRunTime) / 1000 / 60)}분`);
+        }
+        addCronHistory('skipped', '이미 자동 수집이 진행 중');
+        return;
+      }
+    }
+    
+    // 자동 수집 시작 플래그 설정 (타임스탬프 포함)
+    global.autoCollectionInProgress = true;
+    global.autoCollectionLastRunTime = Date.now();
+    
+    // 이력 기록: 시작
+    addCronHistory('started', '자동 수집 시작');
+    
+    try {
+      const result = await autoCollectData();
+      if (result) {
+        console.log('\n✅ [크론잡] 자동 수집 완료 성공!');
+        addCronHistory('success', '자동 수집 완료 성공');
+      } else {
+        console.log('\n⚠️ [크론잡] 자동 수집 실패 (false 반환)');
+        addCronHistory('failed', '자동 수집 실패 (false 반환)');
+      }
+    } catch (error) {
+      console.error('\n❌ [크론잡] 자동 수집 중 오류 발생:', error.message);
+      console.error('❌ [크론잡] 오류 스택:', error.stack);
+      addCronHistory('failed', '자동 수집 중 오류 발생', error);
+    } finally {
+      // 자동 수집 완료 플래그 해제
+      global.autoCollectionInProgress = false;
+      global.autoCollectionLastRunTime = null;
+    }
+  }), {
+    timezone: 'Asia/Seoul',
+    scheduled: true
+  });
+  
+  // 크론잡 인스턴스 전역 저장 (중복 방지용)
+  global.cronJobInstance = cronJob;
+  
+  // 크론잡 상태 확인
+  console.log('📅 크론잡 설정 완료:', {
+    schedule: '매일 09:00 KST',
+    timezone: 'Asia/Seoul',
+    scheduled: cronJob.running,
+    nextRun: cronJob.nextDate ? cronJob.nextDate().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '알 수 없음'
+  });
+  
+  // 다음 실행 시간 계산 (KST 기준)
+  const now = new Date();
+  const kstNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
+  const nextRun = new Date(kstNow);
+  nextRun.setHours(9, 0, 0, 0);
+  if (nextRun <= kstNow) {
+    nextRun.setDate(nextRun.getDate() + 1);
+  }
+  
+  console.log('\n📋 크론잡 설정 정보:');
+  console.log(`   - 스케줄: 매일 09:00 KST (할당량 초기화 1시간 후)`);
+  console.log(`   - 타임존: Asia/Seoul`);
+  console.log(`   - 현재 시간 (KST): ${now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+  console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+  console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
+  console.log('='.repeat(80) + '\n');
