@@ -69,9 +69,10 @@ class OfflineResilienceService {
         throw new Error('API base URL is not configured.');
       }
 
-      const response = await fetch(`${API_BASE_URL}/health`, {
+      const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'HEAD',
-        cache: 'no-cache'
+        cache: 'no-cache',
+        signal: AbortSignal.timeout(5000) // 5초 타임아웃 추가
       });
       
       if (response.ok) {
