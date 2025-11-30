@@ -130,20 +130,39 @@ async function collectSyncMetrics() {
     const autoCount = autoData.success ? autoData.data.length : 0;
     const classifiedCount = classifiedData.success ? classifiedData.data.length : 0;
     
-    // 최근 수집 시간 확인
+    // 최근 수집 시간 확인 (유효성 검사 추가)
     let lastCollectionTime = null;
     if (autoData.success && autoData.data.length > 0) {
       const latestItem = autoData.data[0];
-      lastCollectionTime = new Date(latestItem.collectionTimestamp || latestItem.collectedAt);
+      const timeValue = latestItem.collectionTimestamp || latestItem.collectedAt;
+      
+      // 시간 값 유효성 검사
+      if (timeValue) {
+        const parsedDate = new Date(timeValue);
+        // 유효한 Date 객체인지 확인 (NaN이 아니고 유효한 시간인지)
+        if (!isNaN(parsedDate.getTime()) && parsedDate instanceof Date) {
+          lastCollectionTime = parsedDate;
+        }
+      }
+    }
+    
+    // dataFreshness 계산 (유효한 시간이 있을 때만)
+    let dataFreshness = null;
+    if (lastCollectionTime && !isNaN(lastCollectionTime.getTime())) {
+      const diffMs = new Date() - lastCollectionTime;
+      if (!isNaN(diffMs) && diffMs >= 0) {
+        dataFreshness = Math.round(diffMs / (1000 * 60)); // 분 단위
+      }
     }
     
     metrics.system.sync = {
       autoCollectedCount: autoCount,
       classifiedCount: classifiedCount,
       syncRatio: autoCount > 0 ? (classifiedCount / autoCount * 100).toFixed(2) : 0,
-      lastCollectionTime: lastCollectionTime?.toISOString(),
-      dataFreshness: lastCollectionTime ? 
-        Math.round((new Date() - lastCollectionTime) / (1000 * 60)) : null, // 분 단위
+      lastCollectionTime: lastCollectionTime && !isNaN(lastCollectionTime.getTime()) 
+        ? lastCollectionTime.toISOString() 
+        : null,
+      dataFreshness: dataFreshness,
       timestamp: new Date().toISOString()
     };
     
@@ -227,8 +246,11 @@ function checkPerformanceThresholds() {
     });
   }
   
-  // 동기화 임계값 체크
-  if (metrics.system.sync.dataFreshness > thresholds.sync.dataFreshness) {
+  // 동기화 임계값 체크 (안전한 값 확인)
+  if (metrics.system.sync && 
+      metrics.system.sync.dataFreshness != null && 
+      !isNaN(metrics.system.sync.dataFreshness) &&
+      metrics.system.sync.dataFreshness > thresholds.sync.dataFreshness) {
     metrics.system.performance.alerts.push({
       type: 'sync',
       message: `데이터 신선도 저하: ${metrics.system.sync.dataFreshness}분 전`,
@@ -236,7 +258,10 @@ function checkPerformanceThresholds() {
     });
   }
   
-  if (metrics.system.sync.syncRatio < thresholds.sync.syncRatio) {
+  if (metrics.system.sync && 
+      metrics.system.sync.syncRatio != null &&
+      !isNaN(parseFloat(metrics.system.sync.syncRatio)) &&
+      parseFloat(metrics.system.sync.syncRatio) < thresholds.sync.syncRatio) {
     metrics.system.performance.alerts.push({
       type: 'sync',
       message: `동기화 비율 저하: ${metrics.system.sync.syncRatio}%`,
@@ -288,7 +313,7 @@ function analyzeBacklogReadiness() {
     });
   }
   
-  if (metrics.system.sync.autoCollectedCount > 50000) {
+  if (metrics.system.sync?.autoCollectedCount && metrics.system.sync.autoCollectedCount > 50000) {
     recommendations.push({
       phase: 'Phase 1: 증분 동기화 전환',
       priority: 'MEDIUM',
@@ -372,10 +397,10 @@ function generateSummaryReport() {
         successRate: (Object.values(metrics.system.api).filter(api => api.success).length / Object.keys(metrics.system.api).length) * 100
       },
       sync: {
-        autoCollectedCount: metrics.system.sync.autoCollectedCount,
-        classifiedCount: metrics.system.sync.classifiedCount,
-        syncRatio: metrics.system.sync.syncRatio,
-        dataFreshness: metrics.system.sync.dataFreshness
+        autoCollectedCount: metrics.system.sync?.autoCollectedCount ?? 0,
+        classifiedCount: metrics.system.sync?.classifiedCount ?? 0,
+        syncRatio: metrics.system.sync?.syncRatio ?? '0',
+        dataFreshness: metrics.system.sync?.dataFreshness ?? null
       }
     },
     alerts: metrics.system.performance.alerts,
@@ -392,7 +417,17 @@ function generateSummaryReport() {
   log('\n📊 시스템 요약:', 'blue');
   log(`  데이터베이스: ${report.summary.database.status} (${report.summary.database.responseTime}ms, 대기: ${report.summary.database.waitingCount}개)`, 'blue');
   log(`  API: 평균 ${report.summary.api.avgResponseTime.toFixed(0)}ms, 성공률 ${report.summary.api.successRate.toFixed(1)}%`, 'blue');
-  log(`  동기화: 자동 ${report.summary.sync.autoCollectedCount.toLocaleString()}개, 분류 ${report.summary.sync.classifiedCount.toLocaleString()}개 (${report.summary.sync.syncRatio}%)`, 'blue');
+  
+  // 동기화 메트릭 안전하게 출력 (옵셔널 체이닝 및 조건부 렌더링)
+  const syncMetric = report.summary.sync;
+  const autoCount = syncMetric?.autoCollectedCount ?? 0;
+  const classifiedCount = syncMetric?.classifiedCount ?? 0;
+  const syncRatio = syncMetric?.syncRatio ?? '0';
+  const dataFreshness = syncMetric?.dataFreshness != null 
+    ? `${syncMetric.dataFreshness}분 전` 
+    : 'N/A';
+  
+  log(`  동기화: 자동 ${autoCount.toLocaleString()}개, 분류 ${classifiedCount.toLocaleString()}개 (${syncRatio}%), 신선도: ${dataFreshness}`, 'blue');
   
   if (report.alerts.length > 0) {
     log('\n⚠️  알림:', 'yellow');
