@@ -336,30 +336,15 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
             급상승
           </Badge>
           </div>
-          <div className="flex items-center space-x-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const savedKey = localStorage.getItem('geminiApiKey');
-                setApiKeyInput(savedKey || '');
-                setOpenApiKeyDialog(true);
-              }}
-              className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 border-0"
-            >
-              <Key className="w-4 h-4 mr-2" />
-              🔑 AI 키 설정
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center space-x-1"
-              onClick={() => navigate("/trending-channels")}
-            >
-              <span>조회수 급등 채널 보기</span>
-              <ArrowUpRight className="w-4 h-4" />
-            </Button>
-          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex items-center space-x-1"
+            onClick={() => navigate("/trending-channels")}
+          >
+            <span>조회수 급등 채널 보기</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </Button>
         </div>
         
         <div>
