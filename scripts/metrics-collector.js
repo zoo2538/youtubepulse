@@ -58,6 +58,13 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
     if (error.name === 'AbortError') {
       throw new Error(`Request timeout after ${timeoutMs}ms`);
     }
+    // 더 자세한 에러 정보 제공
+    if (error.code) {
+      throw new Error(`${error.message} (code: ${error.code})`);
+    }
+    if (error.cause) {
+      throw new Error(`${error.message} (cause: ${error.cause.message || error.cause})`);
+    }
     throw error;
   }
 }
@@ -67,8 +74,11 @@ async function collectDatabaseMetrics() {
   log('📊 데이터베이스 성능 메트릭 수집 중...', 'blue');
   
   try {
+    const url = `${API_BASE_URL}/health/db`;
+    log(`  🔗 연결 시도: ${url}`, 'blue');
+    
     const startTime = Date.now();
-    const response = await fetchWithTimeout(`${API_BASE_URL}/health/db`, {}, 30000); // 30초로 증가
+    const response = await fetchWithTimeout(url, {}, 30000); // 30초로 증가
     const endTime = Date.now();
     
     metrics.system.database = {
@@ -81,12 +91,30 @@ async function collectDatabaseMetrics() {
       const data = await response.json();
       metrics.system.database.poolStatus = data.poolStatus;
       metrics.system.database.queryResult = data.queryResult;
+      log(`✅ 데이터베이스 메트릭 수집 완료 (${metrics.system.database.responseTime}ms)`, 'green');
+    } else {
+      const errorText = await response.text();
+      log(`⚠️ 데이터베이스 응답 오류: HTTP ${response.status} - ${errorText.substring(0, 100)}`, 'yellow');
+      metrics.system.database.error = `HTTP ${response.status}: ${errorText.substring(0, 200)}`;
+      metrics.system.database.status = 'DOWN';
+    }
+  } catch (error) {
+    const errorDetails = {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+      cause: error.cause?.message || error.cause
+    };
+    
+    log(`❌ 데이터베이스 메트릭 수집 실패: ${error.message}`, 'red');
+    if (error.code) {
+      log(`  📋 에러 코드: ${error.code}`, 'red');
+    }
+    if (error.cause) {
+      log(`  📋 원인: ${error.cause.message || error.cause}`, 'red');
     }
     
-    log(`✅ 데이터베이스 메트릭 수집 완료 (${metrics.system.database.responseTime}ms)`, 'green');
-  } catch (error) {
-    log(`❌ 데이터베이스 메트릭 수집 실패: ${error.message}`, 'red');
-    metrics.system.database.error = error.message;
+    metrics.system.database.error = JSON.stringify(errorDetails);
     metrics.system.database.status = 'DOWN';
     metrics.system.database.responseTime = -1;
   }

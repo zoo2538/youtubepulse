@@ -3754,7 +3754,13 @@ function getContentType(filePath) {
 }
 
 // GET 요청만 정적 파일 서빙 및 SPA 라우팅 처리 (POST 등은 API 라우트로만)
-app.get('*', (req, res, next) => {
+// Express 최신 버전 호환: app.use()를 사용하여 모든 GET 요청 처리
+app.use((req, res, next) => {
+  // GET 요청만 처리
+  if (req.method !== 'GET') {
+    return next();
+  }
+  
   // API 경로는 제외
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API endpoint not found' });
