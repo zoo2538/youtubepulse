@@ -1164,13 +1164,13 @@ const ChannelTrend = () => {
         <Dialog open={!!openDialogVideoId} onOpenChange={(open) => {
           if (!open) setOpenDialogVideoId(null);
         }}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white dark:bg-gray-900">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center">
                 <Sparkles className="w-5 h-5 mr-2" />
                 ✨ AI 분석 결과
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-600 dark:text-gray-400">
                 영상에 대한 AI 기반 트렌드 분석 결과입니다.
               </DialogDescription>
             </DialogHeader>
@@ -1182,7 +1182,7 @@ const ChannelTrend = () => {
                   <Sparkles className="w-4 h-4 mr-2" />
                   요약
                 </h3>
-                <p className="text-sm text-foreground whitespace-pre-line">
+                <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">
                   {analysisResults[openDialogVideoId].summary}
                 </p>
               </Card>
@@ -1193,7 +1193,7 @@ const ChannelTrend = () => {
                   <TrendingUp className="w-4 h-4 mr-2" />
                   인기 원인
                 </h3>
-                <p className="text-sm text-foreground">
+                <p className="text-sm text-gray-800 dark:text-gray-200">
                   {analysisResults[openDialogVideoId].viral_reason}
                 </p>
               </Card>
@@ -1206,7 +1206,7 @@ const ChannelTrend = () => {
                 </h3>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">점수</span>
+                    <span className="text-gray-700 dark:text-gray-300">점수</span>
                     <span className="font-semibold text-purple-600">
                       {analysisResults[openDialogVideoId].clickbait_score} / 100
                     </span>
@@ -1221,7 +1221,7 @@ const ChannelTrend = () => {
                       style={{ width: `${analysisResults[openDialogVideoId].clickbait_score}%` }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-gray-700 dark:text-gray-300">
                     {analysisResults[openDialogVideoId].clickbait_score >= 70 
                       ? "높은 낚시성 콘텐츠" 
                       : analysisResults[openDialogVideoId].clickbait_score >= 40 
