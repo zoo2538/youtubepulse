@@ -371,20 +371,12 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
             const totalTime = performance.now() - startTime;
             console.log(`✅ 채널 랭킹 계산 완료: ${channelCount}개 채널 (워커: ${processingTime.toFixed(0)}ms, 총: ${totalTime.toFixed(0)}ms)`);
             
-            // URL 파라미터로 채널이 지정된 경우 선택
-            if (channelIdParam && rankings.length > 0) {
-              const foundChannel = rankings.find(c => c.channelId === channelIdParam);
-              if (foundChannel) {
-                setSelectedChannel(foundChannel);
-                setSelectedChannelId(channelIdParam);
-              }
-            } else if (selectedChannelId && rankings.length > 0) {
-              // 날짜 변경 시 선택된 채널이 새로운 랭킹에 있는지 확인
+            // 선택된 채널이 새 랭킹에 있는지 확인 (필터 변경 시)
+            if (selectedChannelId && rankings.length > 0) {
               const foundChannel = rankings.find(c => c.channelId === selectedChannelId);
               if (foundChannel) {
-                // 같은 채널이면 선택 상태만 업데이트 (selectedChannelId는 변경하지 않아 차트는 다시 로드하지 않음)
+                // 같은 채널이면 선택 상태만 업데이트
                 setSelectedChannel(foundChannel);
-                // selectedChannelId는 변경하지 않음 - 차트는 다시 로드되지 않음
               } else {
                 // 선택된 채널이 새 랭킹에 없으면 선택 해제
                 setSelectedChannel(null);
@@ -418,7 +410,22 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     };
     
     loadChannelRankings();
-  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial, showOnlyOfficial, selectedChannelId, setSearchParams]);
+  }, [selectedDate, showNewOnly, reverseOrder, country, excludeOfficial, showOnlyOfficial]);
+  
+  // URL 파라미터 변경 시 선택만 업데이트 (데이터 재로드 없음)
+  useEffect(() => {
+    if (channelIdParam && channelRankings.length > 0) {
+      const foundChannel = channelRankings.find(c => c.channelId === channelIdParam);
+      if (foundChannel) {
+        setSelectedChannel(foundChannel);
+        setSelectedChannelId(channelIdParam);
+      }
+    } else if (!channelIdParam && selectedChannelId) {
+      // URL 파라미터가 제거되면 선택 해제
+      setSelectedChannel(null);
+      setSelectedChannelId('');
+    }
+  }, [channelIdParam, channelRankings]);
 
   // 스크롤 위치 지속적 저장 (사용자가 스크롤할 때마다 저장)
   useEffect(() => {
@@ -622,41 +629,11 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     setSearchParams({ channelId: channel.channelId }, { replace: true });
   };
 
-  // 마우스 호버 핸들러 (디바운싱 적용, 차트 미리보기)
-  const handleMouseEnter = (channel: ChannelRankingData) => {
-    // 기존 타이머가 있다면 취소
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-    }
-    
-    // 호버 시 디바운싱 적용 (300ms 후 차트 로드)
-    // 짧은 시간 내 여러 호버가 발생해도 마지막 호버만 처리하여 성능 최적화
-    hoverTimeoutRef.current = setTimeout(() => {
-      // 호버 시에도 차트를 보여주되, URL은 변경하지 않음 (스크롤 위치 유지)
-      setSelectedChannel(channel);
-      setSelectedChannelId(channel.channelId);
-      hoverTimeoutRef.current = null;
-    }, 300); // 300ms 디바운싱
-  };
 
-  // 마우스 떠날 때 타이머 취소
-  const handleMouseLeave = () => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
-  };
-
-  // 클릭 핸들러 (즉시 실행 + 호버 타이머 취소 + URL 업데이트 + 스크롤 유지)
+  // 클릭 핸들러 (즉시 실행 + URL 업데이트 + 스크롤 유지)
   const handleClick = (channel: ChannelRankingData, event: React.MouseEvent) => {
     // 이벤트 전파 방지 (필요시)
     event.stopPropagation();
-    
-    // 대기 중인 호버 타이머 취소
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
     
     // 스크롤 위치 저장 (클릭 시 즉시 저장)
     if (tableScrollRef.current) {
@@ -977,8 +954,6 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                           className={`cursor-pointer hover:bg-muted/50 ${
                             selectedChannelId === channel.channelId ? 'bg-red-600/10' : ''
                           }`}
-                          onMouseEnter={() => handleMouseEnter(channel)}
-                          onMouseLeave={handleMouseLeave}
                           onClick={(e) => handleClick(channel, e)}
                         >
                           <TableCell>
