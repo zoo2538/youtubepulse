@@ -3,7 +3,7 @@
  * 채널의 카테고리 분류 이력을 PostgreSQL에 저장
  */
 
-import { createPostgreSQLService } from '../../lib/postgresql-service-server.js'; // 서버용 서비스 import
+import { createPostgreSQLService } from '../../../lib/postgresql-service-server.js'; // 서버용 서비스 import
 // import { parseJsonBody } from '../../middleware/body-parser.js'; // 바디 파서 (가정)
 
 /**

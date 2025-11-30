@@ -3,7 +3,7 @@
  * Gemini AI를 사용하여 유튜브 영상을 분석하고 결과를 저장/조회
  */
 
-import { createPostgreSQLService } from '../../lib/postgresql-service-server.js';
+import { createPostgreSQLService } from '../../../lib/postgresql-service-server.js';
 
 /**
  * Gemini 서비스 모듈을 동적으로 로드
@@ -12,11 +12,15 @@ import { createPostgreSQLService } from '../../lib/postgresql-service-server.js'
 async function loadGeminiService() {
   try {
     // 여러 경로 시도 (빌드 환경 및 개발 환경 모두 지원)
+    // 배포 환경: dist/server/src/server/api/analyze/video.js -> dist/server/src/lib/gemini-service.js
+    // 개발 환경: src/server/api/analyze/video.js -> src/lib/gemini-service.js
     const possiblePaths = [
-      '../../lib/gemini-service.js',  // 빌드된 파일
-      '../../lib/gemini-service.ts',  // 소스 파일 (개발)
-      '../../../src/lib/gemini-service.js',  // dist/server에서 빌드된 파일
-      '../../../src/lib/gemini-service.ts'   // dist/server에서 소스 파일
+      '../../../lib/gemini-service.js',  // 최우선: 배포 환경 (dist/server/src/server/api/analyze -> dist/server/src/lib)
+      '../../../lib/gemini-service.ts',  // 최우선: 개발 환경 (src/server/api/analyze -> src/lib)
+      '../../lib/gemini-service.js',  // 폴백: 빌드된 파일
+      '../../lib/gemini-service.ts',  // 폴백: 소스 파일 (개발)
+      '../../../../lib/gemini-service.js',  // 추가 폴백
+      '../../../../lib/gemini-service.ts'   // 추가 폴백
     ];
     
     for (const modulePath of possiblePaths) {

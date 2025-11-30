@@ -4,7 +4,7 @@
  */
 
 // 서버 환경에서 필요한 모듈
-import { createPostgreSQLService } from '../../lib/postgresql-service-server.js'; // PostgreSQL 서비스
+import { createPostgreSQLService } from '../../../lib/postgresql-service-server.js'; // PostgreSQL 서비스
 
 /**
  * [POST] /api/sync/download 라우트 핸들러 함수

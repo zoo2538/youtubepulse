@@ -3674,8 +3674,7 @@ app.use((req, res, next) => {
 console.log('🔧 서버 리스너 설정 중...');
 console.log(`🔧 포트: ${PORT}`);
 console.log(`🔧 호스트: 0.0.0.0`);
-try {
-  app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   
