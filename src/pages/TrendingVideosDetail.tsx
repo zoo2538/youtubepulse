@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
 import { 
   TrendingUp, 
   ArrowLeft, 
@@ -40,7 +41,8 @@ import {
   User,
   Sparkles,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Key
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -116,6 +118,10 @@ const TrendingVideosDetail = () => {
   const [analysisResults, setAnalysisResults] = useState<Record<string, AiAnalysisResult>>({});
   const [openDialogVideoId, setOpenDialogVideoId] = useState<string | null>(null);
   const [analyzedVideoIds, setAnalyzedVideoIds] = useState<Set<string>>(new Set());
+  
+  // API 키 설정 관련 상태
+  const [openApiKeyDialog, setOpenApiKeyDialog] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState('');
 
   const handleLogout = () => {
     logout();
@@ -305,9 +311,29 @@ const TrendingVideosDetail = () => {
     setSelectedSubCategory('all');
   };
 
+  // API 키 저장 함수
+  const handleSaveApiKey = () => {
+    if (!apiKeyInput.trim()) {
+      alert('API 키를 입력해주세요.');
+      return;
+    }
+    localStorage.setItem('geminiApiKey', apiKeyInput.trim());
+    setOpenApiKeyDialog(false);
+    setApiKeyInput('');
+    alert('API 키가 저장되었습니다.');
+  };
+
   // AI 분석 함수
   const handleAnalyze = async (video: VideoData) => {
     if (analyzingVideoId === video.id) return; // 이미 분석 중이면 무시
+    
+    // API 키 확인
+    const apiKey = localStorage.getItem('geminiApiKey');
+    if (!apiKey || apiKey.trim() === '') {
+      alert('먼저 AI 키를 설정해주세요.');
+      setOpenApiKeyDialog(true);
+      return;
+    }
     
     setAnalyzingVideoId(video.id);
     
@@ -323,6 +349,7 @@ const TrendingVideosDetail = () => {
           channelName: video.channelName,
           description: video.description,
           viewCount: video.views,
+          apiKey: apiKey.trim(),
         }),
       });
 
@@ -498,6 +525,20 @@ const TrendingVideosDetail = () => {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* AI 키 설정 버튼 */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const savedKey = localStorage.getItem('geminiApiKey');
+                  setApiKeyInput(savedKey || '');
+                  setOpenApiKeyDialog(true);
+                }}
+                className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 border-0"
+              >
+                <Key className="w-4 h-4 mr-2" />
+                🔑 AI 키 설정
+              </Button>
               <div className="flex items-center space-x-2">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <label className="text-sm font-medium text-muted-foreground">날짜:</label>
@@ -806,6 +847,62 @@ const TrendingVideosDetail = () => {
             </DialogContent>
           </Dialog>
         )}
+
+        {/* API 키 설정 모달 */}
+        <Dialog open={openApiKeyDialog} onOpenChange={setOpenApiKeyDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center">
+                <Key className="w-5 h-5 mr-2" />
+                🔑 Gemini API 키 설정
+              </DialogTitle>
+              <DialogDescription>
+                Google Gemini API 키를 입력해주세요. 키는 브라우저에 안전하게 저장됩니다.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="text-sm font-medium text-foreground mb-2 block">
+                  API 키
+                </label>
+                <Input
+                  type="password"
+                  placeholder="AIza..."
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  className="w-full"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveApiKey();
+                    }
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  API 키는 <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google AI Studio</a>에서 발급받을 수 있습니다.
+                </p>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setOpenApiKeyDialog(false);
+                    setApiKeyInput('');
+                  }}
+                >
+                  취소
+                </Button>
+                <Button
+                  onClick={handleSaveApiKey}
+                  className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                >
+                  저장
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

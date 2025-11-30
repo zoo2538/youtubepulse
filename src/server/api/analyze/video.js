@@ -55,12 +55,20 @@ async function loadGeminiService() {
 export async function handleAnalyzeVideo(req, res) {
   try {
     // 1. 요청 데이터 검증
-    const { videoId, title, channelName, description, viewCount } = req.body;
+    const { videoId, title, channelName, description, viewCount, apiKey } = req.body;
 
     if (!videoId || !title || !channelName || typeof viewCount !== 'number') {
       return res.status(400).json({
         success: false,
         error: '필수 필드가 누락되었습니다. (videoId, title, channelName, viewCount 필요)'
+      });
+    }
+
+    // API 키 검증
+    if (!apiKey || apiKey.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        error: 'API 키가 필요합니다.'
       });
     }
 
@@ -109,7 +117,7 @@ export async function handleAnalyzeVideo(req, res) {
       description: description || ''
     };
 
-    const analysisResult = await analyzeVideoWithGemini(videoData);
+    const analysisResult = await analyzeVideoWithGemini(videoData, apiKey);
 
     // 6. 분석 결과를 DB에 저장
     console.log(`💾 AI 분석 결과 저장 중: ${videoId}`);
@@ -140,10 +148,10 @@ export async function handleAnalyzeVideo(req, res) {
     console.error('❌ 영상 AI 분석 API 오류:', error);
     
     // 에러 타입에 따라 적절한 상태 코드 반환
-    if (error.message?.includes('GEMINI_API_KEY')) {
-      return res.status(500).json({
+    if (error.message?.includes('API 키가 필요합니다')) {
+      return res.status(400).json({
         success: false,
-        error: 'Gemini API 키가 설정되지 않았습니다.',
+        error: 'API 키가 필요합니다.',
         message: error.message
       });
     }

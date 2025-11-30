@@ -7,9 +7,6 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// TODO: 환경변수로 이동 예정
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-
 /**
  * 영상 데이터 인터페이스
  */
@@ -35,19 +32,21 @@ export interface VideoAnalysisResult {
  * Gemini AI를 사용하여 유튜브 영상을 분석합니다.
  * 
  * @param videoData - 분석할 영상 데이터
+ * @param apiKey - Gemini API 키 (사용자 입력)
  * @returns AI 분석 결과 (JSON 형식)
  * @throws API 키가 없거나 분석 실패 시 에러 발생
  */
 export async function analyzeVideoWithGemini(
-  videoData: VideoDataForAnalysis
+  videoData: VideoDataForAnalysis,
+  apiKey: string
 ): Promise<VideoAnalysisResult> {
   // API 키 검증
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. 환경변수를 확인해주세요.');
+  if (!apiKey || apiKey.trim() === '') {
+    throw new Error('API 키가 필요합니다.');
   }
 
   // Gemini AI 클라이언트 초기화
-  const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+  const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
   // 프롬프트 구성
