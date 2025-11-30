@@ -15,7 +15,9 @@ WORKDIR /app
 
 # Copy package files
 COPY package.json package-lock.json ./
-RUN npm ci
+# Use npm install instead of npm ci to ensure optional dependencies are installed
+# This is necessary for @rollup/rollup-linux-x64-musl on Alpine Linux
+RUN npm install && npm cache clean --force
 
 # Copy source files
 COPY . .
