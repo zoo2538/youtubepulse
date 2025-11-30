@@ -530,7 +530,7 @@ const ChannelTrend = () => {
     };
     
     loadChannelRankings();
-  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial, showOnlyOfficial]);
+  }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial, showOnlyOfficial, selectedChannelId, setSearchParams]);
 
   // 채널 선택 시 차트 데이터 로드
   useEffect(() => {
