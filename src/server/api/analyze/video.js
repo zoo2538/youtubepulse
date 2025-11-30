@@ -11,18 +11,30 @@ import { createPostgreSQLService } from '../../lib/postgresql-service-server.js'
  */
 async function loadGeminiService() {
   try {
-    // 빌드된 파일에서 import 시도 (.js)
-    const geminiModule = await import('../../lib/gemini-service.js');
-    return geminiModule.analyzeVideoWithGemini;
-  } catch (error) {
-    // 소스 파일에서 import 시도 (.ts) - 개발 환경
-    try {
-      const geminiModule = await import('../../lib/gemini-service.ts');
-      return geminiModule.analyzeVideoWithGemini;
-    } catch (tsError) {
-      console.error('❌ gemini-service 모듈 로드 실패:', tsError);
-      throw new Error('Gemini 서비스 모듈을 로드할 수 없습니다. @google/generative-ai 패키지가 설치되어 있는지 확인하세요.');
+    // 여러 경로 시도 (빌드 환경 및 개발 환경 모두 지원)
+    const possiblePaths = [
+      '../../lib/gemini-service.js',  // 빌드된 파일
+      '../../lib/gemini-service.ts',  // 소스 파일 (개발)
+      '../../../src/lib/gemini-service.js',  // dist/server에서 빌드된 파일
+      '../../../src/lib/gemini-service.ts'   // dist/server에서 소스 파일
+    ];
+    
+    for (const modulePath of possiblePaths) {
+      try {
+        const geminiModule = await import(modulePath);
+        if (geminiModule.analyzeVideoWithGemini) {
+          return geminiModule.analyzeVideoWithGemini;
+        }
+      } catch (pathError) {
+        // 다음 경로 시도
+        continue;
+      }
     }
+    
+    throw new Error('모든 경로에서 gemini-service 모듈을 찾을 수 없습니다.');
+  } catch (error) {
+    console.error('❌ gemini-service 모듈 로드 실패:', error);
+    throw new Error(`Gemini 서비스 모듈을 로드할 수 없습니다: ${error.message}. @google/generative-ai 패키지가 설치되어 있는지 확인하세요.`);
   }
 }
 

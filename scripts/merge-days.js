@@ -3,7 +3,20 @@
  * 서버 + 로컬 데이터를 dayKey 기준으로 병합
  */
 
-import { mergeByDay, convertToDayRows, normalizeDayKey } from '../src/lib/day-merge-service.js';
+// 동적 import로 TypeScript 파일 로드
+let mergeByDay, convertToDayRows, normalizeDayKey;
+
+async function loadDayMergeService() {
+  try {
+    const module = await import('../src/lib/day-merge-service.ts');
+    mergeByDay = module.mergeByDay;
+    convertToDayRows = module.convertToDayRows;
+    normalizeDayKey = module.normalizeDayKey;
+  } catch (error) {
+    console.error('❌ day-merge-service 모듈 로드 실패:', error);
+    throw new Error('day-merge-service 모듈을 로드할 수 없습니다.');
+  }
+}
 
 // 명령행 인자 파싱
 function parseArgs() {
@@ -55,17 +68,26 @@ async function fetchServerData() {
   }
 }
 
-// 로컬 데이터 가져오기 (IndexedDB 시뮬레이션)
+// 로컬 데이터 가져오기 (파일 시스템 사용)
+import fs from 'fs';
+import path from 'path';
+
 async function fetchLocalData() {
   try {
     console.log('💾 로컬 데이터 가져오는 중...');
     
-    // 실제로는 IndexedDB에서 가져와야 하지만, 
-    // 스크립트에서는 localStorage나 파일에서 시뮬레이션
-    const localData = JSON.parse(localStorage.getItem('youtubepulse_unclassified') || '[]');
+    // 로컬 데이터 파일 경로 (선택적)
+    const localDataPath = path.join(process.cwd(), 'data', 'local-unclassified.json');
     
-    console.log(`💾 로컬에서 ${localData.length}개 데이터 가져옴`);
-    return localData;
+    if (fs.existsSync(localDataPath)) {
+      const fileContent = fs.readFileSync(localDataPath, 'utf-8');
+      const localData = JSON.parse(fileContent);
+      console.log(`💾 로컬 파일에서 ${localData.length}개 데이터 가져옴`);
+      return localData;
+    } else {
+      console.log('💾 로컬 데이터 파일이 없습니다. 빈 배열 반환.');
+      return [];
+    }
   } catch (error) {
     console.warn('⚠️ 로컬 데이터 가져오기 실패:', error.message);
     return [];
@@ -110,6 +132,9 @@ async function uploadMergedData(mergedDays) {
 async function main() {
   try {
     console.log('🔄 일자별 데이터 병합 시작...\n');
+    
+    // day-merge-service 모듈 로드
+    await loadDayMergeService();
     
     const options = parseArgs();
     console.log('⚙️ 옵션:', options);
