@@ -21,6 +21,82 @@ console.log('🚀 FORCE RESTART TRIGGER - v2.0.0 -', new Date().toISOString());
 let pool = null;
 let isConnected = false;
 
+// PostgreSQL Pool 초기화 함수
+async function initializeDatabase() {
+  console.log('🔗 PostgreSQL 연결 풀 초기화 시작...');
+  
+  if (!process.env.DATABASE_URL) {
+    console.warn('⚠️ DATABASE_URL 환경 변수가 설정되지 않음 - 데이터베이스 없이 실행됩니다');
+    app.locals.pool = null; // pool을 null로 설정하여 API 핸들러가 이를 감지할 수 있도록
+    return;
+  }
+  
+  try {
+    // DATABASE_URL 처리 (기존 로직)
+    let databaseUrl = process.env.DATABASE_URL;
+    
+    // SSL 설정 처리
+    if (databaseUrl.includes('sslmode=require')) {
+      databaseUrl = databaseUrl.replace('sslmode=require', 'sslmode=disable');
+      console.log('🔧 SSL 설정 변경: sslmode=require → sslmode=disable');
+    } else if (!databaseUrl.includes('sslmode=')) {
+      databaseUrl = databaseUrl + '?sslmode=disable';
+      console.log('🔧 SSL 설정 추가: sslmode=disable');
+    }
+    
+    // 강제로 sslmode=disable 적용
+    if (databaseUrl.includes('sslmode=')) {
+      databaseUrl = databaseUrl.replace(/sslmode=[^&]*/, 'sslmode=disable');
+    } else {
+      databaseUrl = databaseUrl + '?sslmode=disable';
+    }
+    
+    // Pool 생성
+    pool = new Pool({ connectionString: databaseUrl });
+    console.log('✅ PostgreSQL 연결 풀 생성 완료');
+    
+    // 연결 테스트 (DB 접속 실패 시 여기서 에러 발생)
+    await pool.query('SELECT 1');
+    console.log('✅ PostgreSQL 연결 성공!');
+    
+    // 풀 객체를 Express 앱의 로컬 변수에 할당
+    // 이 코드가 없으면 API 핸들러가 Pool을 찾지 못합니다.
+    app.locals.pool = pool; // 👈 이 코드가 핵심입니다!
+    console.log('✅ PostgreSQL Pool을 app.locals.pool에 할당 완료');
+    
+    isConnected = true;
+    
+    // 추가 연결 테스트
+    const client = await pool.connect();
+    try {
+      const versionResult = await client.query('SELECT version()');
+      console.log('📊 PostgreSQL 버전:', versionResult.rows[0].version);
+      
+      // 테이블 목록 확인
+      const tablesResult = await pool.query(`
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public'
+      `);
+      console.log('📋 테이블 목록:', tablesResult.rows.map(row => row.table_name));
+      console.log('🎉 PostgreSQL 연결 및 쿼리 테스트 완료!');
+    } finally {
+      client.release();
+    }
+    
+  } catch (error) {
+    console.error('❌ PostgreSQL 연결 풀 초기화 실패:', error);
+    console.error('❌ DB 환경 변수(DATABASE_URL)를 확인하세요.');
+    pool = null;
+    isConnected = false;
+    app.locals.pool = null;
+    
+    // 연결 실패 시 서버 종료 (옵션 - 주석 처리하면 데이터베이스 없이도 서버 실행 가능)
+    // process.exit(1);
+    throw error; // 에러를 throw하여 호출자가 처리할 수 있도록
+  }
+}
+
 // 환경 변수 충돌 방지 - PG* 변수 제거
 const conflictingVars = ['PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD', 'PGSSLMODE'];
 conflictingVars.forEach(varName => {
@@ -99,56 +175,11 @@ if (process.env.DATABASE_URL) {
     }
   }
   
-  try {
-  // 1) Pool 생성은 ENV 검증 이후
-  pool = new Pool({ connectionString: databaseUrl }); // 코드 ssl 옵션 제거, 문자열 한 곳만 사용
-    console.log('✅ PostgreSQL 연결 풀 생성 완료 - 강제 재시작 트리거');
-    
-    // 2) 기동 확인용 쿼리
-    pool.query('select 1').then(r => {
-      console.log('PG select 1 OK:', r.rows);
-    }).catch(e => {
-      console.error('PG connect error:', e.message);
-      process.exit(1); // 초기 연결 실패 시 즉시 종료(재시작으로 빨리 드러냄)
-    });
-    
-    // 즉시 연결 테스트
-    pool.connect()
-      .then(client => {
-        console.log('✅ PostgreSQL 데이터베이스 연결 성공');
-        isConnected = true;
-        
-        // 테스트 쿼리 실행
-        return client.query('SELECT version()');
-      })
-      .then(result => {
-        console.log('📊 PostgreSQL 버전:', result.rows[0].version);
-        
-        // 테이블 목록 확인
-        return pool.query(`
-          SELECT table_name 
-          FROM information_schema.tables 
-          WHERE table_schema = 'public'
-        `);
-      })
-      .then(tables => {
-        console.log('📋 테이블 목록:', tables.rows.map(row => row.table_name));
-        console.log('🎉 PostgreSQL 연결 및 쿼리 테스트 완료!');
-      })
-      .catch(err => {
-        console.error('❌ PostgreSQL 데이터베이스 연결 실패:', err);
-        console.error('❌ 연결 에러 상세:', err.message);
-        pool = null;
-        isConnected = false;
-      });
-  } catch (error) {
-    console.error('❌ PostgreSQL 연결 풀 생성 실패:', error);
-    pool = null;
-    isConnected = false;
-  }
+  // 기존 Pool 생성 코드는 initializeDatabase() 함수로 이동됨
+  // 여기서는 DATABASE_URL 검증만 수행
 } else {
-  console.error('❌ DATABASE_URL 환경 변수가 설정되지 않음');
-  console.error('❌ 사용 가능한 환경 변수:', Object.keys(process.env).filter(key => key.includes('DATABASE')));
+  console.warn('⚠️ DATABASE_URL 환경 변수가 설정되지 않음 - 데이터베이스 없이 실행됩니다');
+  app.locals.pool = null; // pool을 null로 설정
 }
 
 // CORS 설정 (강화된 GitHub Pages 지원)
@@ -3670,11 +3701,15 @@ app.use((req, res, next) => {
   });
 });
 
-// 서버 시작
-console.log('🔧 서버 리스너 설정 중...');
-console.log(`🔧 포트: ${PORT}`);
-console.log(`🔧 호스트: 0.0.0.0`);
-app.listen(PORT, '0.0.0.0', () => {
+// 서버 시작 전 DB 초기화 실행
+initializeDatabase().then(() => {
+  console.log('🚀 서버 시작 준비 완료');
+  
+  // 서버 시작
+  console.log('🔧 서버 리스너 설정 중...');
+  console.log(`🔧 포트: ${PORT}`);
+  console.log(`🔧 호스트: 0.0.0.0`);
+  app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   
@@ -3790,4 +3825,21 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
   console.log('='.repeat(80) + '\n');
+  });
+}).catch(err => {
+  console.error('FATAL ERROR: DB 초기화 실패로 서버를 시작할 수 없습니다.', err);
+  console.error('❌ 오류 상세:', err.message);
+  console.error('❌ 오류 스택:', err.stack);
+  // DB 초기화 실패 시에도 서버는 시작 (데이터베이스 없이 실행 가능)
+  // process.exit(1); // 필요시 주석 해제
+  console.log('⚠️ 데이터베이스 없이 서버를 시작합니다...');
+  
+  // 서버 시작 (데이터베이스 없이)
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log('='.repeat(80));
+    console.log(`🚀 YouTube Pulse API Server running on port ${PORT} (without database)`);
+    console.log(`⏰ 서버 시작 시간 (UTC): ${new Date().toISOString()}`);
+    console.log('⚠️ 데이터베이스 연결 없이 실행 중입니다');
+    console.log('='.repeat(80));
+  });
 });
