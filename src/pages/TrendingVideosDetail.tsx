@@ -49,6 +49,7 @@ import { hybridService } from "@/lib/hybrid-service";
 import { getKoreanDateString } from "@/lib/utils";
 import { subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/hooks/useAuth";
+import { API_BASE_URL } from "@/lib/config";
 
 interface VideoData {
   id: string;
@@ -347,7 +348,10 @@ const TrendingVideosDetail = () => {
     setAnalyzingVideoId(video.id);
     
     try {
-      const response = await fetch('/api/analyze/video', {
+      const apiUrl = `${API_BASE_URL}/api/analyze/video`;
+      console.log('📡 API 요청 URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -28,6 +28,7 @@ import {
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
 import { getKoreanDateString } from "@/lib/utils";
+import { API_BASE_URL } from "@/lib/config";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -256,7 +257,10 @@ const ChannelTrend = () => {
     });
     
     try {
-      const response = await fetch('/api/analyze/video', {
+      const apiUrl = `${API_BASE_URL}/api/analyze/video`;
+      console.log('📡 API 요청 URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
