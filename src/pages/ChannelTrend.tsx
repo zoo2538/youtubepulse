@@ -236,7 +236,24 @@ const ChannelTrend = () => {
     }
     
     setAnalyzingVideoId(video.videoId);
-    console.log('📡 API 요청 전송 중...');
+    
+    const requestData = {
+      videoId: video.videoId,
+      title: video.title,
+      channelName: selectedChannel?.channelName || '알 수 없음',
+      description: video.description || '',
+      viewCount: video.viewCount,
+      apiKey: apiKey.trim(),
+    };
+    
+    console.log('📡 API 요청 전송 중...', {
+      videoId: requestData.videoId,
+      title: requestData.title.substring(0, 50),
+      channelName: requestData.channelName,
+      viewCount: requestData.viewCount,
+      apiKeyLength: requestData.apiKey.length,
+      hasDescription: !!requestData.description
+    });
     
     try {
       const response = await fetch('/api/analyze/video', {
@@ -244,22 +261,26 @@ const ChannelTrend = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          videoId: video.videoId,
-          title: video.title,
-          channelName: selectedChannel?.channelName || '알 수 없음',
-          description: video.description || '',
-          viewCount: video.viewCount,
-          apiKey: apiKey.trim(),
-        }),
+        body: JSON.stringify(requestData),
       });
 
       console.log('📥 API 응답 받음:', response.status, response.statusText);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API 오류:', errorText);
-        throw new Error(`분석 실패: ${response.statusText}`);
+        let errorMessage = `분석 실패: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          console.error('❌ API 오류 상세:', errorData);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          if (errorData.message) {
+            errorMessage += ` (${errorData.message})`;
+          }
+        } catch (parseError) {
+          const errorText = await response.text();
+          console.error('❌ API 오류 (텍스트):', errorText);
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -274,11 +295,15 @@ const ChannelTrend = () => {
         setOpenDialogVideoId(video.videoId);
         console.log('✅ 분석 완료 및 모달 열기');
       } else {
-        throw new Error(result.error || '분석 결과를 받을 수 없습니다.');
+        const errorMsg = result.error || result.message || '분석 결과를 받을 수 없습니다.';
+        console.error('❌ 분석 결과 오류:', result);
+        throw new Error(errorMsg);
       }
     } catch (error) {
       console.error('❌ AI 분석 실패:', error);
-      alert(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+      console.error('❌ 에러 스택:', error instanceof Error ? error.stack : 'N/A');
+      alert(`AI 분석 실패: ${errorMessage}\n\n브라우저 콘솔(F12)에서 자세한 오류를 확인하세요.`);
     } finally {
       setAnalyzingVideoId(null);
     }

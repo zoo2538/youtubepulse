@@ -158,28 +158,49 @@ export async function handleAnalyzeVideo(req, res) {
 
   } catch (error) {
     console.error('❌ 영상 AI 분석 API 오류:', error);
+    console.error('❌ 에러 스택:', error.stack);
+    console.error('❌ 에러 타입:', error.constructor.name);
+    console.error('❌ 요청 데이터:', {
+      videoId: req.body?.videoId,
+      title: req.body?.title?.substring(0, 50),
+      channelName: req.body?.channelName,
+      hasApiKey: !!req.body?.apiKey,
+      apiKeyLength: req.body?.apiKey?.length || 0
+    });
     
     // 에러 타입에 따라 적절한 상태 코드 반환
-    if (error.message?.includes('API 키가 필요합니다')) {
+    if (error.message?.includes('API 키가 필요합니다') || error.message?.includes('API 키')) {
       return res.status(400).json({
         success: false,
-        error: 'API 키가 필요합니다.',
-        message: error.message
+        error: 'API 키가 필요하거나 유효하지 않습니다.',
+        message: error.message,
+        details: 'Gemini API 키를 확인해주세요.'
       });
     }
 
-    if (error.message?.includes('분석 실패')) {
+    if (error.message?.includes('모듈을 찾을 수 없습니다') || error.message?.includes('gemini-service')) {
+      return res.status(500).json({
+        success: false,
+        error: 'Gemini 서비스 모듈을 로드할 수 없습니다.',
+        message: error.message,
+        details: '@google/generative-ai 패키지가 설치되어 있는지 확인하세요.'
+      });
+    }
+
+    if (error.message?.includes('분석 실패') || error.message?.includes('영상 분석 실패')) {
       return res.status(500).json({
         success: false,
         error: 'AI 분석 중 오류가 발생했습니다.',
-        message: error.message
+        message: error.message,
+        details: 'Gemini API 호출이 실패했습니다. API 키와 네트워크 연결을 확인하세요.'
       });
     }
 
     return res.status(500).json({
       success: false,
       error: '영상 분석 처리 중 오류 발생',
-      message: error.message || '알 수 없는 오류'
+      message: error.message || '알 수 없는 오류',
+      details: error.stack || '서버 로그를 확인하세요.'
     });
   }
 }
