@@ -3251,6 +3251,15 @@ app.get('/api/sync/check', async (req, res) => {
 
 // ✅ 영상 AI 분석 API
 app.post('/api/analyze/video', async (req, res) => {
+  console.log('📡 POST /api/analyze/video 요청 받음');
+  console.log('📡 요청 메서드:', req.method);
+  console.log('📡 요청 경로:', req.path);
+  console.log('📡 요청 본문:', {
+    videoId: req.body?.videoId,
+    title: req.body?.title?.substring(0, 50),
+    hasApiKey: !!req.body?.apiKey
+  });
+  
   try {
     const { handleAnalyzeVideo } = await import('./src/server/api/analyze/video.js');
     await handleAnalyzeVideo(req, res);
@@ -3674,30 +3683,23 @@ setInterval(() => {
 console.log('🧹 서버 시작 시 7일 데이터 정리 1회 실행...');
 autoCleanupOldData();
 
-// 정적 파일 서빙 (SPA) - API 라우트 처리 후 마지막에 배치
-// GET 요청만 처리하도록 설정 (POST 요청은 API 라우트로만)
-app.use((req, res, next) => {
-  // POST, PUT, DELETE 등은 정적 파일 서빙을 건너뛰고 다음 미들웨어로
-  if (req.method !== 'GET') {
-    return next();
-  }
-  // GET 요청만 정적 파일 서빙 처리
-  express.static(path.join(__dirname, '..'), {
-    maxAge: 31536000000, // 1년 (밀리초)
-    etag: true,
-    lastModified: true,
-    setHeaders: (res, path) => {
-      // 정적 리소스 캐싱 설정
-      if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-        res.setHeader('Content-Type', getContentType(path) + '; charset=utf-8');
-      } else if (path.match(/\.(html)$/)) {
-        // HTML 파일은 짧은 캐시 (180초)
-        res.setHeader('Cache-Control', 'public, max-age=180');
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      }
+// 정적 파일 서빙 (SPA) - GET 요청만 처리
+// API 라우트는 이미 위에서 처리되므로 여기서는 정적 파일만 처리
+const staticMiddleware = express.static(path.join(__dirname, '..'), {
+  maxAge: 31536000000, // 1년 (밀리초)
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, path) => {
+    // 정적 리소스 캐싱 설정
+    if (path.match(/\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Content-Type', getContentType(path) + '; charset=utf-8');
+    } else if (path.match(/\.(html)$/)) {
+      // HTML 파일은 짧은 캐시 (180초)
+      res.setHeader('Cache-Control', 'public, max-age=180');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
     }
-  })(req, res, next);
+  }
 });
 
 // Content-Type 헬퍼 함수
@@ -3720,13 +3722,21 @@ function getContentType(filePath) {
   return contentTypes[ext] || 'application/octet-stream';
 }
 
-// SPA 라우팅 - GET 요청만 index.html로 리다이렉트 (API 라우트 제외)
-app.get('*', (req, res) => {
-  // API 경로는 제외하고 SPA 라우팅 적용
+// GET 요청만 정적 파일 서빙 및 SPA 라우팅 처리 (POST 등은 API 라우트로만)
+app.get('*', (req, res, next) => {
+  // API 경로는 제외
   if (req.path.startsWith('/api/')) {
-    // API 라우트는 이미 위에서 처리되었으므로 여기서는 404
     return res.status(404).json({ error: 'API endpoint not found' });
   }
-  // __dirname은 /app/dist/server이므로, 한 단계 위로 이동
-  res.sendFile(path.join(__dirname, '..', 'index.html'));
+  
+  // 정적 파일 먼저 시도
+  staticMiddleware(req, res, (err) => {
+    if (err) {
+      return next(err);
+    }
+    // 정적 파일이 없으면 index.html로 리다이렉트
+    if (!res.headersSent) {
+      res.sendFile(path.join(__dirname, '..', 'index.html'));
+    }
+  });
 });

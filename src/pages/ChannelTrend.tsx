@@ -266,19 +266,28 @@ const ChannelTrend = () => {
 
       console.log('📥 API 응답 받음:', response.status, response.statusText);
 
+      // 응답 본문을 한 번만 읽기
+      const contentType = response.headers.get('content-type');
+      const isJson = contentType && contentType.includes('application/json');
+      
       if (!response.ok) {
         let errorMessage = `분석 실패: ${response.statusText}`;
         try {
-          const errorData = await response.json();
-          console.error('❌ API 오류 상세:', errorData);
-          errorMessage = errorData.error || errorData.message || errorMessage;
-          if (errorData.message) {
-            errorMessage += ` (${errorData.message})`;
+          if (isJson) {
+            const errorData = await response.json();
+            console.error('❌ API 오류 상세:', errorData);
+            errorMessage = errorData.error || errorData.message || errorMessage;
+            if (errorData.message && errorData.message !== errorMessage) {
+              errorMessage += ` (${errorData.message})`;
+            }
+          } else {
+            const errorText = await response.text();
+            console.error('❌ API 오류 (텍스트):', errorText);
+            errorMessage = errorText || errorMessage;
           }
         } catch (parseError) {
-          const errorText = await response.text();
-          console.error('❌ API 오류 (텍스트):', errorText);
-          errorMessage = errorText || errorMessage;
+          console.error('❌ 응답 본문 읽기 실패:', parseError);
+          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
