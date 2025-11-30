@@ -969,12 +969,14 @@ const ChannelTrend = () => {
                             console.log('🔑 API 키 상태:', geminiApiKey);
                             
                             // 이미 분석된 경우 결과 표시, 아니면 새로 분석
-                            if (analysisResults[selectedChannel.topVideo!.videoId]) {
+                            const videoId = selectedChannel.topVideo!.videoId;
+                            if (analysisResults[videoId]) {
                               console.log('📊 기존 분석 결과 표시');
-                              setOpenDialogVideoId(selectedChannel.topVideo!.videoId);
-                            } else if (analyzedVideoIds.has(selectedChannel.topVideo!.videoId)) {
-                              // 분석 완료되었지만 결과가 없는 경우 (캐시에서 로드 필요)
-                              console.log('📊 분석 완료 상태이지만 결과 없음 - 재분석');
+                              setOpenDialogVideoId(videoId);
+                            } else if (analyzedVideoIds.has(videoId)) {
+                              // 분석 완료되었지만 결과가 없는 경우 - 결과를 다시 확인하거나 재분석
+                              console.log('📊 분석 완료 상태이지만 결과 없음');
+                              // 결과가 없으면 재분석
                               handleAnalyze(selectedChannel.topVideo!);
                             } else {
                               console.log('🚀 새 분석 시작');
@@ -1141,6 +1143,119 @@ const ChannelTrend = () => {
           </div>
         </div>
       </div>
+
+      {/* AI 분석 결과 모달 */}
+      {openDialogVideoId && analysisResults[openDialogVideoId] && (
+        <Dialog open={!!openDialogVideoId} onOpenChange={(open) => {
+          if (!open) setOpenDialogVideoId(null);
+        }}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center">
+                <Sparkles className="w-5 h-5 mr-2" />
+                ✨ AI 분석 결과
+              </DialogTitle>
+              <DialogDescription>
+                영상에 대한 AI 기반 트렌드 분석 결과입니다.
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 mt-4">
+              {/* 요약 */}
+              <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+                <h3 className="font-semibold text-purple-700 mb-2 flex items-center">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  요약
+                </h3>
+                <p className="text-sm text-foreground whitespace-pre-line">
+                  {analysisResults[openDialogVideoId].summary}
+                </p>
+              </Card>
+
+              {/* 인기 원인 */}
+              <Card className="p-4 border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50">
+                <h3 className="font-semibold text-blue-700 mb-2 flex items-center">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  인기 원인
+                </h3>
+                <p className="text-sm text-foreground">
+                  {analysisResults[openDialogVideoId].viral_reason}
+                </p>
+              </Card>
+
+              {/* 낚시 지수 */}
+              <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
+                <h3 className="font-semibold text-purple-700 mb-3 flex items-center">
+                  <Eye className="w-4 h-4 mr-2" />
+                  낚시 지수
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">점수</span>
+                    <span className="font-semibold text-purple-600">
+                      {analysisResults[openDialogVideoId].clickbait_score} / 100
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Progress 
+                      value={analysisResults[openDialogVideoId].clickbait_score} 
+                      className="h-3 bg-gray-200"
+                    />
+                    <div 
+                      className="absolute top-0 left-0 h-3 rounded-full bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 transition-all duration-300"
+                      style={{ width: `${analysisResults[openDialogVideoId].clickbait_score}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {analysisResults[openDialogVideoId].clickbait_score >= 70 
+                      ? "높은 낚시성 콘텐츠" 
+                      : analysisResults[openDialogVideoId].clickbait_score >= 40 
+                      ? "보통 낚시성 콘텐츠" 
+                      : "낮은 낚시성 콘텐츠"}
+                  </p>
+                </div>
+              </Card>
+
+              {/* 추천 키워드 */}
+              <Card className="p-4 border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50">
+                <h3 className="font-semibold text-blue-700 mb-3 flex items-center">
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  추천 키워드
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {analysisResults[openDialogVideoId].keywords.map((keyword, idx) => (
+                    <Badge
+                      key={idx}
+                      className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                    >
+                      {keyword}
+                    </Badge>
+                  ))}
+                </div>
+              </Card>
+
+              {/* 여론/반응 */}
+              <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+                <h3 className="font-semibold text-purple-700 mb-2 flex items-center">
+                  <TrendingUp className="w-4 h-4 mr-2" />
+                  여론/반응
+                </h3>
+                <Badge
+                  className={
+                    analysisResults[openDialogVideoId].sentiment === '긍정'
+                      ? "bg-green-500 text-white"
+                      : analysisResults[openDialogVideoId].sentiment === '부정'
+                      ? "bg-red-500 text-white"
+                      : "bg-gray-500 text-white"
+                  }
+                >
+                  {analysisResults[openDialogVideoId].sentiment}
+                </Badge>
+              </Card>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* API 키 설정 모달 */}
       <Dialog open={openApiKeyDialog} onOpenChange={setOpenApiKeyDialog}>
