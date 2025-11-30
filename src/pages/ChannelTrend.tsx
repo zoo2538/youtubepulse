@@ -322,7 +322,7 @@ const ChannelTrend = () => {
     }
   };
 
-  // 채널 랭킹 데이터 로드
+  // 채널 랭킹 데이터 로드 (Web Worker 사용)
   useEffect(() => {
     const loadChannelRankings = async () => {
       try {
@@ -344,185 +344,71 @@ const ChannelTrend = () => {
         const loadTime = performance.now() - startTime;
         console.log(`📊 데이터 로드 완료: ${classifiedData.length + unclassifiedData.length}개 (${loadTime.toFixed(0)}ms)`);
         
-        // 한 번의 순회로 오늘/어제 데이터 분리 및 필터링 (성능 최적화)
-        const todayData: any[] = [];
-        const yesterdayData: any[] = [];
-        const allData = [...classifiedData, ...unclassifiedData];
+        // Web Worker 생성 및 랭킹 계산 위임
+        const worker = new Worker(new URL('../workers/ranking-worker.js', import.meta.url), { type: 'module' });
         
-        for (const item of allData) {
-          // 날짜 추출 (한 번만 수행)
-          const itemDate = item.collectionDate || item.uploadDate || item.dayKeyLocal;
-          if (!itemDate) continue;
-          
-          const dateStr = itemDate.split('T')[0];
-          const isToday = dateStr === targetDate;
-          const isYesterday = dateStr === yesterdayStr;
-          
-          if (!isToday && !isYesterday) continue;
-          
-          // 대한민국 채널 필터링 (필요한 경우만)
-          if (country === '대한민국' && !isKoreanChannel(item)) continue;
-          
-          // 날짜별로 분류
-          if (isToday) todayData.push(item);
-          if (isYesterday) yesterdayData.push(item);
-        }
-        
-        // 채널별 그룹화 (성능 최적화: 비디오 배열 대신 Set 사용)
-        const todayChannelGroups: any = {};
-        const videoIdSets: Record<string, Set<string>> = {}; // 고유 비디오 ID 추적
-        
-        for (const item of todayData) {
-          if (!item.channelId || !item.channelName) continue;
-          
-          // 공식 채널 필터링
-          const isOfficial = isOfficialChannel(item.channelName);
-          
-          // 공식 채널만 표시 모드
-          if (showOnlyOfficial && !isOfficial) continue;
-          
-          // 공식 채널 제외 모드
-          if (excludeOfficial && !showOnlyOfficial && isOfficial) continue;
-          
-          if (!todayChannelGroups[item.channelId]) {
-            todayChannelGroups[item.channelId] = {
-              channelId: item.channelId,
-              channelName: item.channelName,
-              thumbnail: item.thumbnailUrl || `https://via.placeholder.com/96x96?text=${item.channelName.charAt(0)}`,
-              todayViews: 0,
-              description: item.description || item.channelDescription,
-              // 채널 상세 정보 추출 (가능한 경우)
-              totalSubscribers: item.subscriberCount || item.totalSubscribers,
-              channelCreationDate: item.channelCreationDate || item.channelCreationDate || 
-                (item.publishedAt ? item.publishedAt.split('T')[0] : undefined),
-              videoCount: 0
-            };
-            videoIdSets[item.channelId] = new Set();
-          }
-          
-          todayChannelGroups[item.channelId].todayViews += item.viewCount || 0;
-          // 고유 비디오 ID 추적
-          const videoId = item.videoId || item.id;
-          if (videoId) {
-            videoIdSets[item.channelId].add(videoId);
-          }
-        }
-        
-        // 고유 비디오 개수 설정 및 최고 조회수 비디오 찾기
-        Object.keys(todayChannelGroups).forEach(channelId => {
-          todayChannelGroups[channelId].videoCount = videoIdSets[channelId]?.size || 0;
-          
-          // 해당 채널의 최고 조회수 비디오 찾기
-          const channelVideos = todayData.filter((item: any) => 
-            item.channelId === channelId && (item.videoId || item.id)
-          );
-          if (channelVideos.length > 0) {
-            const topVideo = channelVideos.reduce((max: any, video: any) => 
-              (video.viewCount || 0) > (max.viewCount || 0) ? video : max
-            );
-            todayChannelGroups[channelId].topVideo = {
-              videoId: topVideo.videoId || topVideo.id,
-              title: topVideo.videoTitle || topVideo.title || '제목 없음',
-              viewCount: topVideo.viewCount || 0,
-              description: topVideo.videoDescription || topVideo.description || '',
-              thumbnailUrl: topVideo.thumbnailUrl || topVideo.thumbnail
-            };
-          }
+        // 워커에 데이터 전송
+        worker.postMessage({
+          classifiedData,
+          unclassifiedData,
+          targetDate,
+          yesterdayStr,
+          showNewOnly,
+          reverseOrder,
+          country,
+          excludeOfficial,
+          showOnlyOfficial
         });
         
-        const yesterdayChannelGroups: any = {};
-        yesterdayData.forEach((item: any) => {
-          if (!item.channelId) return;
-          if (!yesterdayChannelGroups[item.channelId]) {
-            yesterdayChannelGroups[item.channelId] = { totalViews: 0 };
-          }
-          yesterdayChannelGroups[item.channelId].totalViews += item.viewCount || 0;
-        });
-        
-        // 어제 랭킹 계산
-        const yesterdayRankings: any = {};
-        Object.entries(yesterdayChannelGroups)
-          .sort(([, a]: any, [, b]: any) => b.totalViews - a.totalViews)
-          .forEach(([channelId], index) => {
-            yesterdayRankings[channelId] = index + 1;
-          });
-        
-        // 랭킹 데이터 생성
-        const rankings: ChannelRankingData[] = Object.values(todayChannelGroups)
-          .map((channel: any) => {
-            const yesterdayViews = yesterdayChannelGroups[channel.channelId]?.totalViews || 0;
-            const yesterdayRank = yesterdayRankings[channel.channelId] || 999999;
-            const todayRank = 0; // 나중에 계산
+        // 워커로부터 결과 수신
+        worker.onmessage = (e) => {
+          const { success, rankings, processingTime, channelCount, error } = e.data;
+          
+          if (success) {
+            setChannelRankings(rankings);
             
-            const changeAmount = channel.todayViews - yesterdayViews;
-            const changePercent = yesterdayViews > 0 ? (changeAmount / yesterdayViews) * 100 : 0;
+            const totalTime = performance.now() - startTime;
+            console.log(`✅ 채널 랭킹 계산 완료: ${channelCount}개 채널 (워커: ${processingTime.toFixed(0)}ms, 총: ${totalTime.toFixed(0)}ms)`);
             
-            return {
-              rank: 0,
-              channelId: channel.channelId,
-              channelName: channel.channelName,
-              thumbnail: channel.thumbnail,
-              todayViews: channel.todayViews,
-              yesterdayViews,
-              rankChange: yesterdayRank - todayRank, // 양수면 상승
-              changePercent,
-              description: channel.description,
-              totalSubscribers: channel.totalSubscribers,
-              channelCreationDate: channel.channelCreationDate,
-              videoCount: channel.videoCount || channel.videos.length,
-              topVideo: channel.topVideo
-            };
-          })
-          .filter(channel => {
-            if (showNewOnly) {
-              // 신규진입: 어제 랭킹이 없었던 채널
-              return !yesterdayRankings[channel.channelId];
+            // URL 파라미터로 채널이 지정된 경우 선택
+            if (channelIdParam && rankings.length > 0) {
+              const foundChannel = rankings.find(c => c.channelId === channelIdParam);
+              if (foundChannel) {
+                setSelectedChannel(foundChannel);
+                setSelectedChannelId(channelIdParam);
+              }
+            } else if (selectedChannelId && rankings.length > 0) {
+              // 날짜 변경 시 선택된 채널이 새로운 랭킹에 있는지 확인
+              const foundChannel = rankings.find(c => c.channelId === selectedChannelId);
+              if (foundChannel) {
+                // 같은 채널이면 선택 상태만 업데이트 (selectedChannelId는 변경하지 않아 차트는 다시 로드하지 않음)
+                setSelectedChannel(foundChannel);
+                // selectedChannelId는 변경하지 않음 - 차트는 다시 로드되지 않음
+              } else {
+                // 선택된 채널이 새 랭킹에 없으면 선택 해제
+                setSelectedChannel(null);
+                setSelectedChannelId('');
+                setSearchParams({});
+              }
             }
-            return true;
-          })
-          .sort((a, b) => {
-            if (reverseOrder) {
-              return a.todayViews - b.todayViews;
-            }
-            return b.todayViews - a.todayViews;
-          })
-          .map((channel, index) => {
-            const yesterdayRank = yesterdayRankings[channel.channelId] || 999999;
-            return {
-              ...channel,
-              rank: index + 1,
-              rankChange: yesterdayRank === 999999 ? 0 : yesterdayRank - (index + 1)
-            };
-          });
-        
-        setChannelRankings(rankings);
-        
-        const totalTime = performance.now() - startTime;
-        console.log(`✅ 채널 랭킹 계산 완료: ${rankings.length}개 채널 (총 ${totalTime.toFixed(0)}ms)`);
-        
-        // URL 파라미터로 채널이 지정된 경우 선택
-        if (channelIdParam && rankings.length > 0) {
-          const foundChannel = rankings.find(c => c.channelId === channelIdParam);
-          if (foundChannel) {
-            setSelectedChannel(foundChannel);
-            setSelectedChannelId(channelIdParam);
-          }
-        } else if (selectedChannelId && rankings.length > 0) {
-          // 날짜 변경 시 선택된 채널이 새로운 랭킹에 있는지 확인
-          const foundChannel = rankings.find(c => c.channelId === selectedChannelId);
-          if (foundChannel) {
-            // 같은 채널이면 선택 상태만 업데이트 (selectedChannelId는 변경하지 않아 차트는 다시 로드하지 않음)
-            setSelectedChannel(foundChannel);
-            // selectedChannelId는 변경하지 않음 - 차트는 다시 로드되지 않음
+            
+            setIsLoading(false);
           } else {
-            // 선택된 채널이 새 랭킹에 없으면 선택 해제
-            setSelectedChannel(null);
-            setSelectedChannelId('');
-            setSearchParams({});
+            console.error('❌ 워커 랭킹 계산 실패:', error);
+            setIsLoading(false);
           }
-        }
+          
+          // 워커 종료
+          worker.terminate();
+        };
         
-        setIsLoading(false);
+        // 워커 오류 처리
+        worker.onerror = (error) => {
+          console.error('❌ 워커 오류:', error);
+          setIsLoading(false);
+          worker.terminate();
+        };
+        
       } catch (error) {
         console.error('채널 랭킹 로드 실패:', error);
         setIsLoading(false);
