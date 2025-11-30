@@ -366,8 +366,12 @@ async function createTables() {
   }
 }
 
-// 서버 시작 시 테이블 생성
-createTables();
+// 서버 시작 시 테이블 생성 (에러 처리 포함)
+createTables().catch((error) => {
+  console.error('❌ 테이블 생성 중 오류 발생 (서버는 계속 실행):', error);
+  console.error('❌ 오류 상세:', error.message);
+  // 서버는 계속 실행되도록 함 (테이블 생성 실패는 치명적이지 않음)
+});
 
 // 라우트 등록 로그
 console.log('🔍 API 라우트 등록 완료:');
@@ -3668,7 +3672,10 @@ app.use((req, res, next) => {
 
 // 서버 시작
 console.log('🔧 서버 리스너 설정 중...');
-app.listen(PORT, '0.0.0.0', () => {
+console.log(`🔧 포트: ${PORT}`);
+console.log(`🔧 호스트: 0.0.0.0`);
+try {
+  app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   
