@@ -29,10 +29,16 @@ try {
   const serverModule = await import('./dist/server/index.js');
   console.log('✅ 서버 모듈 로드 완료');
   
-  // 서버가 시작될 때까지 잠시 대기 (app.listen이 비동기로 실행됨)
-  await new Promise(resolve => setTimeout(resolve, 2000));
+  // 서버가 시작될 때까지 대기 (app.listen이 비동기로 실행됨)
+  // Railway 헬스체크를 위해 충분한 시간 대기
+  console.log('⏳ 서버 시작 대기 중... (최대 10초)');
+  for (let i = 0; i < 10; i++) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    console.log(`  ${i + 1}/10초 대기 중...`);
+  }
   
-  console.log('✅ 전체 서버 시작 성공');
+  console.log('✅ 전체 서버 시작 완료 (대기 종료)');
+  console.log('🌐 서버가 포트', process.env.PORT || 3000, '에서 실행 중입니다');
 } catch (error) {
   console.error('❌ 전체 서버 시작 실패:', error);
   console.error('❌ 오류 상세:', error.message);
