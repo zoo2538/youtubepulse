@@ -3784,3 +3784,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
   console.log('='.repeat(80) + '\n');
+});
