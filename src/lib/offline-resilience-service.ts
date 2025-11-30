@@ -25,6 +25,8 @@ class OfflineResilienceService {
   private readonly MAX_RETRY_COUNT = 3;
   private readonly RETRY_DELAY = 5000; // 5초
   private retryTimer: NodeJS.Timeout | null = null;
+  private toastShown: boolean = false; // 토스트 중복 표시 방지
+  private consecutiveFailures: number = 0; // 연속 실패 횟수
 
   constructor() {
     this.initialize();
@@ -35,8 +37,8 @@ class OfflineResilienceService {
     window.addEventListener('online', this.handleOnline);
     window.addEventListener('offline', this.handleOffline);
     
-    // 주기적 연결 상태 확인
-    setInterval(this.checkConnection, 30000); // 30초마다
+    // 주기적 연결 상태 확인 (60초마다, 실패 시 백오프 적용)
+    setInterval(this.checkConnection, 60000); // 60초마다
     
     // 재시도 큐 처리
     this.startRetryProcessor();
@@ -46,6 +48,8 @@ class OfflineResilienceService {
     console.log('🔄 온라인 상태 복원');
     this.state.isOnline = true;
     this.state.lastOnlineCheck = Date.now();
+    this.consecutiveFailures = 0; // 연속 실패 횟수 초기화
+    this.toastShown = false; // 토스트 플래그 초기화
     
     // 재시도 큐 처리 시작
     this.processRetryQueue();
@@ -66,30 +70,39 @@ class OfflineResilienceService {
   private checkConnection = async () => {
     try {
       if (!API_BASE_URL) {
-        throw new Error('API base URL is not configured.');
+        // API_BASE_URL이 없으면 오프라인으로 표시하지 않음 (로컬 모드)
+        return;
       }
 
       const response = await fetch(`${API_BASE_URL}/api/health`, {
         method: 'HEAD',
         cache: 'no-cache',
-        signal: AbortSignal.timeout(5000) // 5초 타임아웃 추가
+        signal: AbortSignal.timeout(10000) // 10초 타임아웃 (더 여유있게)
       });
       
       if (response.ok) {
+        this.consecutiveFailures = 0; // 성공 시 실패 횟수 초기화
+        
         if (!this.state.isOnline) {
           console.log('🔄 연결 상태 복원 감지');
           this.handleOnline();
         }
       } else {
-        if (this.state.isOnline) {
-          console.log('🔄 연결 상태 손실 감지');
+        this.consecutiveFailures++;
+        // 연속 3회 실패 시에만 오프라인으로 표시 (일시적 오류 방지)
+        if (this.state.isOnline && this.consecutiveFailures >= 3) {
+          console.log('🔄 연결 상태 손실 감지 (연속 실패)');
           this.handleOffline();
         }
       }
     } catch (error) {
-      if (this.state.isOnline) {
-        console.log('🔄 연결 상태 손실 감지 (오류):', error);
+      this.consecutiveFailures++;
+      // 연속 3회 실패 시에만 오프라인으로 표시 (일시적 오류 방지)
+      if (this.state.isOnline && this.consecutiveFailures >= 3) {
+        console.log('🔄 연결 상태 손실 감지 (오류, 연속 실패):', error);
         this.handleOffline();
+      } else if (this.consecutiveFailures < 3) {
+        console.log(`⚠️ 헬스체크 실패 (${this.consecutiveFailures}/3):`, error);
       }
     }
   };
@@ -221,6 +234,19 @@ class OfflineResilienceService {
 
   // 오프라인 토스트 표시
   private showOfflineToast(message?: string) {
+    // 이미 토스트가 표시 중이면 중복 표시하지 않음
+    if (this.toastShown) {
+      return;
+    }
+    
+    this.toastShown = true;
+    
+    // 기존 토스트 제거 (혹시 모를 중복 방지)
+    const existingToast = document.querySelector('.offline-toast');
+    if (existingToast) {
+      existingToast.remove();
+    }
+    
     const toast = document.createElement('div');
     toast.className = 'offline-toast';
     toast.textContent = message || '오프라인 모드 - 연결 복원 시 자동 동기화';
@@ -238,22 +264,29 @@ class OfflineResilienceService {
       animation: slideIn 0.3s ease-out;
     `;
     
-    // 애니메이션 추가
-    const style = document.createElement('style');
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
+    // 애니메이션 추가 (스타일이 없을 때만)
+    if (!document.querySelector('#offline-toast-style')) {
+      const style = document.createElement('style');
+      style.id = 'offline-toast-style';
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
     
     document.body.appendChild(toast);
     
-    // 5초 후 제거
+    // 5초 후 제거 및 플래그 초기화
     setTimeout(() => {
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast);
+      }
+      // 온라인 상태가 아니면 플래그 유지 (다시 표시 가능하도록)
+      if (this.state.isOnline) {
+        this.toastShown = false;
       }
     }, 5000);
   };
