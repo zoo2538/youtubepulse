@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useMemo, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -358,20 +358,40 @@ const ChannelTrend = () => {
     loadChannelRankings();
   }, [selectedDate, showNewOnly, reverseOrder, channelIdParam, country, excludeOfficial, showOnlyOfficial, selectedChannelId, setSearchParams]);
 
-  // 채널 랭킹 업데이트 후 스크롤 위치 복원
+  // 스크롤 위치 지속적 저장 (사용자가 스크롤할 때마다 저장)
   useEffect(() => {
-    if (!isLoading && shouldRestoreScrollRef.current && savedScrollTopRef.current !== null) {
+    const handleScroll = () => {
+      if (tableScrollRef.current) {
+        savedScrollTopRef.current = tableScrollRef.current.scrollTop;
+      }
+    };
+
+    const scrollElement = tableScrollRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+      return () => {
+        scrollElement.removeEventListener('scroll', handleScroll);
+      };
+    }
+  }, [channelRankings]); // channelRankings가 변경되어도 스크롤 리스너 재등록
+
+  // 리렌더링 직후 스크롤 위치 복원 (useLayoutEffect로 DOM 업데이트 직후 실행)
+  useLayoutEffect(() => {
+    if (savedScrollTopRef.current !== null && tableScrollRef.current) {
+      const savedScroll = savedScrollTopRef.current;
+      // DOM 업데이트 직후 스크롤 위치 복원
+      tableScrollRef.current.scrollTop = savedScroll;
+    }
+  }, [channelRankings]); // channelRankings 변경 시 스크롤 복원
+
+  // 채널 랭킹 업데이트 후 스크롤 위치 복원 (로딩 완료 시에만)
+  useEffect(() => {
+    if (!isLoading && savedScrollTopRef.current !== null && tableScrollRef.current) {
       // 랭킹 업데이트 후 스크롤 위치 복원
       const restoreScroll = () => {
         const savedScroll = savedScrollTopRef.current;
-        if (savedScroll !== null) {
-          // 테이블 컨테이너가 있으면 테이블 스크롤 복원
-          if (tableScrollRef.current) {
-            tableScrollRef.current.scrollTop = savedScroll;
-          } else {
-            // 테이블 컨테이너가 없으면 window 스크롤 복원
-            window.scrollTo(0, savedScroll);
-          }
+        if (savedScroll !== null && tableScrollRef.current) {
+          tableScrollRef.current.scrollTop = savedScroll;
         }
       };
       
@@ -384,14 +404,9 @@ const ChannelTrend = () => {
         setTimeout(() => {
           restoreScroll();
         }, 100);
-        setTimeout(() => {
-          restoreScroll();
-          // 복원 완료 후 플래그 초기화 (다음 로딩을 위해)
-          shouldRestoreScrollRef.current = false;
-        }, 200);
       });
     }
-  }, [channelRankings, isLoading]);
+  }, [isLoading]); // isLoading만 의존성으로 사용하여 로딩 완료 시에만 실행
 
   // 채널 선택 시 차트 데이터 로드
   useEffect(() => {
