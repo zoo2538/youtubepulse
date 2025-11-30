@@ -49,6 +49,12 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
         
+      - name: Remove server files before upload
+        run: |
+          echo "🗑️ GitHub Pages 배포 전 서버 파일 제거 중..."
+          rm -rf dist/server
+          echo "✅ 서버 파일 제거 완료"
+      
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
