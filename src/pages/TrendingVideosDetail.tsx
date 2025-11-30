@@ -11,6 +11,22 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { 
   TrendingUp, 
   ArrowLeft, 
@@ -21,7 +37,10 @@ import {
   LogOut,
   Users,
   Settings,
-  User
+  User,
+  Sparkles,
+  CheckCircle2,
+  Loader2
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -40,6 +59,14 @@ interface VideoData {
   subCategory: string;
   uploadDate: string;
   description: string;
+}
+
+interface AiAnalysisResult {
+  summary: string;
+  viral_reason: string;
+  keywords: string[];
+  clickbait_score: number;
+  sentiment: string;
 }
 
 function formatViews(views: number): string {
@@ -83,6 +110,12 @@ const TrendingVideosDetail = () => {
   // 하드코딩된 세부카테고리 사용
   const dynamicSubCategories = subCategories;
   const isAdmin = !!userEmail; // 로그인한 모든 사용자를 관리자로 처리
+  
+  // AI 분석 관련 상태
+  const [analyzingVideoId, setAnalyzingVideoId] = useState<string | null>(null);
+  const [analysisResults, setAnalysisResults] = useState<Record<string, AiAnalysisResult>>({});
+  const [openDialogVideoId, setOpenDialogVideoId] = useState<string | null>(null);
+  const [analyzedVideoIds, setAnalyzedVideoIds] = useState<Set<string>>(new Set());
 
   const handleLogout = () => {
     logout();
@@ -270,6 +303,51 @@ const TrendingVideosDetail = () => {
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
     setSelectedSubCategory('all');
+  };
+
+  // AI 분석 함수
+  const handleAnalyze = async (video: VideoData) => {
+    if (analyzingVideoId === video.id) return; // 이미 분석 중이면 무시
+    
+    setAnalyzingVideoId(video.id);
+    
+    try {
+      const response = await fetch('/api/analyze/video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          videoId: video.id,
+          title: video.title,
+          channelName: video.channelName,
+          description: video.description,
+          viewCount: video.views,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`분석 실패: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setAnalysisResults(prev => ({
+          ...prev,
+          [video.id]: result.data,
+        }));
+        setAnalyzedVideoIds(prev => new Set([...prev, video.id]));
+        setOpenDialogVideoId(video.id); // 분석 결과 모달 열기
+      } else {
+        throw new Error(result.error || '분석 결과를 받을 수 없습니다.');
+      }
+    } catch (error) {
+      console.error('AI 분석 실패:', error);
+      alert(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setAnalyzingVideoId(null);
+    }
   };
 
   if (loading) {
@@ -510,15 +588,224 @@ const TrendingVideosDetail = () => {
               </p>
             </div>
           ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <TrendingUp className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium">표가 제거되었습니다</p>
-              <p className="text-sm mt-2">
-                조회수 급등 동영상 표시 기능이 비활성화되었습니다.
-              </p>
+            <div className="border rounded-lg overflow-hidden">
+              <Table>
+                <TableHeader className="sticky top-0 bg-muted/50 z-10">
+                  <TableRow>
+                    <TableHead className="w-16 text-center">순위</TableHead>
+                    <TableHead>동영상 정보</TableHead>
+                    <TableHead className="text-right">조회수</TableHead>
+                    <TableHead className="text-center">카테고리</TableHead>
+                    <TableHead className="text-center">AI 분석</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredVideoData.map((video, index) => {
+                    const isAnalyzing = analyzingVideoId === video.id;
+                    const isAnalyzed = analyzedVideoIds.has(video.id);
+                    const hasResult = analysisResults[video.id];
+                    
+                    return (
+                      <TableRow key={video.id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="text-center font-semibold">{index + 1}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-4">
+                            <a
+                              href={`https://www.youtube.com/watch?v=${video.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="relative hover:opacity-80 transition-opacity"
+                            >
+                              <div className="relative overflow-hidden rounded w-32 h-20 bg-muted">
+                                <img
+                                  src={video.thumbnail}
+                                  alt={video.title}
+                                  className="w-full h-full object-cover object-center"
+                                />
+                              </div>
+                            </a>
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="font-medium text-foreground line-clamp-2">
+                                {video.title}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {video.channelName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {video.timeAgo}
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="font-medium">{formatViews(video.views)}</div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <div className="flex flex-col items-center space-y-1">
+                            <Badge variant="outline" className="text-xs">
+                              {video.category}
+                            </Badge>
+                            {video.subCategory && (
+                              <Badge variant="secondary" className="text-xs">
+                                {video.subCategory}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            size="sm"
+                            variant={isAnalyzed ? "outline" : "default"}
+                            onClick={() => {
+                              if (hasResult) {
+                                setOpenDialogVideoId(video.id);
+                              } else {
+                                handleAnalyze(video);
+                              }
+                            }}
+                            disabled={isAnalyzing}
+                            className={
+                              isAnalyzed
+                                ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                                : "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                            }
+                          >
+                            {isAnalyzing ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                분석 중...
+                              </>
+                            ) : isAnalyzed ? (
+                              <>
+                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                                📊 분석 완료
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4 mr-2" />
+                                ✨ AI 분석
+                              </>
+                            )}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
         </Card>
+
+        {/* AI 분석 결과 모달 */}
+        {openDialogVideoId && analysisResults[openDialogVideoId] && (
+          <Dialog open={!!openDialogVideoId} onOpenChange={(open) => !open && setOpenDialogVideoId(null)}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                  ✨ AI 분석 결과
+                </DialogTitle>
+                <DialogDescription>
+                  {filteredVideoData.find(v => v.id === openDialogVideoId)?.title}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6 mt-4">
+                {/* 3줄 요약 */}
+                <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-blue-50">
+                  <h3 className="font-semibold text-purple-700 mb-2 flex items-center">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    요약
+                  </h3>
+                  <p className="text-sm text-foreground whitespace-pre-line">
+                    {analysisResults[openDialogVideoId].summary}
+                  </p>
+                </Card>
+
+                {/* 인기 원인 */}
+                <Card className="p-4 border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-purple-50">
+                  <h3 className="font-semibold text-blue-700 mb-2 flex items-center">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    인기 원인
+                  </h3>
+                  <p className="text-sm text-foreground">
+                    {analysisResults[openDialogVideoId].viral_reason}
+                  </p>
+                </Card>
+
+                {/* 낚시 지수 */}
+                <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
+                  <h3 className="font-semibold text-purple-700 mb-3 flex items-center">
+                    <Eye className="w-4 h-4 mr-2" />
+                    낚시 지수
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">점수</span>
+                      <span className="font-semibold text-purple-600">
+                        {analysisResults[openDialogVideoId].clickbait_score} / 100
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <Progress 
+                        value={analysisResults[openDialogVideoId].clickbait_score} 
+                        className="h-3 bg-gray-200"
+                      />
+                      <div 
+                        className="absolute top-0 left-0 h-3 rounded-full bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 transition-all duration-300"
+                        style={{ width: `${analysisResults[openDialogVideoId].clickbait_score}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {analysisResults[openDialogVideoId].clickbait_score >= 70 
+                        ? "높은 낚시성 콘텐츠" 
+                        : analysisResults[openDialogVideoId].clickbait_score >= 40 
+                        ? "보통 낚시성 콘텐츠" 
+                        : "낮은 낚시성 콘텐츠"}
+                    </p>
+                  </div>
+                </Card>
+
+                {/* 추천 키워드 */}
+                <Card className="p-4 border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-cyan-50">
+                  <h3 className="font-semibold text-blue-700 mb-3 flex items-center">
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    추천 키워드
+                  </h3>
+                  <div className="flex flex-wrap gap-2">
+                    {analysisResults[openDialogVideoId].keywords.map((keyword, idx) => (
+                      <Badge
+                        key={idx}
+                        className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                      >
+                        {keyword}
+                      </Badge>
+                    ))}
+                  </div>
+                </Card>
+
+                {/* 여론/반응 */}
+                <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-indigo-50">
+                  <h3 className="font-semibold text-purple-700 mb-2 flex items-center">
+                    <TrendingUp className="w-4 h-4 mr-2" />
+                    여론/반응
+                  </h3>
+                  <Badge
+                    className={
+                      analysisResults[openDialogVideoId].sentiment === '긍정'
+                        ? "bg-green-500 text-white"
+                        : analysisResults[openDialogVideoId].sentiment === '부정'
+                        ? "bg-red-500 text-white"
+                        : "bg-gray-500 text-white"
+                    }
+                  >
+                    {analysisResults[openDialogVideoId].sentiment}
+                  </Badge>
+                </Card>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );

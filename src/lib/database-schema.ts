@@ -69,6 +69,17 @@ export interface TrendingData {
   createdAt: string;
 }
 
+// ✅ AI 분석 결과 인터페이스 (튜브렌즈 스타일)
+export interface VideoAiInsight {
+  videoId: string;
+  summary: string; // 3줄 요약
+  viralReason: string; // 인기 원인 분석
+  keywords: string[]; // 핵심 키워드
+  clickbaitScore: number; // 낚시성 점수
+  sentiment: string; // 여론/반응
+  createdAt: string; // 생성일
+}
+
 // IndexedDB 기반 데이터베이스 초기화 함수
 export const initializeDatabase = async () => {
   // IndexedDB 서비스 초기화

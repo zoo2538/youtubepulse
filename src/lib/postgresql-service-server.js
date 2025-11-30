@@ -259,6 +259,93 @@ class PostgreSQLServerService {
       client.release();
     }
   }
+
+  /**
+   * ✅ AI 분석 결과 저장
+   * @param {Object} insight - VideoAiInsight 객체
+   * @param {string} insight.videoId - 영상 ID
+   * @param {string} insight.summary - 3줄 요약
+   * @param {string} insight.viralReason - 인기 원인 분석
+   * @param {string[]} insight.keywords - 핵심 키워드 배열
+   * @param {number} insight.clickbaitScore - 낚시성 점수
+   * @param {string} insight.sentiment - 여론/반응
+   * @returns {Promise<void>}
+   */
+  async saveAiInsight(insight) {
+    const client = await this.pool.connect();
+    try {
+      const query = `
+        INSERT INTO video_ai_insights (
+          video_id, summary, viral_reason, keywords, clickbait_score, sentiment
+        ) VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (video_id) DO UPDATE
+        SET summary = EXCLUDED.summary,
+            viral_reason = EXCLUDED.viral_reason,
+            keywords = EXCLUDED.keywords,
+            clickbait_score = EXCLUDED.clickbait_score,
+            sentiment = EXCLUDED.sentiment;
+      `;
+      const values = [
+        insight.videoId,
+        insight.summary || null,
+        insight.viralReason || null,
+        insight.keywords || [],
+        insight.clickbaitScore || null,
+        insight.sentiment || null
+      ];
+      await client.query(query, values);
+      console.log(`✅ AI 분석 결과 저장 완료: ${insight.videoId}`);
+    } catch (error) {
+      console.error('❌ AI 분석 결과 저장 실패:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * ✅ AI 분석 결과 조회
+   * @param {string} videoId - 영상 ID
+   * @returns {Promise<Object|null>} VideoAiInsight 객체 또는 null
+   */
+  async getAiInsight(videoId) {
+    const client = await this.pool.connect();
+    try {
+      const query = `
+        SELECT 
+          video_id,
+          summary,
+          viral_reason,
+          keywords,
+          clickbait_score,
+          sentiment,
+          created_at
+        FROM video_ai_insights
+        WHERE video_id = $1
+      `;
+      const result = await client.query(query, [videoId]);
+      
+      if (result.rows.length === 0) {
+        return null;
+      }
+
+      const row = result.rows[0];
+      return {
+        videoId: row.video_id,
+        summary: row.summary,
+        viralReason: row.viral_reason,
+        keywords: row.keywords || [],
+        clickbaitScore: row.clickbait_score,
+        sentiment: row.sentiment,
+        createdAt: row.created_at
+      };
+    } catch (error) {
+      console.error('❌ AI 분석 결과 조회 실패:', error);
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }
 
 /**
