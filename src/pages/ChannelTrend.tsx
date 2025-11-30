@@ -23,7 +23,8 @@ import {
   Sparkles,
   CheckCircle2,
   Loader2,
-  Key
+  Key,
+  Eye
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -144,6 +145,14 @@ interface ChannelRankingData {
     description?: string;
     thumbnailUrl?: string;
   };
+}
+
+interface AiAnalysisResult {
+  summary: string;
+  viral_reason: string;
+  keywords: string[];
+  clickbait_score: number;
+  sentiment: string;
 }
 
 interface AiAnalysisResult {
@@ -1039,9 +1048,14 @@ const ChannelTrend = () => {
                             console.log('📊 분석 결과 존재 여부:', !!analysisResults[selectedChannel.topVideo!.videoId]);
                             console.log('🔑 API 키 상태:', geminiApiKey);
                             
+                            // 이미 분석된 경우 결과 표시, 아니면 새로 분석
                             if (analysisResults[selectedChannel.topVideo!.videoId]) {
                               console.log('📊 기존 분석 결과 표시');
                               setOpenDialogVideoId(selectedChannel.topVideo!.videoId);
+                            } else if (analyzedVideoIds.has(selectedChannel.topVideo!.videoId)) {
+                              // 분석 완료되었지만 결과가 없는 경우 (캐시에서 로드 필요)
+                              console.log('📊 분석 완료 상태이지만 결과 없음 - 재분석');
+                              handleAnalyze(selectedChannel.topVideo!);
                             } else {
                               console.log('🚀 새 분석 시작');
                               handleAnalyze(selectedChannel.topVideo!);
