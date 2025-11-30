@@ -120,6 +120,7 @@ const TrendingVideosDetail = () => {
   const [analyzedVideoIds, setAnalyzedVideoIds] = useState<Set<string>>(new Set());
   
   // API 키 설정 관련 상태
+  const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [openApiKeyDialog, setOpenApiKeyDialog] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
 
@@ -156,6 +157,12 @@ const TrendingVideosDetail = () => {
     }
     setAvailableDates(dates);
     console.log('📅 사용 가능한 날짜 목록:', dates);
+  }, []);
+
+  // 컴포넌트 마운트 시 API 키 로드
+  useEffect(() => {
+    const savedKey = localStorage.getItem('geminiApiKey');
+    setGeminiApiKey(savedKey);
   }, []);
 
   // 데이터 로드
@@ -317,7 +324,9 @@ const TrendingVideosDetail = () => {
       alert('API 키를 입력해주세요.');
       return;
     }
-    localStorage.setItem('geminiApiKey', apiKeyInput.trim());
+    const trimmedKey = apiKeyInput.trim();
+    localStorage.setItem('geminiApiKey', trimmedKey);
+    setGeminiApiKey(trimmedKey); // 상태 업데이트
     setOpenApiKeyDialog(false);
     setApiKeyInput('');
     alert('API 키가 저장되었습니다.');
@@ -516,6 +525,35 @@ const TrendingVideosDetail = () => {
       </div>
 
       <div className="container mx-auto px-4 py-8">
+        {/* API 키 설정 경고 배너 */}
+        {!geminiApiKey && (
+          <Card className="p-4 mb-6 border-2 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="font-semibold text-yellow-800 dark:text-yellow-200">
+                    Gemini API 키가 설정되지 않았습니다
+                  </p>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                    AI 분석 기능을 사용하려면 API 키를 설정해주세요.
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={() => {
+                  setApiKeyInput('');
+                  setOpenApiKeyDialog(true);
+                }}
+                className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+              >
+                <Key className="w-4 h-4 mr-2" />
+                키 설정하기
+              </Button>
+            </div>
+          </Card>
+        )}
+
         {/* 필터 컨트롤 */}
         <Card className="p-6 mb-6">
           <div className="flex items-center justify-between">
@@ -704,7 +742,7 @@ const TrendingVideosDetail = () => {
                                 handleAnalyze(video);
                               }
                             }}
-                            disabled={isAnalyzing}
+                            disabled={isAnalyzing || !geminiApiKey}
                             className={
                               isAnalyzed
                                 ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
