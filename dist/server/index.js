@@ -3145,12 +3145,13 @@ app.post('/api/analyze/video', async (req, res) => {
   });
   
   try {
-    // 동적 import 경로 계산 (루트 또는 dist/server에서 실행 모두 지원)
+    // 동적 import 경로 계산 (dist/server에서 실행)
+    // copy-server.js가 src/server/api를 dist/server/src/server/api로 복사함
     const possiblePaths = [
-      path.join(__dirname, 'src', 'server', 'api', 'analyze', 'video.js'),  // 루트에서 실행
-      path.join(__dirname, '..', 'src', 'server', 'api', 'analyze', 'video.js'),  // dist/server에서 실행
-      './src/server/api/analyze/video.js',  // 상대 경로 (루트)
-      '../../src/server/api/analyze/video.js'  // 상대 경로 (dist/server)
+      path.join(__dirname, 'src', 'server', 'api', 'analyze', 'video.js'),  // dist/server에서 실행 (복사된 경로)
+      './src/server/api/analyze/video.js',  // 상대 경로 (dist/server)
+      path.join(__dirname, '..', 'src', 'server', 'api', 'analyze', 'video.js'),  // 루트에서 실행 (개발 환경)
+      '../../src/server/api/analyze/video.js'  // 상대 경로 (루트)
     ];
     
     let handleAnalyzeVideo = null;
