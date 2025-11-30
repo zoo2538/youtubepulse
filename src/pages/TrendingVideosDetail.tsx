@@ -42,7 +42,9 @@ import {
   Sparkles,
   CheckCircle2,
   Loader2,
-  Key
+  Key,
+  Copy,
+  Check
 } from "lucide-react";
 import { indexedDBService } from "@/lib/indexeddb-service";
 import { hybridService } from "@/lib/hybrid-service";
@@ -70,6 +72,10 @@ interface AiAnalysisResult {
   keywords: string[];
   clickbait_score: number;
   sentiment: string;
+  target_audience?: string;
+  intro_hook?: string;
+  plot_structure?: string;
+  emotional_trigger?: string;
 }
 
 function formatViews(views: number): string {
@@ -124,6 +130,9 @@ const TrendingVideosDetail = () => {
   const [geminiApiKey, setGeminiApiKey] = useState<string | null>(null);
   const [openApiKeyDialog, setOpenApiKeyDialog] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
+  
+  // 복사 상태 관리
+  const [copiedVideoId, setCopiedVideoId] = useState<string | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -387,6 +396,54 @@ const TrendingVideosDetail = () => {
       alert(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setAnalyzingVideoId(null);
+    }
+  };
+
+  // AI 분석 결과 복사 함수
+  const handleCopyInsight = async (videoId: string) => {
+    const insight = analysisResults[videoId];
+    const video = filteredVideoData.find(v => v.id === videoId);
+    
+    if (!insight || !video) {
+      alert('복사할 분석 결과가 없습니다.');
+      return;
+    }
+
+    // 리포트 텍스트 생성
+    const reportText = `[AI 분석 리포트: ${video.title}]
+
+📌 3줄 요약
+- ${insight.summary}
+
+🚀 인기/성공 요인
+- ${insight.viral_reason}
+
+${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
+- ${insight.intro_hook}
+
+` : ''}${insight.plot_structure ? `📝 대본 구조 (Plot)
+- ${insight.plot_structure}
+
+` : ''}${insight.target_audience ? `🎯 타겟 시청층
+- ${insight.target_audience}
+
+` : ''}${insight.emotional_trigger ? `💓 감정 트리거
+- ${insight.emotional_trigger}
+
+` : ''}🏷️ 핵심 키워드
+- ${insight.keywords.join(', ')}`;
+
+    try {
+      await navigator.clipboard.writeText(reportText);
+      setCopiedVideoId(videoId);
+      
+      // 2초 후 복사 상태 초기화
+      setTimeout(() => {
+        setCopiedVideoId(null);
+      }, 2000);
+    } catch (error) {
+      console.error('복사 실패:', error);
+      alert('클립보드 복사에 실패했습니다.');
     }
   };
 
@@ -785,12 +842,34 @@ const TrendingVideosDetail = () => {
           <Dialog open={!!openDialogVideoId} onOpenChange={(open) => !open && setOpenDialogVideoId(null)}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  ✨ AI 분석 결과
-                </DialogTitle>
-                <DialogDescription>
-                  {filteredVideoData.find(v => v.id === openDialogVideoId)?.title}
-                </DialogDescription>
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                      ✨ AI 분석 결과
+                    </DialogTitle>
+                    <DialogDescription>
+                      {filteredVideoData.find(v => v.id === openDialogVideoId)?.title}
+                    </DialogDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openDialogVideoId && handleCopyInsight(openDialogVideoId)}
+                    className="ml-4 bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 border-0"
+                  >
+                    {copiedVideoId === openDialogVideoId ? (
+                      <>
+                        <Check className="w-4 h-4 mr-2" />
+                        복사 완료
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 mr-2" />
+                        📋 리포트 복사
+                      </>
+                    )}
+                  </Button>
+                </div>
               </DialogHeader>
               
               <div className="space-y-6 mt-4">
@@ -800,7 +879,7 @@ const TrendingVideosDetail = () => {
                     <Sparkles className="w-4 h-4 mr-2" />
                     요약
                   </h3>
-                  <p className="text-sm text-foreground whitespace-pre-line">
+                  <p className="text-sm text-gray-800 dark:text-gray-200 whitespace-pre-line">
                     {analysisResults[openDialogVideoId].summary}
                   </p>
                 </Card>
@@ -811,10 +890,58 @@ const TrendingVideosDetail = () => {
                     <TrendingUp className="w-4 h-4 mr-2" />
                     인기 원인
                   </h3>
-                  <p className="text-sm text-foreground">
+                  <p className="text-sm text-gray-800 dark:text-gray-200">
                     {analysisResults[openDialogVideoId].viral_reason}
                   </p>
                 </Card>
+
+                {/* 도입부 훅 */}
+                {analysisResults[openDialogVideoId].intro_hook && (
+                  <Card className="p-4 border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+                    <h3 className="font-semibold text-green-700 mb-2 flex items-center">
+                      🎬 도입부 훅 (Intro Hook)
+                    </h3>
+                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                      {analysisResults[openDialogVideoId].intro_hook}
+                    </p>
+                  </Card>
+                )}
+
+                {/* 대본 구조 */}
+                {analysisResults[openDialogVideoId].plot_structure && (
+                  <Card className="p-4 border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50">
+                    <h3 className="font-semibold text-orange-700 mb-2 flex items-center">
+                      📝 대본 구조 (Plot)
+                    </h3>
+                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                      {analysisResults[openDialogVideoId].plot_structure}
+                    </p>
+                  </Card>
+                )}
+
+                {/* 타겟 시청층 */}
+                {analysisResults[openDialogVideoId].target_audience && (
+                  <Card className="p-4 border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50">
+                    <h3 className="font-semibold text-indigo-700 mb-2 flex items-center">
+                      🎯 타겟 시청층
+                    </h3>
+                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                      {analysisResults[openDialogVideoId].target_audience}
+                    </p>
+                  </Card>
+                )}
+
+                {/* 감정 트리거 */}
+                {analysisResults[openDialogVideoId].emotional_trigger && (
+                  <Card className="p-4 border-2 border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50">
+                    <h3 className="font-semibold text-pink-700 mb-2 flex items-center">
+                      💓 감정 트리거
+                    </h3>
+                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                      {analysisResults[openDialogVideoId].emotional_trigger}
+                    </p>
+                  </Card>
+                )}
 
                 {/* 낚시 지수 */}
                 <Card className="p-4 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50">
