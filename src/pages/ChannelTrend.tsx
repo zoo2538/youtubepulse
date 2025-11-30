@@ -217,9 +217,16 @@ const ChannelTrend = () => {
 
   // AI 분석 함수
   const handleAnalyze = async (video: { videoId: string; title: string; viewCount: number; description?: string }) => {
-    if (analyzingVideoId === video.videoId) return;
+    console.log('🔍 AI 분석 시작:', video);
+    
+    if (analyzingVideoId === video.videoId) {
+      console.log('⚠️ 이미 분석 중입니다.');
+      return;
+    }
     
     const apiKey = localStorage.getItem('geminiApiKey');
+    console.log('🔑 API 키 확인:', apiKey ? '있음' : '없음');
+    
     if (!apiKey || apiKey.trim() === '') {
       alert('먼저 AI 키를 설정해주세요.');
       setOpenApiKeyDialog(true);
@@ -227,6 +234,7 @@ const ChannelTrend = () => {
     }
     
     setAnalyzingVideoId(video.videoId);
+    console.log('📡 API 요청 전송 중...');
     
     try {
       const response = await fetch('/api/analyze/video', {
@@ -244,11 +252,16 @@ const ChannelTrend = () => {
         }),
       });
 
+      console.log('📥 API 응답 받음:', response.status, response.statusText);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API 오류:', errorText);
         throw new Error(`분석 실패: ${response.statusText}`);
       }
 
       const result = await response.json();
+      console.log('✅ 분석 결과:', result);
       
       if (result.success && result.data) {
         setAnalysisResults(prev => ({
@@ -257,11 +270,12 @@ const ChannelTrend = () => {
         }));
         setAnalyzedVideoIds(prev => new Set([...prev, video.videoId]));
         setOpenDialogVideoId(video.videoId);
+        console.log('✅ 분석 완료 및 모달 열기');
       } else {
         throw new Error(result.error || '분석 결과를 받을 수 없습니다.');
       }
     } catch (error) {
-      console.error('AI 분석 실패:', error);
+      console.error('❌ AI 분석 실패:', error);
       alert(`AI 분석 실패: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setAnalyzingVideoId(null);
@@ -1086,15 +1100,25 @@ const ChannelTrend = () => {
                         <Button
                           size="sm"
                           variant={analyzedVideoIds.has(selectedChannel.topVideo.videoId) ? "outline" : "default"}
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            console.log('🔘 AI 분석 버튼 클릭:', selectedChannel.topVideo);
+                            console.log('📊 분석 결과 존재 여부:', !!analysisResults[selectedChannel.topVideo!.videoId]);
+                            console.log('🔑 API 키 상태:', geminiApiKey);
+                            
                             if (analysisResults[selectedChannel.topVideo!.videoId]) {
+                              console.log('📊 기존 분석 결과 표시');
                               setOpenDialogVideoId(selectedChannel.topVideo!.videoId);
                             } else {
+                              console.log('🚀 새 분석 시작');
                               handleAnalyze(selectedChannel.topVideo!);
                             }
                           }}
                           disabled={analyzingVideoId === selectedChannel.topVideo.videoId || !geminiApiKey}
-                          className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                          className={`bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 ${
+                            (!geminiApiKey || analyzingVideoId === selectedChannel.topVideo.videoId) ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
                         >
                           {analyzingVideoId === selectedChannel.topVideo.videoId ? (
                             <>
@@ -1126,12 +1150,18 @@ const ChannelTrend = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-blue-600 hover:underline flex items-center"
+                              onClick={(e) => e.stopPropagation()}
                             >
                               <ExternalLink className="w-3 h-3 mr-1" />
                               영상 보기
                             </a>
                           )}
                         </div>
+                        {!geminiApiKey && (
+                          <p className="text-xs text-yellow-600 mt-2">
+                            ⚠️ AI 분석을 사용하려면 API 키를 설정해주세요.
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
