@@ -2,7 +2,7 @@
  * Google Gemini AI를 사용한 유튜브 영상 분석 서비스
  * 
  * @package @google/generative-ai
- * @model gemini-1.5-flash
+ * @model gemini-pro
  */
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -47,9 +47,9 @@ export async function analyzeVideoWithGemini(
 
   // Gemini AI 클라이언트 초기화
   const genAI = new GoogleGenerativeAI(apiKey);
-  // 모델 이름: gemini-1.5-flash는 v1beta에서 지원되지 않으므로 gemini-pro 또는 gemini-1.5-pro 사용
-  // 최신 버전: gemini-1.5-flash-latest 또는 gemini-1.5-pro-latest
-  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro-latest' });
+  // 모델 이름: gemini-pro는 가장 안정적인 기본 모델입니다
+  // gemini-1.5-flash나 gemini-1.5-pro-latest는 API 버전에 따라 지원되지 않을 수 있습니다
+  const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
   // 프롬프트 구성
   const prompt = `너는 유튜브 트렌드 분석 전문가야. 다음 영상 정보를 분석해서 시청자가 이 영상을 왜 보는지, 내용은 무엇인지 파악해줘.
