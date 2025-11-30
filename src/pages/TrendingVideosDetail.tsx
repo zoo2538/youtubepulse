@@ -52,6 +52,7 @@ import { getKoreanDateString } from "@/lib/utils";
 import { subCategories } from "@/lib/subcategories";
 import { useAuth } from "@/hooks/useAuth";
 import { API_BASE_URL } from "@/lib/config";
+import { showToast } from "@/lib/toast-util";
 
 interface VideoData {
   id: string;
@@ -437,13 +438,16 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
       await navigator.clipboard.writeText(reportText);
       setCopiedVideoId(videoId);
       
+      // 토스트 메시지 표시
+      showToast('📋 리포트가 클립보드에 복사되었습니다!', { type: 'success', duration: 2000 });
+      
       // 2초 후 복사 상태 초기화
       setTimeout(() => {
         setCopiedVideoId(null);
       }, 2000);
     } catch (error) {
       console.error('복사 실패:', error);
-      alert('클립보드 복사에 실패했습니다.');
+      showToast('❌ 클립보드 복사에 실패했습니다.', { type: 'error', duration: 3000 });
     }
   };
 
