@@ -203,6 +203,7 @@ const ChannelTrend = () => {
 
   // API 키 저장 함수
   const handleSaveApiKey = () => {
+    console.log('💾 API 키 저장 시도');
     if (!apiKeyInput.trim()) {
       alert('API 키를 입력해주세요.');
       return;
@@ -212,6 +213,7 @@ const ChannelTrend = () => {
     setGeminiApiKey(trimmedKey);
     setOpenApiKeyDialog(false);
     setApiKeyInput('');
+    console.log('✅ API 키 저장 완료');
     alert('API 키가 저장되었습니다.');
   };
 
@@ -788,7 +790,10 @@ const ChannelTrend = () => {
                 </div>
               </div>
               <Button
-                onClick={() => {
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('🔑 API 키 설정 버튼 클릭 (배너)');
                   setApiKeyInput('');
                   setOpenApiKeyDialog(true);
                 }}
@@ -811,7 +816,10 @@ const ChannelTrend = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🔑 API 키 설정 버튼 클릭 (필터)');
                     const savedKey = localStorage.getItem('geminiApiKey');
                     setApiKeyInput(savedKey || '');
                     setOpenApiKeyDialog(true);
@@ -1275,6 +1283,71 @@ const ChannelTrend = () => {
           </div>
         </div>
       </div>
+
+      {/* API 키 설정 모달 */}
+      <Dialog open={openApiKeyDialog} onOpenChange={setOpenApiKeyDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent flex items-center">
+              <Key className="w-5 h-5 mr-2" />
+              🔑 Gemini API 키 설정
+            </DialogTitle>
+            <DialogDescription>
+              Google Gemini API 키를 입력해주세요. 키는 브라우저에 안전하게 저장됩니다.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-sm font-medium text-foreground mb-2 block">
+                API 키
+              </label>
+              <Input
+                type="password"
+                placeholder="AIza..."
+                value={apiKeyInput}
+                onChange={(e) => setApiKeyInput(e.target.value)}
+                className="w-full"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveApiKey();
+                  }
+                }}
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                API 키는 <a href="https://makersuite.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google AI Studio</a>에서 발급받을 수 있습니다.
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('❌ API 키 설정 취소');
+                  setOpenApiKeyDialog(false);
+                  setApiKeyInput('');
+                }}
+              >
+                취소
+              </Button>
+              <Button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('✅ API 키 저장 버튼 클릭');
+                  handleSaveApiKey();
+                }}
+                className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+              >
+                저장
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
