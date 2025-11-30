@@ -79,6 +79,9 @@ interface AiAnalysisResult {
   emotional_trigger?: string;
 }
 
+// 차트 데이터 캐시 TTL (5분)
+const CHART_CACHE_TTL = 5 * 60 * 1000;
+
 const ChannelTrend = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const channelIdParam = searchParams.get('channelId') || '';
@@ -114,7 +117,6 @@ const ChannelTrend = () => {
   
   // 차트 데이터 캐시 (메모이제이션)
   const chartDataCacheRef = useRef<Map<string, { data: any[], timestamp: number }>>(new Map());
-  const CHART_CACHE_TTL = 5 * 60 * 1000; // 5분 캐시 유지
   const chartLoadDebounceRef = useRef<NodeJS.Timeout | null>(null);
   
   // AI 분석 관련 상태
