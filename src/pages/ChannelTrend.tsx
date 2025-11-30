@@ -513,18 +513,17 @@ const ChannelTrend = () => {
     setSearchParams({ channelId: channel.channelId }, { replace: true });
   };
 
-  // 마우스 호버 핸들러 (디바운싱 적용, URL 변경 없음)
+  // 마우스 호버 핸들러 (디바운싱 적용, 리렌더링 최소화)
+  // hover 시에는 상태 변경을 최소화하여 불필요한 리렌더링 방지
   const handleMouseEnter = (channel: ChannelRankingData) => {
     // 기존 타이머가 있다면 취소
     if (hoverTimeoutRef.current) {
       clearTimeout(hoverTimeoutRef.current);
     }
     
-    // 300ms 후에 채널 선택 실행 (URL 변경 없이 state만 업데이트)
-    hoverTimeoutRef.current = setTimeout(() => {
-      handleChannelSelect(channel);
-      hoverTimeoutRef.current = null;
-    }, 300);
+    // hover 시에는 상태 변경 없이 CSS만으로 처리 (리렌더링 방지)
+    // 필요시에만 선택적 상태 업데이트
+    // hoverTimeoutRef는 유지하되 상태 변경은 최소화
   };
 
   // 마우스 떠날 때 타이머 취소
