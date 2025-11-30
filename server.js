@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool } from 'pg';
 import cron from 'node-cron';
+import { runDatabaseMigrations } from './src/lib/db-migrator.js'; // ✅ 추가
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -3719,15 +3720,28 @@ app.use((req, res, next) => {
   });
 });
 
-// 서버 시작 전 DB 초기화 실행
-initializeDatabase().then(() => {
-  console.log('🚀 서버 시작 준비 완료');
-  
-  // 서버 시작
-  console.log('🔧 서버 리스너 설정 중...');
-  console.log(`🔧 포트: ${PORT}`);
-  console.log(`🔧 호스트: 0.0.0.0`);
-  app.listen(PORT, '0.0.0.0', () => {
+// 서버 시작 함수
+const startServer = async () => {
+  try {
+    // 1. DB 마이그레이션 먼저 실행
+    console.log('🔄 데이터베이스 마이그레이션 시작...');
+    try {
+      await runDatabaseMigrations();
+      console.log('✅ 데이터베이스 마이그레이션 완료');
+    } catch (migrationError) {
+      console.error('⚠️ 데이터베이스 마이그레이션 실패:', migrationError);
+      console.log('⚠️ 마이그레이션 실패해도 서버는 계속 시작합니다...');
+    }
+    
+    // 2. DB 초기화 실행
+    await initializeDatabase();
+    console.log('🚀 서버 시작 준비 완료');
+    
+    // 3. 서버 시작
+    console.log('🔧 서버 리스너 설정 중...');
+    console.log(`🔧 포트: ${PORT}`);
+    console.log(`🔧 호스트: 0.0.0.0`);
+    app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   
@@ -3843,21 +3857,24 @@ initializeDatabase().then(() => {
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
   console.log('='.repeat(80) + '\n');
-  });
-}).catch(err => {
-  console.error('FATAL ERROR: DB 초기화 실패로 서버를 시작할 수 없습니다.', err);
-  console.error('❌ 오류 상세:', err.message);
-  console.error('❌ 오류 스택:', err.stack);
-  // DB 초기화 실패 시에도 서버는 시작 (데이터베이스 없이 실행 가능)
-  // process.exit(1); // 필요시 주석 해제
-  console.log('⚠️ 데이터베이스 없이 서버를 시작합니다...');
-  
-  // 서버 시작 (데이터베이스 없이)
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log('='.repeat(80));
-    console.log(`🚀 YouTube Pulse API Server running on port ${PORT} (without database)`);
-    console.log(`⏰ 서버 시작 시간 (UTC): ${new Date().toISOString()}`);
-    console.log('⚠️ 데이터베이스 연결 없이 실행 중입니다');
-    console.log('='.repeat(80));
-  });
-});
+    });
+  } catch (err) {
+    console.error('❌ 서버 시작 실패:', err);
+    console.error('❌ 오류 상세:', err.message);
+    console.error('❌ 오류 스택:', err.stack);
+    // 서버 시작 실패 시에도 서버는 시작 (데이터베이스 없이 실행 가능)
+    console.log('⚠️ 데이터베이스 없이 서버를 시작합니다...');
+    
+    // 서버 시작 (데이터베이스 없이)
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('='.repeat(80));
+      console.log(`🚀 YouTube Pulse API Server running on port ${PORT} (without database)`);
+      console.log(`⏰ 서버 시작 시간 (UTC): ${new Date().toISOString()}`);
+      console.log('⚠️ 데이터베이스 연결 없이 실행 중입니다');
+      console.log('='.repeat(80));
+    });
+  }
+};
+
+// 서버 시작
+startServer();
