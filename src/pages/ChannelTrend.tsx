@@ -410,6 +410,7 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
     };
     
     loadChannelRankings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, showNewOnly, reverseOrder, country, excludeOfficial, showOnlyOfficial]);
   
   // URL 파라미터 변경 시 선택만 업데이트 (데이터 재로드 없음)
@@ -425,6 +426,7 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
       setSelectedChannel(null);
       setSelectedChannelId('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelIdParam, channelRankings]);
 
   // 스크롤 위치 지속적 저장 (사용자가 스크롤할 때마다 저장)
@@ -608,9 +610,10 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
 
   // 컴포넌트 언마운트 시 타이머 정리
   useEffect(() => {
+    const timer = hoverTimeoutRef.current;
     return () => {
-      if (hoverTimeoutRef.current) {
-        clearTimeout(hoverTimeoutRef.current);
+      if (timer) {
+        clearTimeout(timer);
       }
     };
   }, []);
