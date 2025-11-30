@@ -17,8 +17,6 @@ async function loadGeminiService() {
     const possiblePaths = [
       '../../../lib/gemini-service.js',  // 최우선: 배포 환경 (dist/server/src/server/api/analyze -> dist/server/src/lib)
       '../../../lib/gemini-service.ts',  // 최우선: 개발 환경 (src/server/api/analyze -> src/lib)
-      '../../lib/gemini-service.js',  // 폴백: 빌드된 파일
-      '../../lib/gemini-service.ts',  // 폴백: 소스 파일 (개발)
       '../../../../lib/gemini-service.js',  // 추가 폴백
       '../../../../lib/gemini-service.ts'   // 추가 폴백
     ];
