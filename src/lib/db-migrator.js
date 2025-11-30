@@ -7,13 +7,31 @@ const { Pool } = pg;
 
 
 export async function runDatabaseMigrations() {
+  // DATABASE_URL이 없으면 마이그레이션 스킵
+  if (!process.env.DATABASE_URL) {
+    console.log('⚠️ DATABASE_URL이 설정되지 않아 마이그레이션을 스킵합니다.');
+    return;
+  }
+
+  // DATABASE_URL 처리 (server.js와 동일한 로직)
+  let databaseUrl = process.env.DATABASE_URL;
+  
+  // SSL 설정 처리
+  if (databaseUrl.includes('sslmode=require')) {
+    databaseUrl = databaseUrl.replace('sslmode=require', 'sslmode=disable');
+  } else if (!databaseUrl.includes('sslmode=')) {
+    databaseUrl = databaseUrl + '?sslmode=disable';
+  }
+  
+  // 강제로 sslmode=disable 적용
+  if (databaseUrl.includes('sslmode=')) {
+    databaseUrl = databaseUrl.replace(/sslmode=[^&]*/, 'sslmode=disable');
+  } else {
+    databaseUrl = databaseUrl + '?sslmode=disable';
+  }
 
   const pool = new Pool({
-
-    // 환경 변수에서 접속 정보 자동 로드 (PGHOST, PGUSER 등)
-
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-
+    connectionString: databaseUrl
   });
 
 
