@@ -41,13 +41,34 @@ function log(message, color = 'reset') {
   console.log(`${colors[color]}${message}${colors.reset}`);
 }
 
+// 타임아웃 지원 fetch 헬퍼 함수
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
+    throw error;
+  }
+}
+
 // 1. 데이터베이스 성능 메트릭
 async function collectDatabaseMetrics() {
   log('📊 데이터베이스 성능 메트릭 수집 중...', 'blue');
   
   try {
     const startTime = Date.now();
-    const response = await fetch(`${API_BASE_URL}/health/db`, { timeout: 10000 });
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/db`, {}, 30000); // 30초로 증가
     const endTime = Date.now();
     
     metrics.system.database = {
@@ -66,6 +87,8 @@ async function collectDatabaseMetrics() {
   } catch (error) {
     log(`❌ 데이터베이스 메트릭 수집 실패: ${error.message}`, 'red');
     metrics.system.database.error = error.message;
+    metrics.system.database.status = 'DOWN';
+    metrics.system.database.responseTime = -1;
   }
 }
 
@@ -85,7 +108,7 @@ async function collectApiMetrics() {
   for (const endpoint of endpoints) {
     try {
       const startTime = Date.now();
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, { timeout: 15000 });
+      const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, {}, 30000); // 30초로 증가
       const endTime = Date.now();
       
       const responseTime = endTime - startTime;
@@ -119,11 +142,11 @@ async function collectSyncMetrics() {
   
   try {
     // 자동수집 데이터 현황
-    const autoResponse = await fetch(`${API_BASE_URL}/api/auto-collected`, { timeout: 10000 });
+    const autoResponse = await fetchWithTimeout(`${API_BASE_URL}/api/auto-collected`, {}, 30000); // 30초로 증가
     const autoData = await autoResponse.json();
     
     // 분류 데이터 현황
-    const classifiedResponse = await fetch(`${API_BASE_URL}/api/classified`, { timeout: 10000 });
+    const classifiedResponse = await fetchWithTimeout(`${API_BASE_URL}/api/classified`, {}, 30000); // 30초로 증가
     const classifiedData = await classifiedResponse.json();
     
     // 동기화 상태 분석
