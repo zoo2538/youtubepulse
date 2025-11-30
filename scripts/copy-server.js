@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,23 @@ const distServerLibDir = path.join(serverDir, 'src', 'lib');
 if (fs.existsSync(srcLibDir)) {
   copyDir(srcLibDir, distServerLibDir);
   console.log('✅ 서버 lib 디렉토리 복사 완료:', distServerLibDir);
+  
+  // TypeScript 파일을 JavaScript로 컴파일 (gemini-service.ts 등)
+  const geminiServiceTs = path.join(distServerLibDir, 'gemini-service.ts');
+  const geminiServiceJs = path.join(distServerLibDir, 'gemini-service.js');
+  
+  if (fs.existsSync(geminiServiceTs)) {
+    try {
+      console.log('🔨 gemini-service.ts를 JavaScript로 컴파일 중...');
+      execSync(`npx tsc ${geminiServiceTs} --outDir ${distServerLibDir} --module esnext --target es2020 --moduleResolution node --esModuleInterop --skipLibCheck --declaration false`, {
+        stdio: 'inherit',
+        cwd: path.join(__dirname, '..')
+      });
+      console.log('✅ gemini-service.js 컴파일 완료');
+    } catch (error) {
+      console.warn('⚠️ gemini-service.ts 컴파일 실패, .ts 파일을 그대로 사용합니다:', error.message);
+    }
+  }
 } else {
   console.warn('⚠️ src/lib 디렉토리를 찾을 수 없습니다:', srcLibDir);
 }

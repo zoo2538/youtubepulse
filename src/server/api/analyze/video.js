@@ -19,29 +19,44 @@ async function loadGeminiService() {
     // 여러 경로 시도 (빌드 환경 및 개발 환경 모두 지원)
     // 배포 환경: /app/dist/server/src/server/api/analyze/video.js -> /app/dist/server/src/lib/gemini-service.js
     // 개발 환경: src/server/api/analyze/video.js -> src/lib/gemini-service.js
+    // Node.js는 TypeScript를 직접 실행할 수 없으므로, tsx 또는 컴파일된 .js 파일이 필요합니다.
     const possiblePaths = [
-      path.join(__dirname, '..', '..', '..', 'lib', 'gemini-service.js'),  // 최우선: 절대 경로 (배포/개발)
-      path.join(__dirname, '..', '..', '..', 'lib', 'gemini-service.ts'),  // 최우선: 절대 경로 (개발)
-      path.join(process.cwd(), 'src', 'lib', 'gemini-service.js'),  // 절대 경로 (cwd 기준)
-      path.join(process.cwd(), 'src', 'lib', 'gemini-service.ts'),  // 절대 경로 (cwd 기준)
-      path.join(process.cwd(), 'dist', 'server', 'src', 'lib', 'gemini-service.js'),  // 배포 환경 절대 경로
-      '../../../lib/gemini-service.js',  // 상대 경로 폴백
-      '../../../lib/gemini-service.ts'   // 상대 경로 폴백
+      // 절대 경로 (배포 환경 우선)
+      path.join(__dirname, '..', '..', '..', 'lib', 'gemini-service.js'),
+      path.join(process.cwd(), 'dist', 'server', 'src', 'lib', 'gemini-service.js'),
+      path.join(process.cwd(), 'src', 'lib', 'gemini-service.js'),
+      // 상대 경로
+      '../../../lib/gemini-service.js',
+      // TypeScript 파일 시도 (tsx가 설치되어 있으면 작동)
+      path.join(__dirname, '..', '..', '..', 'lib', 'gemini-service.ts'),
+      path.join(process.cwd(), 'dist', 'server', 'src', 'lib', 'gemini-service.ts'),
+      path.join(process.cwd(), 'src', 'lib', 'gemini-service.ts'),
+      '../../../lib/gemini-service.ts'
     ];
     
+    let lastError = null;
     for (const modulePath of possiblePaths) {
       try {
+        console.log(`🔍 Gemini 서비스 모듈 로드 시도: ${modulePath}`);
         const geminiModule = await import(modulePath);
         if (geminiModule.analyzeVideoWithGemini) {
+          console.log(`✅ Gemini 서비스 모듈 로드 성공: ${modulePath}`);
           return geminiModule.analyzeVideoWithGemini;
+        } else {
+          console.log(`⚠️ 모듈은 로드되었지만 analyzeVideoWithGemini 함수를 찾을 수 없습니다: ${modulePath}`);
         }
       } catch (pathError) {
+        lastError = pathError;
+        console.log(`⚠️ 모듈 로드 실패: ${modulePath} - ${pathError.message}`);
         // 다음 경로 시도
         continue;
       }
     }
     
-    throw new Error('모든 경로에서 gemini-service 모듈을 찾을 수 없습니다.');
+    // 모든 경로 실패 시 상세한 오류 메시지
+    const errorMessage = `모든 경로에서 gemini-service 모듈을 찾을 수 없습니다. 시도한 경로: ${possiblePaths.join(', ')}. 마지막 오류: ${lastError?.message || '알 수 없음'}`;
+    console.error('❌ gemini-service 모듈 로드 실패:', errorMessage);
+    throw new Error(errorMessage);
   } catch (error) {
     console.error('❌ gemini-service 모듈 로드 실패:', error);
     throw new Error(`Gemini 서비스 모듈을 로드할 수 없습니다: ${error.message}. @google/generative-ai 패키지가 설치되어 있는지 확인하세요.`);
