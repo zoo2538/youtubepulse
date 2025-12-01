@@ -428,40 +428,40 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
             </Link>
 
             {/* Navigation Buttons */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 flex-wrap">
               <Link to="/dashboard">
                 <Button 
                   variant="destructive" 
                   size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
                 >
-                  국내
+                  <span className="text-sm font-medium">국내</span>
                 </Button>
               </Link>
               <Link to="/trend">
                 <Button 
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
                 >
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  트렌드
+                  <TrendingUp className="w-4 h-4 mr-1.5" />
+                  <span className="text-sm font-medium">트렌드</span>
                 </Button>
               </Link>
               <Link to="/data">
                 <Button 
                   size="sm"
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  className="bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap"
                 >
-                  📊 데이터
+                  <span className="text-sm font-medium">📊 데이터</span>
                 </Button>
               </Link>
               <Link to="/system">
                 <Button 
                   size="sm"
-                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                  className="bg-purple-600 hover:bg-purple-700 text-white whitespace-nowrap"
                 >
-                  <Settings className="w-4 h-4 mr-2" />
-                  시스템
+                  <Settings className="w-4 h-4 mr-1.5" />
+                  <span className="text-sm font-medium">시스템</span>
                 </Button>
               </Link>
             </div>

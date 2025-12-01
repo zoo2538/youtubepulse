@@ -32,54 +32,54 @@ const Index = () => {
           </Link>
 
           {/* Navigation Buttons */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 flex-wrap">
             <Link to="/login">
               <Button 
                 variant="outline" 
                 size="sm"
-                className="bg-transparent border-white/30 text-white hover:bg-white/10"
+                className="bg-transparent border-white/30 text-white hover:bg-white/10 whitespace-nowrap"
               >
-                <LogIn className="w-4 h-4 mr-2" />
-                로그인
+                <LogIn className="w-4 h-4 mr-1.5" />
+                <span className="text-sm font-medium">로그인</span>
               </Button>
             </Link>
             <Link to="/dashboard" onClick={handleProtectedClick}>
               <Button 
                 variant="destructive" 
                 size="sm"
-                className={`${isLoggedIn ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                className={`${isLoggedIn ? 'bg-red-600 hover:bg-red-700' : 'bg-gray-500 cursor-not-allowed'} text-white whitespace-nowrap`}
                 disabled={!isLoggedIn}
               >
-                국내
+                <span className="text-sm font-medium">국내</span>
               </Button>
             </Link>
             <Link to="/trend" onClick={handleProtectedClick}>
               <Button 
                 size="sm"
-                className={`${isLoggedIn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                className={`${isLoggedIn ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-500 cursor-not-allowed'} text-white whitespace-nowrap`}
                 disabled={!isLoggedIn}
               >
-                <TrendingUp className="w-4 h-4 mr-2" />
-                트렌드
+                <TrendingUp className="w-4 h-4 mr-1.5" />
+                <span className="text-sm font-medium">트렌드</span>
               </Button>
             </Link>
             <Link to="/data" onClick={handleProtectedClick}>
               <Button 
                 size="sm"
-                className={`${isLoggedIn ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                className={`${isLoggedIn ? 'bg-orange-600 hover:bg-orange-700' : 'bg-gray-500 cursor-not-allowed'} text-white whitespace-nowrap`}
                 disabled={!isLoggedIn}
               >
-                📊 데이터
+                <span className="text-sm font-medium">📊 데이터</span>
               </Button>
             </Link>
             <Link to="/system" onClick={handleProtectedClick}>
               <Button 
                 size="sm"
-                className={`${isLoggedIn ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-500 cursor-not-allowed'} text-white`}
+                className={`${isLoggedIn ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-500 cursor-not-allowed'} text-white whitespace-nowrap`}
                 disabled={!isLoggedIn}
               >
-                <Settings className="w-4 h-4 mr-2" />
-                시스템
+                <Settings className="w-4 h-4 mr-1.5" />
+                <span className="text-sm font-medium">시스템</span>
               </Button>
             </Link>
           </div>

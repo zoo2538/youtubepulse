@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { Pool } from 'pg';
 import cron from 'node-cron';
+import { runDatabaseMigrations } from './src/lib/db-migrator.js'; // ✅ 추가
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -339,6 +340,10 @@ async function createTables() {
         video_id VARCHAR(50) PRIMARY KEY,
         summary TEXT,
         viral_reason TEXT,
+        target_audience TEXT,
+        intro_hook TEXT,
+        plot_structure TEXT,
+        emotional_trigger TEXT,
         keywords TEXT[],
         clickbait_score INTEGER,
         sentiment VARCHAR(20),
@@ -388,6 +393,20 @@ async function createTables() {
       ADD COLUMN IF NOT EXISTS collection_type VARCHAR(50)
     `);
     console.log('✅ collection_type 컬럼 확인 완료');
+    
+    // video_ai_insights 테이블에 새로운 컬럼 추가 (이미 있으면 무시)
+    try {
+      await client.query(`
+        ALTER TABLE video_ai_insights 
+        ADD COLUMN IF NOT EXISTS target_audience TEXT,
+        ADD COLUMN IF NOT EXISTS intro_hook TEXT,
+        ADD COLUMN IF NOT EXISTS plot_structure TEXT,
+        ADD COLUMN IF NOT EXISTS emotional_trigger TEXT
+      `);
+      console.log('✅ video_ai_insights 테이블 마이그레이션 완료');
+    } catch (migrationError) {
+      console.warn('⚠️ video_ai_insights 마이그레이션 중 오류 (무시):', migrationError.message);
+    }
     
     console.log('✅ 데이터베이스 마이그레이션 완료');
     
@@ -1377,57 +1396,171 @@ app.patch('/api/videos/:id', async (req, res) => {
     
     console.log(`📝 비디오 수정 요청: ${id}`, updateData);
     
-    // 현재 데이터 조회
-    const currentResult = await client.query(`
-      SELECT data FROM classification_data 
-      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data::text LIKE '%"id":"${id}"%'
-    `);
+    // 1. 먼저 classification_data 테이블에서 찾기
+    // 숫자와 문자열 모두 처리할 수 있도록 두 가지 방법으로 검색
+    const numericId = parseInt(id, 10);
+    const isNumeric = !isNaN(numericId) && numericId.toString() === id;
     
-    if (currentResult.rows.length === 0) {
-      client.release();
-      return res.status(404).json({ error: 'Video not found' });
+    let currentResult;
+    if (isNumeric) {
+      // 숫자 ID인 경우: 숫자와 문자열 모두 검색
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR 
+          data @> $2::jsonb OR
+          data::text LIKE $3 OR
+          data::text LIKE $4
+        )
+      `, [
+        JSON.stringify([{ id: numericId }]),
+        JSON.stringify([{ id: id }]),
+        `%"id":${numericId}%`,
+        `%"id":"${id}"%`
+      ]);
+    } else {
+      // 문자열 ID인 경우
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR
+          data::text LIKE $2
+        )
+      `, [
+        JSON.stringify([{ id: id }]),
+        `%"id":"${id}"%`
+      ]);
     }
     
-    // 데이터 업데이트
-    const currentData = currentResult.rows[0].data;
-    const updatedData = currentData.map((item) => {
-      if (item.id === id) {
-        return {
-          ...item,
-          ...updateData,
-          updatedAt: new Date().toISOString(),
-          version: (item.version || 0) + 1
-        };
+    if (currentResult.rows.length > 0) {
+      // classification_data 테이블에 있는 경우
+      const currentData = currentResult.rows[0].data;
+      const updatedData = currentData.map((item) => {
+        // id를 숫자와 문자열 모두 비교
+        if (item.id === id || item.id === numericId || String(item.id) === String(id)) {
+          return {
+            ...item,
+            ...updateData,
+            updatedAt: new Date().toISOString(),
+            version: (item.version || 0) + 1
+          };
+        }
+        return item;
+      });
+      
+      // 업데이트된 데이터 저장 - 원래 조건과 동일하게 검색
+      if (isNumeric) {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR 
+            data @> $4::jsonb OR
+            data::text LIKE $5 OR
+            data::text LIKE $6
+          )
+        `, [
+          JSON.stringify(updatedData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: numericId }]),
+          JSON.stringify([{ id: id }]),
+          `%"id":${numericId}%`,
+          `%"id":"${id}"%`
+        ]);
+      } else {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR
+            data::text LIKE $4
+          )
+        `, [
+          JSON.stringify(updatedData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: id }]),
+          `%"id":"${id}"%`
+        ]);
       }
-      return item;
-    });
+      
+      client.release();
+      
+      const updatedItem = updatedData.find((item) => item.id === id);
+      
+      console.log(`✅ 비디오 수정 완료 (classification_data): ${id}`, {
+        updated_at: updatedItem?.updatedAt,
+        version: updatedItem?.version,
+        affectedIds: [id]
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Video updated successfully',
+        updated_at: updatedItem?.updatedAt,
+        version: updatedItem?.version,
+        affectedIds: [id]
+      });
+    }
     
-    // 업데이트된 데이터 저장
-    await client.query(`
-      UPDATE classification_data 
-      SET data = $1, created_at = CURRENT_TIMESTAMP
-      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data @> '[{"id": $2}]'
-    `, [JSON.stringify(updatedData), id]);
+    // 2. classification_data에 없으면 unclassified_data 테이블에서 찾기
+    const unclassifiedResult = await client.query(`
+      SELECT id, video_id FROM unclassified_data 
+      WHERE video_id = $1 OR id::text = $1
+      LIMIT 1
+    `, [id]);
+    
+    if (unclassifiedResult.rows.length > 0) {
+      // unclassified_data 테이블에 있는 경우
+      const row = unclassifiedResult.rows[0];
+      const updateFields = [];
+      const updateValues = [];
+      let paramIndex = 1;
+      
+      if (updateData.category !== undefined) {
+        updateFields.push(`category = $${paramIndex++}`);
+        updateValues.push(updateData.category);
+      }
+      if (updateData.subCategory !== undefined || updateData.sub_category !== undefined) {
+        updateFields.push(`sub_category = $${paramIndex++}`);
+        updateValues.push(updateData.subCategory || updateData.sub_category);
+      }
+      if (updateData.status !== undefined) {
+        updateFields.push(`status = $${paramIndex++}`);
+        updateValues.push(updateData.status);
+      }
+      
+      if (updateFields.length > 0) {
+        updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+        // WHERE 절에 사용할 값 추가
+        const whereValue = row.video_id || row.id.toString();
+        updateValues.push(whereValue);
+        
+        await client.query(`
+          UPDATE unclassified_data 
+          SET ${updateFields.join(', ')}
+          WHERE video_id = $${paramIndex} OR id = $${paramIndex}::integer
+        `, updateValues);
+        
+        client.release();
+        
+        console.log(`✅ 비디오 수정 완료 (unclassified_data): ${id}`, {
+          affectedIds: [id]
+        });
+        
+        return res.json({
+          success: true,
+          message: 'Video updated successfully',
+          affectedIds: [id]
+        });
+      }
+    }
     
     client.release();
-    
-    const updatedItem = updatedData.find((item) => item.id === id);
-    
-    console.log(`✅ 비디오 수정 완료: ${id}`, {
-      updated_at: updatedItem?.updatedAt,
-      version: updatedItem?.version,
-      affectedIds: [id]
-    });
-    
-    res.json({
-      success: true,
-      message: 'Video updated successfully',
-      updated_at: updatedItem?.updatedAt,
-      version: updatedItem?.version,
-      affectedIds: [id]
-    });
+    return res.status(404).json({ error: 'Video not found' });
     
   } catch (error) {
     console.error('비디오 수정 실패:', error);
@@ -1450,48 +1583,139 @@ app.delete('/api/videos/:id', async (req, res) => {
     
     console.log(`🗑️ 비디오 삭제 요청: ${id}`);
     
-    // 현재 데이터 조회
-    const currentResult = await client.query(`
-      SELECT data, data_type FROM classification_data 
-      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data::text LIKE '%"id":"${id}"%'
-    `);
+    // 1. 먼저 classification_data 테이블에서 찾기
+    // 숫자와 문자열 모두 처리할 수 있도록 두 가지 방법으로 검색
+    const numericId = parseInt(id, 10);
+    const isNumeric = !isNaN(numericId) && numericId.toString() === id;
     
-    if (currentResult.rows.length === 0) {
-      client.release();
-      return res.status(404).json({ error: 'Video not found' });
+    let currentResult;
+    if (isNumeric) {
+      // 숫자 ID인 경우: 숫자와 문자열 모두 검색
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR 
+          data @> $2::jsonb OR
+          data::text LIKE $3 OR
+          data::text LIKE $4
+        )
+      `, [
+        JSON.stringify([{ id: numericId }]),
+        JSON.stringify([{ id: id }]),
+        `%"id":${numericId}%`,
+        `%"id":"${id}"%`
+      ]);
+    } else {
+      // 문자열 ID인 경우
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR
+          data::text LIKE $2
+        )
+      `, [
+        JSON.stringify([{ id: id }]),
+        `%"id":"${id}"%`
+      ]);
     }
     
-    // 데이터에서 해당 항목 제거
-    const currentData = currentResult.rows[0].data;
-    const filteredData = currentData.filter((item) => item.id !== id);
-    
-    if (filteredData.length === currentData.length) {
+    if (currentResult.rows.length > 0) {
+      // classification_data 테이블에 있는 경우
+      const currentData = currentResult.rows[0].data;
+      // id를 숫자와 문자열 모두 비교
+      const filteredData = currentData.filter((item) => {
+        return item.id !== id && item.id !== numericId && String(item.id) !== String(id);
+      });
+      
+      if (filteredData.length === currentData.length) {
+        client.release();
+        return res.status(404).json({ error: 'Video not found in data' });
+      }
+      
+      // 업데이트된 데이터 저장 - 원래 조건과 동일하게 검색
+      if (isNumeric) {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR 
+            data @> $4::jsonb OR
+            data::text LIKE $5 OR
+            data::text LIKE $6
+          )
+        `, [
+          JSON.stringify(filteredData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: numericId }]),
+          JSON.stringify([{ id: id }]),
+          `%"id":${numericId}%`,
+          `%"id":"${id}"%`
+        ]);
+      } else {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR
+            data::text LIKE $4
+          )
+        `, [
+          JSON.stringify(filteredData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: id }]),
+          `%"id":"${id}"%`
+        ]);
+      }
+      
       client.release();
-      return res.status(404).json({ error: 'Video not found in data' });
+      
+      console.log(`✅ 비디오 삭제 완료 (classification_data): ${id}`, {
+        affectedIds: [id],
+        remainingItems: filteredData.length
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Video deleted successfully',
+        affectedIds: [id],
+        remainingItems: filteredData.length
+      });
     }
     
-    // 업데이트된 데이터 저장
-    await client.query(`
-      UPDATE classification_data 
-      SET data = $1, created_at = CURRENT_TIMESTAMP
-      WHERE data_type = $2
-      AND data @> '[{"id": $3}]'
-    `, [JSON.stringify(filteredData), currentResult.rows[0].data_type, id]);
+    // 2. classification_data에 없으면 unclassified_data 테이블에서 찾기
+    const unclassifiedResult = await client.query(`
+      SELECT id, video_id FROM unclassified_data 
+      WHERE video_id = $1 OR id::text = $1
+      LIMIT 1
+    `, [id]);
+    
+    if (unclassifiedResult.rows.length > 0) {
+      // unclassified_data 테이블에 있는 경우
+      const row = unclassifiedResult.rows[0];
+      const deleteResult = await client.query(`
+        DELETE FROM unclassified_data 
+        WHERE video_id = $1 OR id = $1::integer
+      `, [id]);
+      
+      client.release();
+      
+      console.log(`✅ 비디오 삭제 완료 (unclassified_data): ${id}`, {
+        affectedIds: [id]
+      });
+      
+      return res.json({
+        success: true,
+        message: 'Video deleted successfully',
+        affectedIds: [id]
+      });
+    }
     
     client.release();
-    
-    console.log(`✅ 비디오 삭제 완료: ${id}`, {
-      affectedIds: [id],
-      remainingItems: filteredData.length
-    });
-    
-    res.json({
-      success: true,
-      message: 'Video deleted successfully',
-      affectedIds: [id],
-      remainingItems: filteredData.length
-    });
+    return res.status(404).json({ error: 'Video not found' });
     
   } catch (error) {
     console.error('비디오 삭제 실패:', error);
@@ -3701,15 +3925,28 @@ app.use((req, res, next) => {
   });
 });
 
-// 서버 시작 전 DB 초기화 실행
-initializeDatabase().then(() => {
-  console.log('🚀 서버 시작 준비 완료');
-  
-  // 서버 시작
-  console.log('🔧 서버 리스너 설정 중...');
-  console.log(`🔧 포트: ${PORT}`);
-  console.log(`🔧 호스트: 0.0.0.0`);
-  app.listen(PORT, '0.0.0.0', () => {
+// 서버 시작 함수
+const startServer = async () => {
+  try {
+    // 1. DB 마이그레이션 먼저 실행
+    console.log('🔄 데이터베이스 마이그레이션 시작...');
+    try {
+      await runDatabaseMigrations();
+      console.log('✅ 데이터베이스 마이그레이션 완료');
+    } catch (migrationError) {
+      console.error('⚠️ 데이터베이스 마이그레이션 실패:', migrationError);
+      console.log('⚠️ 마이그레이션 실패해도 서버는 계속 시작합니다...');
+    }
+    
+    // 2. DB 초기화 실행
+    await initializeDatabase();
+    console.log('🚀 서버 시작 준비 완료');
+    
+    // 3. 서버 시작
+    console.log('🔧 서버 리스너 설정 중...');
+    console.log(`🔧 포트: ${PORT}`);
+    console.log(`🔧 호스트: 0.0.0.0`);
+    app.listen(PORT, '0.0.0.0', () => {
   const startTime = new Date();
   const kstTime = new Date(startTime.toLocaleString('en-US', { timeZone: 'Asia/Seoul' }));
   
@@ -3825,21 +4062,24 @@ initializeDatabase().then(() => {
   console.log(`   - 다음 실행 예정: ${nextRun.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
   console.log(`   - 상태: ${cronJob ? '활성화 ✅' : '비활성화 ❌'}`);
   console.log('='.repeat(80) + '\n');
-  });
-}).catch(err => {
-  console.error('FATAL ERROR: DB 초기화 실패로 서버를 시작할 수 없습니다.', err);
-  console.error('❌ 오류 상세:', err.message);
-  console.error('❌ 오류 스택:', err.stack);
-  // DB 초기화 실패 시에도 서버는 시작 (데이터베이스 없이 실행 가능)
-  // process.exit(1); // 필요시 주석 해제
-  console.log('⚠️ 데이터베이스 없이 서버를 시작합니다...');
-  
-  // 서버 시작 (데이터베이스 없이)
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log('='.repeat(80));
-    console.log(`🚀 YouTube Pulse API Server running on port ${PORT} (without database)`);
-    console.log(`⏰ 서버 시작 시간 (UTC): ${new Date().toISOString()}`);
-    console.log('⚠️ 데이터베이스 연결 없이 실행 중입니다');
-    console.log('='.repeat(80));
-  });
-});
+    });
+  } catch (err) {
+    console.error('❌ 서버 시작 실패:', err);
+    console.error('❌ 오류 상세:', err.message);
+    console.error('❌ 오류 스택:', err.stack);
+    // 서버 시작 실패 시에도 서버는 시작 (데이터베이스 없이 실행 가능)
+    console.log('⚠️ 데이터베이스 없이 서버를 시작합니다...');
+    
+    // 서버 시작 (데이터베이스 없이)
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log('='.repeat(80));
+      console.log(`🚀 YouTube Pulse API Server running on port ${PORT} (without database)`);
+      console.log(`⏰ 서버 시작 시간 (UTC): ${new Date().toISOString()}`);
+      console.log('⚠️ 데이터베이스 연결 없이 실행 중입니다');
+      console.log('='.repeat(80));
+    });
+  }
+};
+
+// 서버 시작
+startServer();

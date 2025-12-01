@@ -1368,56 +1368,56 @@ const System = () => {
             </Link>
 
             {/* Navigation Buttons */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 flex-wrap">
               <Link to="/user-management">
                 <Button 
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-blue-600 hover:bg-blue-700 text-white whitespace-nowrap"
                 >
-                  <Users className="w-4 h-4 mr-2" />
-                  회원관리
+                  <Users className="w-4 h-4 mr-1.5" />
+                  <span className="text-sm font-medium">회원관리</span>
                 </Button>
               </Link>
               <Link to="/dashboard">
                 <Button 
                   variant="destructive" 
                   size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
                 >
-                  국내
+                  <span className="text-sm font-medium">국내</span>
                 </Button>
               </Link>
               <Link to="/trend">
                 <Button 
                   size="sm"
-                  className="bg-green-600 hover:bg-green-700 text-white"
+                  className="bg-green-600 hover:bg-green-700 text-white whitespace-nowrap"
                 >
-                  <TrendingUp className="w-4 h-4 mr-2" />
-                  트렌드
+                  <TrendingUp className="w-4 h-4 mr-1.5" />
+                  <span className="text-sm font-medium">트렌드</span>
                 </Button>
               </Link>
               <Link to="/data">
                 <Button 
                   size="sm"
-                  className="bg-orange-600 hover:bg-orange-700 text-white"
+                  className="bg-orange-600 hover:bg-orange-700 text-white whitespace-nowrap"
                 >
-                  📊 데이터
+                  <span className="text-sm font-medium">📊 데이터</span>
                 </Button>
               </Link>
               <Button 
                 size="sm"
-                className="bg-purple-600 hover:bg-purple-700 text-white"
+                className="bg-purple-600 hover:bg-purple-700 text-white whitespace-nowrap"
               >
-                <Settings className="w-4 h-4 mr-2" />
-                시스템
+                <Settings className="w-4 h-4 mr-1.5" />
+                <span className="text-sm font-medium">시스템</span>
               </Button>
               <Link to="/subcategory-settings">
                 <Button 
                   size="sm"
-                  className="bg-pink-600 hover:bg-pink-700 text-white"
+                  className="bg-pink-600 hover:bg-pink-700 text-white whitespace-nowrap"
                 >
-                  <Filter className="w-4 h-4 mr-2" />
-                  세부카테고리
+                  <Filter className="w-4 h-4 mr-1.5" />
+                  <span className="text-sm font-medium">세부카테고리</span>
                 </Button>
               </Link>
             </div>
