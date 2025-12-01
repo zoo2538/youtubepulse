@@ -667,7 +667,52 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                                   />
                                 </div>
                               </a>
-                              <div className="flex-1 space-y-2">
+                              <div className="flex-1 min-w-0 space-y-1">
+                                <div className="flex items-center space-x-2">
+                                  <a
+                                    href={`https://www.youtube.com/watch?v=${video.id}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer flex-1 min-w-0"
+                                    title={`${video.title} - 새 탭에서 열기`}
+                                  >
+                                    {video.title}
+                                  </a>
+                                  <Button
+                                    size="sm"
+                                    variant={isAnalyzed ? "outline" : "default"}
+                                    onClick={() => {
+                                      if (hasResult) {
+                                        setOpenDialogVideoId(video.id);
+                                      } else {
+                                        handleAnalyze(video);
+                                      }
+                                    }}
+                                    disabled={isAnalyzing || !geminiApiKey}
+                                    className={
+                                      isAnalyzed
+                                        ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 flex-shrink-0"
+                                        : "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 flex-shrink-0"
+                                    }
+                                  >
+                                    {isAnalyzing ? (
+                                      <>
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                        분석 중...
+                                      </>
+                                    ) : isAnalyzed ? (
+                                      <>
+                                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                                        📊 분석 완료
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles className="w-4 h-4 mr-2" />
+                                        ✨ AI 분석
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
                                 <div className="flex items-center space-x-2">
                                   <span className="text-sm text-muted-foreground">{video.channelName}</span>
                                   <Badge variant="secondary" className="text-xs">
@@ -681,61 +726,7 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                                     {(video.performanceRatio).toFixed(1)}x
                                   </Badge>
                                 </div>
-                                <a
-                                  href={`https://www.youtube.com/watch?v=${video.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="font-medium text-blue-500 hover:text-blue-700 hover:underline line-clamp-2 text-sm leading-5 cursor-pointer block"
-                                  title={`${video.title} - 새 탭에서 열기`}
-                                >
-                                  {video.title}
-                                </a>
                               </div>
-                            </div>
-                            {/* 두 번째 행: 영상 링크와 AI 분석 */}
-                            <div className="flex items-center justify-start space-x-3 pt-2 border-t">
-                              <a
-                                href={`https://www.youtube.com/watch?v=${video.id}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
-                              >
-                                🔗 영상 링크
-                              </a>
-                              <Button
-                                size="sm"
-                                variant={isAnalyzed ? "outline" : "default"}
-                                onClick={() => {
-                                  if (hasResult) {
-                                    setOpenDialogVideoId(video.id);
-                                  } else {
-                                    handleAnalyze(video);
-                                  }
-                                }}
-                                disabled={isAnalyzing || !geminiApiKey}
-                                className={
-                                  isAnalyzed
-                                    ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
-                                    : "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
-                                }
-                              >
-                                {isAnalyzing ? (
-                                  <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    분석 중...
-                                  </>
-                                ) : isAnalyzed ? (
-                                  <>
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    📊 분석 완료
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="w-4 h-4 mr-2" />
-                                    ✨ AI 분석
-                                  </>
-                                )}
-                              </Button>
                             </div>
                           </div>
                         </TableCell>
