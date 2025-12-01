@@ -1397,17 +1397,49 @@ app.patch('/api/videos/:id', async (req, res) => {
     console.log(`📝 비디오 수정 요청: ${id}`, updateData);
     
     // 1. 먼저 classification_data 테이블에서 찾기
-    const currentResult = await client.query(`
-      SELECT data, data_type FROM classification_data 
-      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data::text LIKE '%"id":"${id}"%'
-    `);
+    // 숫자와 문자열 모두 처리할 수 있도록 두 가지 방법으로 검색
+    const numericId = parseInt(id, 10);
+    const isNumeric = !isNaN(numericId) && numericId.toString() === id;
+    
+    let currentResult;
+    if (isNumeric) {
+      // 숫자 ID인 경우: 숫자와 문자열 모두 검색
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR 
+          data @> $2::jsonb OR
+          data::text LIKE $3 OR
+          data::text LIKE $4
+        )
+      `, [
+        JSON.stringify([{ id: numericId }]),
+        JSON.stringify([{ id: id }]),
+        `%"id":${numericId}%`,
+        `%"id":"${id}"%`
+      ]);
+    } else {
+      // 문자열 ID인 경우
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR
+          data::text LIKE $2
+        )
+      `, [
+        JSON.stringify([{ id: id }]),
+        `%"id":"${id}"%`
+      ]);
+    }
     
     if (currentResult.rows.length > 0) {
       // classification_data 테이블에 있는 경우
       const currentData = currentResult.rows[0].data;
       const updatedData = currentData.map((item) => {
-        if (item.id === id) {
+        // id를 숫자와 문자열 모두 비교
+        if (item.id === id || item.id === numericId || String(item.id) === String(id)) {
           return {
             ...item,
             ...updateData,
@@ -1418,13 +1450,42 @@ app.patch('/api/videos/:id', async (req, res) => {
         return item;
       });
       
-      // 업데이트된 데이터 저장
-      await client.query(`
-        UPDATE classification_data 
-        SET data = $1, created_at = CURRENT_TIMESTAMP
-        WHERE data_type = $2
-        AND data::text LIKE '%"id":"${id}"%'
-      `, [JSON.stringify(updatedData), currentResult.rows[0].data_type]);
+      // 업데이트된 데이터 저장 - 원래 조건과 동일하게 검색
+      if (isNumeric) {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR 
+            data @> $4::jsonb OR
+            data::text LIKE $5 OR
+            data::text LIKE $6
+          )
+        `, [
+          JSON.stringify(updatedData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: numericId }]),
+          JSON.stringify([{ id: id }]),
+          `%"id":${numericId}%`,
+          `%"id":"${id}"%`
+        ]);
+      } else {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR
+            data::text LIKE $4
+          )
+        `, [
+          JSON.stringify(updatedData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: id }]),
+          `%"id":"${id}"%`
+        ]);
+      }
       
       client.release();
       
@@ -1523,29 +1584,92 @@ app.delete('/api/videos/:id', async (req, res) => {
     console.log(`🗑️ 비디오 삭제 요청: ${id}`);
     
     // 1. 먼저 classification_data 테이블에서 찾기
-    const currentResult = await client.query(`
-      SELECT data, data_type FROM classification_data 
-      WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
-      AND data::text LIKE '%"id":"${id}"%'
-    `);
+    // 숫자와 문자열 모두 처리할 수 있도록 두 가지 방법으로 검색
+    const numericId = parseInt(id, 10);
+    const isNumeric = !isNaN(numericId) && numericId.toString() === id;
+    
+    let currentResult;
+    if (isNumeric) {
+      // 숫자 ID인 경우: 숫자와 문자열 모두 검색
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR 
+          data @> $2::jsonb OR
+          data::text LIKE $3 OR
+          data::text LIKE $4
+        )
+      `, [
+        JSON.stringify([{ id: numericId }]),
+        JSON.stringify([{ id: id }]),
+        `%"id":${numericId}%`,
+        `%"id":"${id}"%`
+      ]);
+    } else {
+      // 문자열 ID인 경우
+      currentResult = await client.query(`
+        SELECT data, data_type FROM classification_data 
+        WHERE data_type IN ('classified', 'manual_classified', 'auto_collected')
+        AND (
+          data @> $1::jsonb OR
+          data::text LIKE $2
+        )
+      `, [
+        JSON.stringify([{ id: id }]),
+        `%"id":"${id}"%`
+      ]);
+    }
     
     if (currentResult.rows.length > 0) {
       // classification_data 테이블에 있는 경우
       const currentData = currentResult.rows[0].data;
-      const filteredData = currentData.filter((item) => item.id !== id);
+      // id를 숫자와 문자열 모두 비교
+      const filteredData = currentData.filter((item) => {
+        return item.id !== id && item.id !== numericId && String(item.id) !== String(id);
+      });
       
       if (filteredData.length === currentData.length) {
         client.release();
         return res.status(404).json({ error: 'Video not found in data' });
       }
       
-      // 업데이트된 데이터 저장
-      await client.query(`
-        UPDATE classification_data 
-        SET data = $1, created_at = CURRENT_TIMESTAMP
-        WHERE data_type = $2
-        AND data::text LIKE '%"id":"${id}"%'
-      `, [JSON.stringify(filteredData), currentResult.rows[0].data_type]);
+      // 업데이트된 데이터 저장 - 원래 조건과 동일하게 검색
+      if (isNumeric) {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR 
+            data @> $4::jsonb OR
+            data::text LIKE $5 OR
+            data::text LIKE $6
+          )
+        `, [
+          JSON.stringify(filteredData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: numericId }]),
+          JSON.stringify([{ id: id }]),
+          `%"id":${numericId}%`,
+          `%"id":"${id}"%`
+        ]);
+      } else {
+        await client.query(`
+          UPDATE classification_data 
+          SET data = $1, created_at = CURRENT_TIMESTAMP
+          WHERE data_type = $2
+          AND (
+            data @> $3::jsonb OR
+            data::text LIKE $4
+          )
+        `, [
+          JSON.stringify(filteredData),
+          currentResult.rows[0].data_type,
+          JSON.stringify([{ id: id }]),
+          `%"id":"${id}"%`
+        ]);
+      }
       
       client.release();
       
