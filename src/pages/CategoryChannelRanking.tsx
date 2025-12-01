@@ -681,8 +681,16 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                               {video.description || '영상 설명 정보 없음'}
                             </div>
                           </div>
-                          {/* 두 번째 행: AI 분석 */}
-                          <div className="flex items-center justify-start pt-2 border-t">
+                          {/* 두 번째 행: 영상 링크와 AI 분석 */}
+                          <div className="flex items-center justify-start space-x-3 pt-2 border-t">
+                            <a
+                              href={video.topVideoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
+                            >
+                              🔗 영상 링크
+                            </a>
                             {(() => {
                               const isAnalyzing = analyzingVideoId === video.videoId;
                               const isAnalyzed = analyzedVideoIds.has(video.videoId);
