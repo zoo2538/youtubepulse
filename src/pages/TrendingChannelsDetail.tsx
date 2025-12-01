@@ -781,8 +781,6 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                     <TableHead className="text-right">전일 조회수</TableHead>
                     <TableHead className="text-right">증가분</TableHead>
                     <TableHead className="text-right">증감률</TableHead>
-                    <TableHead className="text-right">대표 영상</TableHead>
-                    <TableHead className="text-center">AI 분석</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -800,15 +798,80 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                           />
                         </div>
                       </TableCell>
-                      <TableCell className="space-y-2">
-                        <div className="font-medium text-foreground">{channel.channelName}</div>
-                        <div className="flex items-center space-x-2">
-                          <Badge variant="secondary" className="text-xs">
-                            {channel.category}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {channel.subCategory || "미분류"}
-                          </Badge>
+                      <TableCell>
+                        <div className="space-y-3">
+                          {/* 첫 번째 행: 채널 정보 */}
+                          <div className="space-y-2">
+                            <div className="font-medium text-foreground">{channel.channelName}</div>
+                            <div className="flex items-center space-x-2">
+                              <Badge variant="secondary" className="text-xs">
+                                {channel.category}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {channel.subCategory || "미분류"}
+                              </Badge>
+                            </div>
+                          </div>
+                          {/* 두 번째 행: 대표 영상과 AI 분석 */}
+                          <div className="flex items-center space-x-2 pt-2 border-t">
+                            {channel.topVideoUrl ? (
+                              <>
+                                <a
+                                  href={channel.topVideoUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-500 hover:text-blue-700 hover:underline flex-1"
+                                >
+                                  {channel.topVideoTitle || "영상 보기"}
+                                </a>
+                                {(() => {
+                                  const videoId = extractVideoId(channel.topVideoUrl);
+                                  const isAnalyzing = analyzingVideoId === videoId;
+                                  const isAnalyzed = videoId ? analyzedVideoIds.has(videoId) : false;
+                                  const hasResult = videoId ? analysisResults[videoId] : false;
+                                  
+                                  return (
+                                    <Button
+                                      size="sm"
+                                      variant={isAnalyzed ? "outline" : "default"}
+                                      onClick={() => {
+                                        if (hasResult && videoId) {
+                                          setOpenDialogVideoId(videoId);
+                                        } else {
+                                          handleAnalyze(channel);
+                                        }
+                                      }}
+                                      disabled={isAnalyzing || !geminiApiKey}
+                                      className={
+                                        isAnalyzed
+                                          ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                                          : "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
+                                      }
+                                    >
+                                      {isAnalyzing ? (
+                                        <>
+                                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                          분석 중...
+                                        </>
+                                      ) : isAnalyzed ? (
+                                        <>
+                                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                                          📊 분석 완료
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="w-4 h-4 mr-2" />
+                                          ✨ AI 분석
+                                        </>
+                                      )}
+                                    </Button>
+                                  );
+                                })()}
+                              </>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">대표 영상 없음</span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -849,69 +912,6 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                             {Math.floor(channel.changePercent)}%
                           </span>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {channel.topVideoUrl ? (
-                          <a
-                            href={channel.topVideoUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-500 hover:text-blue-700 hover:underline"
-                          >
-                            {channel.topVideoTitle || "영상 보기"}
-                          </a>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        {channel.topVideoUrl ? (
-                          (() => {
-                            const videoId = extractVideoId(channel.topVideoUrl);
-                            const isAnalyzing = analyzingVideoId === videoId;
-                            const isAnalyzed = videoId ? analyzedVideoIds.has(videoId) : false;
-                            const hasResult = videoId ? analysisResults[videoId] : false;
-                            
-                            return (
-                              <Button
-                                size="sm"
-                                variant={isAnalyzed ? "outline" : "default"}
-                                onClick={() => {
-                                  if (hasResult && videoId) {
-                                    setOpenDialogVideoId(videoId);
-                                  } else {
-                                    handleAnalyze(channel);
-                                  }
-                                }}
-                                disabled={isAnalyzing || !geminiApiKey}
-                                className={
-                                  isAnalyzed
-                                    ? "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
-                                    : "bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
-                                }
-                              >
-                                {isAnalyzing ? (
-                                  <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    분석 중...
-                                  </>
-                                ) : isAnalyzed ? (
-                                  <>
-                                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                                    📊 분석 완료
-                                  </>
-                                ) : (
-                                  <>
-                                    <Sparkles className="w-4 h-4 mr-2" />
-                                    ✨ AI 분석
-                                  </>
-                                )}
-                              </Button>
-                            );
-                          })()
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
                       </TableCell>
                     </TableRow>
                   ))}
