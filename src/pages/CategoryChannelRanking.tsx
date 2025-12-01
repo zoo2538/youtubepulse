@@ -470,35 +470,6 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
       </header>
 
       <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* API 키 설정 경고 배너 */}
-        {!geminiApiKey && (
-          <Card className="p-4 mb-6 border-2 border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <span className="text-2xl">⚠️</span>
-                <div>
-                  <p className="font-semibold text-yellow-800 dark:text-yellow-200">
-                    Gemini API 키가 설정되지 않았습니다
-                  </p>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                    AI 분석 기능을 사용하려면 API 키를 설정해주세요.
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={() => {
-                  setApiKeyInput('');
-                  setOpenApiKeyDialog(true);
-                }}
-                className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600"
-              >
-                <Key className="w-4 h-4 mr-2" />
-                키 설정하기
-              </Button>
-            </div>
-          </Card>
-        )}
-
         {/* 카테고리 헤더 */}
         <div className="flex items-center justify-between">
           <div>
@@ -681,16 +652,8 @@ ${insight.intro_hook ? `🎬 도입부 훅 (Intro Hook)
                               {video.description || '영상 설명 정보 없음'}
                             </div>
                           </div>
-                          {/* 두 번째 행: 영상 링크와 AI 분석 */}
-                          <div className="flex items-center justify-start space-x-3 pt-2 border-t">
-                            <a
-                              href={video.topVideoUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-500 hover:text-blue-700 hover:underline"
-                            >
-                              🔗 영상 링크
-                            </a>
+                          {/* 두 번째 행: AI 분석 */}
+                          <div className="flex items-center justify-start pt-2 border-t">
                             {(() => {
                               const isAnalyzing = analyzingVideoId === video.videoId;
                               const isAnalyzed = analyzedVideoIds.has(video.videoId);
