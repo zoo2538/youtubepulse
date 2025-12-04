@@ -190,14 +190,17 @@ const ChannelDetail = () => {
           setChannelData({
             channelId: firstVideo.channelId,
             channelName: firstVideo.channelName,
-            description: firstVideo.description || "비어있음",
+            description: firstVideo.description || firstVideo.channelDescription || "비어있음",
             category: firstVideo.category,
             subCategory: firstVideo.subCategory || "미분류",
             youtubeUrl: `https://www.youtube.com/channel/${firstVideo.channelId}`,
             thumbnail: channelThumbnail,
             totalViews,
             averageViews,
-            videoCount: channelVideos.length,
+            videoCount: channelVideos.length, // 수집된 영상 개수
+            totalSubscribers: firstVideo.subscriberCount || firstVideo.totalSubscribers, // 채널의 실제 구독자 수
+            channelCreationDate: firstVideo.channelCreationDate, // 채널 생성일
+            channelVideoCount: firstVideo.channelVideoCount, // 채널의 실제 영상 개수
             dailyUploads: 2.71,
             weeklyViews: totalViews,
             avgVideoLength: 50.97,
@@ -484,6 +487,26 @@ const ChannelDetail = () => {
               <h2 className="text-lg font-semibold text-foreground">상세 정보</h2>
               
               <div className="space-y-3">
+                {channelData.totalSubscribers && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">총 구독자 수:</span>
+                    <span className="font-medium text-foreground">{formatNumber(channelData.totalSubscribers)}</span>
+                  </div>
+                )}
+                {channelData.channelCreationDate && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">채널 생성일:</span>
+                    <span className="font-medium text-foreground">
+                      {new Date(channelData.channelCreationDate).toLocaleDateString('ko-KR')}
+                    </span>
+                  </div>
+                )}
+                {channelData.channelVideoCount && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-muted-foreground">영상 개수:</span>
+                    <span className="font-medium text-foreground">{channelData.channelVideoCount.toLocaleString()}개</span>
+                  </div>
+                )}
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">일평균 업로드수:</span>
                   <span className="font-medium text-foreground">{channelData.dailyUploads}</span>
