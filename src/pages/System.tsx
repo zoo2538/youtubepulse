@@ -1120,6 +1120,13 @@ const System = () => {
           sourceType = 'keyword';
         }
         
+        // 채널 상세 정보 추출
+        const subscriberCount = channel?.statistics?.subscriberCount ? parseInt(channel.statistics.subscriberCount) : undefined;
+        const channelVideoCount = channel?.statistics?.videoCount ? parseInt(channel.statistics.videoCount) : undefined;
+        const channelCreationDate = channel?.snippet?.publishedAt ? channel.snippet.publishedAt.split('T')[0] : undefined;
+        const channelDescription = channel?.snippet?.description || undefined;
+        const channelThumbnail = channel?.snippet?.thumbnails?.high?.url || channel?.snippet?.thumbnails?.default?.url || undefined;
+        
         // 기존 분류 시스템만 사용
         // - 비디오 ID 기준 우선: 14일 데이터에 있으면 그 분류 사용 (classified)
         // - 채널 ID 기준 보조: 비디오 ID가 없으면 채널 ID 기준 분류 사용
@@ -1145,7 +1152,13 @@ const System = () => {
           source: sourceType, // 수집 소스 추가 (trending or keyword)
           subCategory: existingClassification?.subCategory || '', // 비디오 ID 우선 → 채널 ID 보조, 없으면 빈값
           status: existingClassification ? "classified" as const : "unclassified" as const, // 분류 데이터 없으면 무조건 unclassified
-          autoClassified: !!existingClassification // 기존 분류 데이터로 분류된 경우만 true
+          autoClassified: !!existingClassification, // 기존 분류 데이터로 분류된 경우만 true
+          // 채널 상세 정보 추가
+          subscriberCount: subscriberCount,
+          channelVideoCount: channelVideoCount,
+          channelCreationDate: channelCreationDate,
+          channelDescription: channelDescription,
+          channelThumbnail: channelThumbnail
         };
       });
 

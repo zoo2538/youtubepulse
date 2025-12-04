@@ -21,6 +21,7 @@ interface VideoData {
   channelDescription?: string;
   subscriberCount?: number;
   totalSubscribers?: number;
+  channelVideoCount?: number;
   channelCreationDate?: string;
   publishedAt?: string;
   videoDescription?: string;
@@ -210,7 +211,7 @@ self.onmessage = function(e: MessageEvent<WorkerMessage>) {
           totalSubscribers: item.subscriberCount || item.totalSubscribers,
           channelCreationDate: item.channelCreationDate || 
             (item.publishedAt ? item.publishedAt.split('T')[0] : undefined),
-          videoCount: 0
+          videoCount: item.channelVideoCount || 0 // 채널의 실제 영상 개수 사용
         };
         videoIdSets[item.channelId] = new Set();
       }
@@ -223,9 +224,12 @@ self.onmessage = function(e: MessageEvent<WorkerMessage>) {
       }
     }
     
-    // 고유 비디오 개수 설정 및 최고 조회수 비디오 찾기
+    // 채널의 실제 영상 개수가 없으면 고유 비디오 개수 사용
     Object.keys(todayChannelGroups).forEach(channelId => {
-      todayChannelGroups[channelId].videoCount = videoIdSets[channelId]?.size || 0;
+      // 채널의 실제 영상 개수가 이미 설정되어 있으면 유지, 없으면 고유 비디오 개수 사용
+      if (!todayChannelGroups[channelId].videoCount || todayChannelGroups[channelId].videoCount === 0) {
+        todayChannelGroups[channelId].videoCount = videoIdSets[channelId]?.size || 0;
+      }
       
       // 해당 채널의 최고 조회수 비디오 찾기
       const channelVideos = todayData.filter((item) => 

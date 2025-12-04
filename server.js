@@ -1074,8 +1074,10 @@ app.post('/api/unclassified', async (req, res) => {
             video_id, channel_id, channel_name, video_title, 
             video_description, view_count, like_count, comment_count,
             upload_date, collection_date, thumbnail_url, 
-            category, sub_category, status, day_key_local, collection_type
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            category, sub_category, status, day_key_local, collection_type,
+            subscriber_count, channel_video_count, channel_creation_date,
+            channel_description, channel_thumbnail_url
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
           ON CONFLICT (video_id, day_key_local) 
           DO UPDATE SET
             channel_id = EXCLUDED.channel_id,
@@ -1090,6 +1092,11 @@ app.post('/api/unclassified', async (req, res) => {
             sub_category = EXCLUDED.sub_category,
             status = EXCLUDED.status,
             collection_type = EXCLUDED.collection_type,
+            subscriber_count = COALESCE(unclassified_data.subscriber_count, EXCLUDED.subscriber_count),
+            channel_video_count = COALESCE(unclassified_data.channel_video_count, EXCLUDED.channel_video_count),
+            channel_creation_date = COALESCE(unclassified_data.channel_creation_date, EXCLUDED.channel_creation_date),
+            channel_description = COALESCE(unclassified_data.channel_description, EXCLUDED.channel_description),
+            channel_thumbnail_url = COALESCE(unclassified_data.channel_thumbnail_url, EXCLUDED.channel_thumbnail_url),
             updated_at = NOW()
           RETURNING (xmax = 0) AS inserted
         `, [
@@ -1108,7 +1115,12 @@ app.post('/api/unclassified', async (req, res) => {
           item.subCategory || item.sub_category || '', 
           item.status || 'unclassified',
           dayKeyLocal,
-          item.collectionType || item.collection_type || 'manual'
+          item.collectionType || item.collection_type || 'manual',
+          item.subscriberCount || item.subscriber_count || null,
+          item.channelVideoCount || item.channel_video_count || null,
+          item.channelCreationDate || item.channel_creation_date || null,
+          item.channelDescription || item.channel_description || null,
+          item.channelThumbnail || item.channel_thumbnail_url || null
         ]);
           
           if (result.rows[0].inserted) {
