@@ -3385,8 +3385,9 @@ app.post('/api/sync/download', async (req, res) => {
     }
 
     // 서버용 PostgreSQL 서비스 사용
-    const { getDifferentialData } = await import('./lib/postgresql-server-service.js');
-    const recentData = await getDifferentialData(pool, lastSyncTime);
+    const { createPostgreSQLService } = await import('./src/lib/postgresql-service-server.js');
+    const postgresqlService = createPostgreSQLService(pool);
+    const recentData = await postgresqlService.getDifferentialData(lastSyncTime);
 
     res.status(200).json({
       success: true,
