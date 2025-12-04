@@ -1015,23 +1015,52 @@ const System = () => {
         }
       }
       
+      // 비디오 ID 기준 분류 맵 (우선순위 1)
+      const classifiedVideoMap = new Map();
+      // 채널 ID 기준 분류 맵 (우선순위 2)
       const classifiedChannelMap = new Map();
       
-      // 채널별로 가장 최근 분류 정보만 사용 (같은 채널의 최신 분류 우선)
+      // 비디오별로 가장 최근 분류 정보만 사용
+      const videoLatestClassification = new Map();
+      // 채널별로 가장 최근 분류 정보만 사용 (비디오 ID가 없을 때 사용)
       const channelLatestClassification = new Map();
+      
       existingClassifiedData.forEach((item: any) => {
-        if (!channelLatestClassification.has(item.channelId) || 
-            item.collectionDate > channelLatestClassification.get(item.channelId).collectionDate) {
-          channelLatestClassification.set(item.channelId, {
-            category: item.category,
-            subCategory: item.subCategory,
-            collectionDate: item.collectionDate,
-            channelName: item.channelName
-          });
+        // 비디오 ID 기준 분류 (우선순위 1)
+        if (item.videoId) {
+          if (!videoLatestClassification.has(item.videoId) || 
+              item.collectionDate > videoLatestClassification.get(item.videoId).collectionDate) {
+            videoLatestClassification.set(item.videoId, {
+              category: item.category,
+              subCategory: item.subCategory,
+              collectionDate: item.collectionDate,
+              videoTitle: item.videoTitle
+            });
+          }
+        }
+        
+        // 채널 ID 기준 분류 (우선순위 2)
+        if (item.channelId) {
+          if (!channelLatestClassification.has(item.channelId) || 
+              item.collectionDate > channelLatestClassification.get(item.channelId).collectionDate) {
+            channelLatestClassification.set(item.channelId, {
+              category: item.category,
+              subCategory: item.subCategory,
+              collectionDate: item.collectionDate,
+              channelName: item.channelName
+            });
+          }
         }
       });
       
       // 최종 분류 맵 구성
+      videoLatestClassification.forEach((classification, videoId) => {
+        classifiedVideoMap.set(videoId, {
+          category: classification.category,
+          subCategory: classification.subCategory
+        });
+      });
+      
       channelLatestClassification.forEach((classification, channelId) => {
         classifiedChannelMap.set(channelId, {
           category: classification.category,
@@ -1039,9 +1068,10 @@ const System = () => {
         });
       });
       
-      console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개`);
+      console.log(`📊 분류 참조 비디오: ${classifiedVideoMap.size}개 (우선순위 1)`);
+      console.log(`📊 분류 참조 채널: ${classifiedChannelMap.size}개 (우선순위 2)`);
       console.log(`📊 분류 참조 기간: 최근 14일간의 최신 분류 정보만 사용`);
-      console.log(`📊 기존 분류 시스템: 14일간 분류 이력 기반 분류 적용`);
+      console.log(`📊 기존 분류 시스템: 비디오 ID 우선 → 채널 ID 보조`);
       
       // 5. 기존 데이터 먼저 로드 (날짜 유지를 위해)
       // utils 함수들은 이미 정적 import됨
@@ -1070,7 +1100,13 @@ const System = () => {
       
       const newData = uniqueVideos.map((video: any, index: number) => {
         const channel = allChannels.find((ch: any) => ch.id === video.snippet.channelId);
-        const existingClassification = classifiedChannelMap.get(video.snippet.channelId);
+        
+        // 비디오 ID 기준 분류 우선 확인 (우선순위 1)
+        let existingClassification = classifiedVideoMap.get(video.id);
+        // 비디오 ID 분류가 없으면 채널 ID 기준 확인 (우선순위 2)
+        if (!existingClassification) {
+          existingClassification = classifiedChannelMap.get(video.snippet.channelId);
+        }
         
         // 오늘 수집된 모든 영상은 오늘 날짜로 설정 (기존 날짜 유지하지 않음)
         const collectionDate = today;
@@ -1085,8 +1121,9 @@ const System = () => {
         }
         
         // 기존 분류 시스템만 사용
-        // - 14일 데이터에 있으면: 그 분류 사용 (classified)
-        // - 14일 데이터에 없으면: 수동 분류 대기 (unclassified)
+        // - 비디오 ID 기준 우선: 14일 데이터에 있으면 그 분류 사용 (classified)
+        // - 채널 ID 기준 보조: 비디오 ID가 없으면 채널 ID 기준 분류 사용
+        // - 둘 다 없으면: 수동 분류 대기 (unclassified)
         
         return {
           id: Date.now() + index,
@@ -1100,14 +1137,14 @@ const System = () => {
           uploadDate: video.snippet.publishedAt.split('T')[0],
           collectionDate: collectionDate, // 🔥 오늘 수집된 모든 영상은 오늘 날짜로 설정
           thumbnailUrl: video.snippet.thumbnails?.high?.url || video.snippet.thumbnails?.default?.url || '',
-          category: existingClassification?.category || '', // 14일 데이터만 사용, 없으면 빈값
+          category: existingClassification?.category || '', // 비디오 ID 우선 → 채널 ID 보조, 없으면 빈값
           collectionType: 'manual', // 수동 수집으로 명시
           collectionTimestamp: getKoreanDateTimeString(), // 수집 시간 기록 (한국 시간)
           collectionSource: 'system_page', // 수집 소스 기록
           keyword: sourceKeyword, // 키워드 정보 추가
           source: sourceType, // 수집 소스 추가 (trending or keyword)
-          subCategory: existingClassification?.subCategory || '', // 14일 데이터만 사용, 없으면 빈값
-          status: existingClassification ? "classified" as const : "unclassified" as const, // 14일 데이터 없으면 무조건 unclassified
+          subCategory: existingClassification?.subCategory || '', // 비디오 ID 우선 → 채널 ID 보조, 없으면 빈값
+          status: existingClassification ? "classified" as const : "unclassified" as const, // 분류 데이터 없으면 무조건 unclassified
           autoClassified: !!existingClassification // 기존 분류 데이터로 분류된 경우만 true
         };
       });

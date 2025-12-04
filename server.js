@@ -2570,8 +2570,22 @@ async function autoCollectData() {
     
     const client = await pool.connect();
     
-    // unclassified_data 테이블에서 실시간 최신 분류 데이터 조회
-    const classifiedResult = await client.query(`
+    // 비디오 ID 기준 분류 데이터 조회 (우선순위 1)
+    const videoClassifiedResult = await client.query(`
+      SELECT DISTINCT ON (video_id)
+        video_id, category, sub_category, day_key_local
+      FROM unclassified_data
+      WHERE status = 'classified' 
+        AND category IS NOT NULL 
+        AND category != ''
+        AND sub_category IS NOT NULL
+        AND sub_category != ''
+        AND day_key_local >= $1
+      ORDER BY video_id, day_key_local DESC
+    `, [fourteenDaysAgoString]);
+    
+    // 채널 ID 기준 분류 데이터 조회 (우선순위 2)
+    const channelClassifiedResult = await client.query(`
       SELECT DISTINCT ON (channel_id)
         channel_id, category, sub_category, day_key_local
       FROM unclassified_data
@@ -2584,8 +2598,19 @@ async function autoCollectData() {
       ORDER BY channel_id, day_key_local DESC
     `, [fourteenDaysAgoString]);
     
+    // 비디오 ID 기준 분류 맵 (우선순위 1)
+    let classifiedVideoMap = new Map();
+    videoClassifiedResult.rows.forEach(row => {
+      classifiedVideoMap.set(row.video_id, {
+        category: row.category,
+        subCategory: row.sub_category,
+        collectionDate: row.day_key_local
+      });
+    });
+    
+    // 채널 ID 기준 분류 맵 (우선순위 2)
     let classifiedChannelMap = new Map();
-    classifiedResult.rows.forEach(row => {
+    channelClassifiedResult.rows.forEach(row => {
       classifiedChannelMap.set(row.channel_id, {
         category: row.category,
         subCategory: row.sub_category,
@@ -2593,7 +2618,7 @@ async function autoCollectData() {
       });
     });
     
-    console.log(`✅ 자동 분류 참조 (실시간): ${classifiedChannelMap.size}개 채널 (최근 14일)`);
+    console.log(`✅ 자동 분류 참조 (실시간): 비디오 ${classifiedVideoMap.size}개 (우선순위 1), 채널 ${classifiedChannelMap.size}개 (우선순위 2) (최근 14일)`);
 
     // 채널 정보를 채널 ID로 매핑
     const channelInfoMap = new Map();
@@ -2617,7 +2642,13 @@ async function autoCollectData() {
     const newData = uniqueVideos.map((video, index) => {
       const channel = allChannels.find(ch => ch.id === video.channelId);
       const channelInfo = channelInfoMap.get(video.channelId);
-      const existingClassification = classifiedChannelMap.get(video.channelId);
+      
+      // 비디오 ID 기준 분류 우선 확인 (우선순위 1)
+      let existingClassification = classifiedVideoMap.get(video.videoId);
+      // 비디오 ID 분류가 없으면 채널 ID 기준 확인 (우선순위 2)
+      if (!existingClassification) {
+        existingClassification = classifiedChannelMap.get(video.channelId);
+      }
       
       return {
         id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${index}`,
